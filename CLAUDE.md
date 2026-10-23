@@ -21,16 +21,21 @@ Node is in `C:\Program Files\nodejs`; shells opened before it was installed may 
 ```
 src/model.ts          THE data model: every type of the shared JSON, defaults, parseDesign (validation), serializeDesign
 src/geometry.ts       pure math: snapping, wall frames, door arcs, polygon area, room detection. No React/Konva.
-src/catalog.ts        furniture catalog: real-world sizes + each symbol as simple normalized shapes (also palette icons)
+src/catalog.ts        furniture catalog (~85 items incl. cars, garden items): real-world sizes + each symbol as simple
+                      normalized shapes (also palette icons). Add an item here and it shows up in the palette.
+src/outdoor.ts        looks/defaults of outdoor zones (lawn, terrace, driveway...) and strips (street, path, fence, hedge)
+src/floors.ts         commands for floors: add, basement, duplicate, rename, delete, step up/down
 src/share.ts          pure: encode/decode links (lz-string), JSON parsing, localStorage read/write
 src/session.ts        effectful whole-design flows: bootstrap, link opening, autosave, export/import, new/restore backup
 src/actions.ts        commands on the selection (delete, duplicate, nudge, rotate) + layer lock/hide guards
 src/shortcuts.ts      key table (drives the handler in hooks/useShortcuts.ts AND the in-app help)
 src/store/design.ts   Zustand store: `design` + undo/redo history (immer). The ONLY place the design is mutated.
-src/store/ui.ts       Zustand store for non-shared UI state: tool, selection, viewport, snap, cursor, toast, dialog, save status
+src/store/ui.ts       Zustand store for non-shared UI state: tool, selection, active floor, viewport, snap, cursor, toast, dialog, save status
+src/store/floor.ts    the active floor, validated against the design (`floorId()`, `useFloorId()`, `useOnFloor(pick)`)
 src/canvas/           react-konva scene
   CanvasView.tsx        Stage, camera (wheel zoom, pan), mounts the layers
-  GridLayer.tsx         adaptive grid; layers/*  one component per design layer; tools/*  one component per drawing tool
+  GridLayer.tsx         adaptive grid; layers/*  one component per design layer (+ Underlay = floor below, faint);
+                        tools/*  one component per drawing tool (wall, opening, room, zone, strip, furniture, measure, text)
   input.ts              snapping (snapWorld), drag sessions, stage-event hook for tools, double-click detection
   editing.ts            mouse edits of existing items (move wall, drag corner, slide door...)
   SelectionTransformer  resize/rotate handles for furniture/labels (Konva Transformer)
@@ -49,13 +54,27 @@ e2e/                  Playwright specs + helpers (at(), clickAt(), dragWorld() t
 - **Changing the model**: edit `model.ts` (type + `createDesign` + `parseDesign`). Keep old shared links loading
   (lenient parse with defaults); bump `SCHEMA_VERSION` only for breaking changes. Everything coming from outside
   (links, files, localStorage) goes through `parseDesign` — never trust it.
-- **Layers** (`structure`, `rooms`, `furniture`, `notes`) can be hidden/locked via `design.layers`; this travels in
+- **Floors**: `design.floors` (lowest first, always >= 1). EVERY item except openings carries `floor: Floor.id`; openings
+  follow their wall. Layer components filter with `useOnFloor`; tools stamp `floor: floorId()` on new items; snapping and
+  room detection only consider the active floor (snapping also sees the floor below, so walls line up). Anything that
+  walks all items (delete floor, duplicate floor, `contentBounds`, `isEmptyDesign`) must include zones/strips too.
+  The active floor is UI state (`ui.activeFloor`) and falls back to the lowest floor when it no longer exists.
+- **Outdoor**: `zones` (polygons: lawn, terrace, driveway, flower bed, pond, plot) and `strips` (polylines with a width:
+  street, footpath, fence, hedge) on the `outdoor` layer, drawn under rooms. Big areas must not trap the mouse: press on
+  an unselected zone/room pans on drag and selects on a plain click (`startPan(..., onClick)`); only an already-selected
+  zone/strip is moved by dragging.
+- **Rooms never overlap** (per floor): the room tool selects an existing room instead of creating a duplicate, and refuses
+  any new room that `polygonsOverlap`s another.
+- **Layers** (`structure`, `rooms`, `outdoor`, `furniture`, `notes`) can be hidden/locked via `design.layers`; this travels in
   the link, so locked walls arrive locked. Locked/hidden layers are non-listening in Konva (clicks fall through to
   panning) and tools refuse to add to them (`layerBlocksEditing`).
 - **Never lose work silently**: whenever a design is replaced (new, import, opening a link) the old one goes to
   `perfect-home:backup`; opening a link over non-empty work asks first. Autosave only starts after boot has decided what to show.
 - **Konva**: all design layers are `Group`s inside ONE Konva `Layer` (Konva warns above ~5 layers). Grid is its own
   layer below, overlay (handles, tool previews, transformer) its own layer above. PNG export hides first and last layer.
+- **Old links must keep working**: `parseDesign` fills defaults (a design without `floors` gets one "Ground floor";
+  unknown kinds/floor ids are repaired). Cover every model change with a test in `share.test.ts`.
+- **Tool options bar** (`.tool-options`) floats over the plan: keep it one short line, or it swallows clicks (it did once).
 - **Konva gotchas found the hard way**: Konva's `dblclick` ignores pointer distance (two quick clicks on different
   corners count) — use `isDoubleClick`. While dragging a corner, its own previous position must not be a snap target.
 - **Rooms** are polygons. Auto mode flood-fills from the click on a raster of the walls (door gaps count as closed), so
@@ -65,3 +84,4 @@ e2e/                  Playwright specs + helpers (at(), clickAt(), dragWorld() t
 
 ## Milestones (one commit each)
 1 canvas · 2 walls/openings/rooms/undo · 3 furniture · 4 labels/measure/layers · 5 share/export/autosave · 6 GitHub Pages deploy
+then: room overlap fix · floors + garage/double door/open passage · outdoor areas & lines · bigger furniture catalog

@@ -7,7 +7,8 @@ export function HelpDialog({ onClose }: { onClose: () => void }) {
         <h2>How it works</h2>
         <p className="muted">
           Everything is measured in real units: the grid snaps to the step you choose, and the scale bar in the corner
-          shows the current zoom in meters.
+          shows the current zoom in meters. Use the Outdoor tab for garden, driveway and street, and the Floors panel for
+          more than one level.
         </p>
         <table className="help-table">
           <tbody>

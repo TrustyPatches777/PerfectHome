@@ -3,6 +3,14 @@
 A simple top-down home designer that runs in the browser. Draw walls, doors and windows, name rooms and see their
 area, then furnish them. Share the design as a link: everything is inside the link, there is no server.
 
+## What it can do
+
+- **Rooms:** draw walls, add doors (single, double, garage door), windows and open passages, click inside walls to make a named room with its floor color and m² area. Rooms never overlap.
+- **Multiple floors:** add floors above or a basement, duplicate a floor, switch with Page Up / Page Down. The floor below shows faintly so walls line up.
+- **Outdoors:** lawn, terrace, driveway, flower bed, pond, plot boundary, plus a street, footpath, fence and hedge, all on their own lockable layer.
+- **~85 furniture symbols** in real sizes: rooms, kitchen, bathroom, utility, cars, bikes, trees, garden items and more.
+- **Labels, measurements, layers you can hide or lock, undo/redo, PNG and JSON export, share links, autosave.**
+
 ## Using it
 
 1. Build a (half-finished) design, lock the **Walls, doors & windows** layer in the Layers panel so it can't be moved by accident.

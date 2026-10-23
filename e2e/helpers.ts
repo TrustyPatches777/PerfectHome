@@ -56,3 +56,13 @@ export async function drawBox(page: Page, x0: number, y0: number, x1: number, y1
   }
   await page.getByTestId('tool-select').click();
 }
+
+/** Click a furniture tile, opening collapsed palette categories first if needed. */
+export async function pickFurniture(page: Page, type: string) {
+  const tile = page.getByTestId(`furn-${type}`);
+  if (!(await tile.count())) {
+    const closed = page.locator('.cat-head[aria-expanded="false"]');
+    for (let i = 0; i < 12 && (await closed.count()); i++) await closed.first().click(); // a live query: each click shrinks it
+  }
+  await tile.click();
+}

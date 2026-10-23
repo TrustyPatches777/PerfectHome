@@ -632,3 +632,24 @@ button.primary:hover:not(:disabled) {
   margin-top: 8px;
   border-top: none;
 }
+
+.cat-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 4px 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+}
+.cat-head em {
+  margin-left: auto;
+  font-style: normal;
+  font-weight: 400;
+}

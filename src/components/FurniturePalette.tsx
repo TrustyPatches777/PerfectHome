@@ -27,6 +27,7 @@ export function FurniturePalette() {
   const placing = useUi((s) => s.placing);
   const tool = useUi((s) => s.tool);
   const [query, setQuery] = useState('');
+  const [open, setOpen] = useState<Set<string>>(new Set(['Bedroom', 'Living']));
   const q = query.trim().toLowerCase();
 
   const pick = (type: string) => {
@@ -43,8 +44,15 @@ export function FurniturePalette() {
         if (!items.length) return null;
         return (
           <section key={cat}>
-            <h5>{cat}</h5>
-            <div className="tiles">
+            <button
+              className="cat-head"
+              aria-expanded={!!q || open.has(cat)}
+              data-testid={`cat-${cat}`}
+              onClick={() => setOpen((o) => (o.has(cat) ? new Set([...o].filter((c) => c !== cat)) : new Set([...o, cat])))}
+            >
+              <span>{q || open.has(cat) ? '▾' : '▸'}</span> {cat} <em>{items.length}</em>
+            </button>
+            {(q || open.has(cat)) && <div className="tiles">
               {items.map((c) => (
                 <button
                   key={c.type}
@@ -59,7 +67,7 @@ export function FurniturePalette() {
                   <span className="tile-label">{c.label}</span>
                 </button>
               ))}
-            </div>
+            </div>}
           </section>
         );
       })}

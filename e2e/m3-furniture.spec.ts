@@ -1,12 +1,12 @@
 import { test, expect, type Page } from '@playwright/test';
-import { at, clickAt, design, dragWorld, drawBox, fresh, moveTo, ui } from './helpers';
+import { at, clickAt, design, dragWorld, drawBox, fresh, moveTo, pickFurniture, ui } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await fresh(page);
 });
 
 async function place(page: Page, type: string, x: number, y: number, opts: { shift?: boolean } = {}) {
-  await page.getByTestId(`furn-${type}`).click();
+  await pickFurniture(page, type);
   await moveTo(page, x, y);
   if (opts.shift) await page.keyboard.down('Shift');
   await clickAt(page, x, y);
@@ -14,7 +14,7 @@ async function place(page: Page, type: string, x: number, y: number, opts: { shi
 }
 
 test('palette lists real-world sizes and places an item at the snapped cursor position', async ({ page }) => {
-  await expect(page.getByTestId('palette')).toContainText('Bathtub');
+  await expect(page.getByTestId('palette')).toContainText('Double bed');
   await expect(page.getByTestId('furn-bed-double')).toHaveAttribute('title', /160 × 200 cm/);
   await place(page, 'bed-double', 3.04, 3.02);
   const d = await design(page);
@@ -104,7 +104,7 @@ test('resize and rotate with the on-canvas handles', async ({ page }) => {
 });
 
 test('shift+click keeps placing; Esc stops; R rotates the ghost', async ({ page }) => {
-  await page.getByTestId('furn-chair').click();
+  await pickFurniture(page, 'chair');
   await page.keyboard.press('r');
   expect((await ui(page)).placingRotation).toBe(90);
   await moveTo(page, 2, 2);
