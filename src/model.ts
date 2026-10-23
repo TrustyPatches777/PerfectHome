@@ -206,10 +206,10 @@ function list<T>(v: unknown, map: (o: Json) => T | null): T[] {
 }
 
 export function parseDesign(input: unknown): Design {
-  if (!isObj(input)) throw new Error('Not a design file.');
-  if (typeof input.v !== 'number' || input.v > SCHEMA_VERSION) {
-    throw new Error('This design was made with a newer version of the app.');
+  if (!isObj(input) || typeof input.v !== 'number' || !Array.isArray(input.walls)) {
+    throw new Error('Not a design: this is not a Perfect Home design.');
   }
+  if (input.v > SCHEMA_VERSION) throw new Error('This design was made with a newer version of the app.');
   const base = createDesign();
   const settings = isObj(input.settings) ? input.settings : {};
   const layers = isObj(input.layers) ? input.layers : {};

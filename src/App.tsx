@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CanvasView } from './canvas/CanvasView';
 import { TopBar } from './components/TopBar';
 import { StatusBar } from './components/StatusBar';
@@ -7,12 +7,16 @@ import { FurniturePalette } from './components/FurniturePalette';
 import { Properties } from './components/Properties';
 import { LayersPanel } from './components/LayersPanel';
 import { HelpDialog } from './components/HelpDialog';
+import { Dialogs } from './components/Dialogs';
 import { useShortcuts } from './hooks/useShortcuts';
+import { bootstrap } from './session';
 
 export function App() {
   const [help, setHelp] = useState(false);
   const toggleHelp = useCallback(() => setHelp((h) => !h), []);
   useShortcuts(toggleHelp);
+  // Child effects (the canvas measuring itself) run first, so the loaded design is framed correctly.
+  useEffect(() => bootstrap(), []);
 
   return (
     <div className="app">
@@ -32,6 +36,7 @@ export function App() {
         </aside>
       </div>
       {help && <HelpDialog onClose={toggleHelp} />}
+      <Dialogs />
     </div>
   );
 }

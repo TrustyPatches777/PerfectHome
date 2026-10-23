@@ -2,6 +2,8 @@ import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
 import { fitView, zoomByCenter } from '../canvas/camera';
 import { GRID_STEPS } from '../model';
+import { shareLink } from '../session';
+import { FileMenu } from './FileMenu';
 
 export function TopBar({ onHelp }: { onHelp: () => void }) {
   const name = useDesign((s) => s.design.name);
@@ -10,6 +12,7 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
   const canRedo = useDesign((s) => s.future.length > 0);
   const snap = useUi((s) => s.snap);
   const zoom = useUi((s) => s.viewport.zoom);
+  const saveState = useUi((s) => s.saveState);
   const { update, undo, redo } = useDesign.getState();
 
   return (
@@ -57,6 +60,21 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
       </div>
 
       <div className="spacer" />
+
+      <span className={`save-state ${saveState.failed ? 'failed' : ''}`} data-testid="save-state" title="Your design is saved automatically in this browser">
+        {saveState.failed
+          ? '⚠ Could not autosave (storage full or blocked). Use Export JSON.'
+          : saveState.at
+            ? `✓ Saved ${new Date(saveState.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            : ''}
+      </span>
+
+      <div className="group">
+        <FileMenu />
+        <button className="primary" onClick={() => void shareLink()} title="Copy a link that opens this design" data-testid="share">
+          Share
+        </button>
+      </div>
 
       <div className="group">
         <button onClick={() => zoomByCenter(1 / 1.25)} title="Zoom out" aria-label="Zoom out">

@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import type { ItemRef, Point } from '../model';
+import type { Design, ItemRef, Point } from '../model';
+
+/** A modal question or message. Rendered by components/Dialogs.tsx. */
+export type DialogState =
+  | { type: 'share'; url: string; copied: boolean; long: boolean }
+  | { type: 'link-conflict'; incoming: Design; current: Design; sameDesign: boolean; choose: (useShared: boolean) => void };
 
 export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text';
 
@@ -48,6 +53,13 @@ interface UiStore {
   openingWidth: { door: number; window: number };
   setOpeningWidth: (kind: 'door' | 'window', w: number) => void;
 
+  dialog: DialogState | null;
+  setDialog: (d: DialogState | null) => void;
+
+  /** Autosave status for the top bar. */
+  saveState: { at: number | null; failed: boolean };
+  setSaveState: (s: { at: number | null; failed: boolean }) => void;
+
   /** Bumped to ask the properties panel to focus its text field (new/double-clicked label). */
   textFocus: number;
   requestTextFocus: () => void;
@@ -87,6 +99,12 @@ export const useUi = create<UiStore>((set) => ({
 
   openingWidth: { door: 0.9, window: 1.2 },
   setOpeningWidth: (kind, w) => set((s) => ({ openingWidth: { ...s.openingWidth, [kind]: w } })),
+
+  dialog: null,
+  setDialog: (dialog) => set({ dialog }),
+
+  saveState: { at: null, failed: false },
+  setSaveState: (saveState) => set({ saveState }),
 
   textFocus: 0,
   requestTextFocus: () => set((s) => ({ textFocus: s.textFocus + 1 })),

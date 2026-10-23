@@ -55,7 +55,7 @@ export function RoomTool() {
             .showToast(walls.length ? 'No closed room here. Close the walls, or switch to "Draw" to click the corners.' : 'Draw some walls first.');
           return;
         }
-        addRoom(poly, world);
+        addRoom(poly, { x: Math.round(world.x * 1000) / 1000, y: Math.round(world.y * 1000) / 1000 });
         return;
       }
       const p = snapWorld(world).p;
