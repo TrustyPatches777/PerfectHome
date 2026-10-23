@@ -2,9 +2,9 @@ import { Group, Line, Text } from 'react-konva';
 import { formatArea, labelPoint, polygonArea } from '../../geometry';
 import { useDesign } from '../../store/design';
 import { useOnFloor } from '../../store/floor';
-import { useUi } from '../../store/ui';
-import { startPan } from '../camera';
+import { useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
+import { pressItem } from '../press';
 import { SELECT_COLOR } from '../style';
 
 export function RoomsLayer() {
@@ -12,7 +12,7 @@ export function RoomsLayer() {
   const layer = useDesign((s) => s.design.layers.rooms);
   const tool = useUi((s) => s.tool);
   const zoom = useUi((s) => s.viewport.zoom);
-  const selId = useUi((s) => (s.selection?.kind === 'room' ? s.selection.id : null));
+  const selIds = useSelectedIds('room');
 
   if (!layer.visible) return null;
   const fs = 13 / zoom; // labels keep a constant on-screen size
@@ -27,15 +27,14 @@ export function RoomsLayer() {
             closed
             fill={r.color}
             opacity={0.92}
-            stroke={r.id === selId ? SELECT_COLOR : undefined}
+            stroke={selIds.has(r.id) ? SELECT_COLOR : undefined}
             strokeWidth={2}
             strokeScaleEnabled={false}
             name={`room-${r.id}`}
             onMouseDown={(e) => {
               if (e.evt.button !== 0 || input.space) return;
               e.cancelBubble = true;
-              // click selects; dragging pans (rooms fill most of the screen)
-              startPan(e.evt.clientX, e.evt.clientY, () => useUi.getState().select({ kind: 'room', id: r.id }));
+              pressItem(e.evt, { kind: 'room', id: r.id }, 'area');
             }}
           />
         );

@@ -1,3 +1,4 @@
+import type { Bounds } from '../geometry';
 import type { Design, Point } from '../model';
 import { floorId } from '../store/floor';
 import { clampZoom, useUi, type Viewport } from '../store/ui';
@@ -43,12 +44,7 @@ export function zoomByCenter(factor: number) {
   setViewport(zoomAt(viewport, factor, canvasSize.w / 2, canvasSize.h / 2));
 }
 
-export interface Bounds {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-}
+export type { Bounds };
 
 /** Bounding box of everything in the design, or null when it is empty. */
 export function contentBounds(d: Design, floor?: string): Bounds | null {

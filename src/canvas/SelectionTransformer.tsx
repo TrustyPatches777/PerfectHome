@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Transformer } from 'react-konva';
 import type Konva from 'konva';
-import { LAYER_OF } from '../model';
+import { layerOfRef } from '../selection';
 import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
 import { SELECT_COLOR } from './style';
@@ -17,8 +17,9 @@ export function SelectionTransformer() {
   const design = useDesign((s) => s.design);
 
   const kind = sel?.kind === 'furniture' || sel?.kind === 'label' ? sel.kind : null;
-  const locked = kind ? design.layers[LAYER_OF[kind]].locked : false;
-  const visible = kind ? design.layers[LAYER_OF[kind]].visible : false;
+  const layer = sel && kind ? design.layers[layerOfRef(design, sel)] : null;
+  const locked = layer ? layer.locked : false;
+  const visible = layer ? layer.visible : false;
   const active = !!sel && !!kind && tool === 'select' && !locked && visible;
 
   // Re-attach after every design change: the node may have been re-created or resized.

@@ -1,5 +1,6 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
-import type { Design, ItemRef, OpeningKind, Point, StripKind, WallType, ZoneKind } from '../model';
+import type { Design, ItemKind, ItemRef, OpeningKind, Point, StripKind, WallType, ZoneKind } from '../model';
 import { STRIP_DEFAULT_WIDTH } from '../model';
 
 /** A modal question or message. Rendered by components/Dialogs.tsx. */
@@ -25,8 +26,14 @@ interface UiStore {
   tool: Tool;
   setTool: (t: Tool) => void;
 
+  /** Everything selected. */
+  selected: ItemRef[];
+  /** The selected item when exactly ONE thing is selected (the properties panel and handles work on it), else null. */
   selection: ItemRef | null;
   select: (s: ItemRef | null) => void;
+  setSelected: (refs: ItemRef[]) => void;
+  /** Add the item to the selection, or remove it when it is already part of it. */
+  toggleSelected: (ref: ItemRef) => void;
 
   /** The floor being edited ('' until a design is loaded; see store/floor.ts for the validated value). */
   activeFloor: string;
@@ -104,13 +111,21 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
 export const useUi = create<UiStore>((set) => ({
   tool: 'select',
-  setTool: (tool) => set((s) => ({ tool, selection: tool === 'select' ? s.selection : null })),
+  setTool: (tool) => set(tool === 'select' ? { tool } : { tool, selection: null, selected: [] }),
 
+  selected: [],
   selection: null,
-  select: (selection) => set({ selection }),
+  select: (ref) => set({ selected: ref ? [ref] : [], selection: ref }),
+  setSelected: (refs) => set({ selected: refs, selection: refs.length === 1 ? refs[0] : null }),
+  toggleSelected: (ref) =>
+    set((s) => {
+      const has = s.selected.some((r) => r.kind === ref.kind && r.id === ref.id);
+      const refs = has ? s.selected.filter((r) => !(r.kind === ref.kind && r.id === ref.id)) : [...s.selected, ref];
+      return { selected: refs, selection: refs.length === 1 ? refs[0] : null };
+    }),
 
   activeFloor: '',
-  setActiveFloor: (activeFloor) => set({ activeFloor, selection: null }),
+  setActiveFloor: (activeFloor) => set({ activeFloor, selection: null, selected: [] }),
   showUnderlay: true,
   setShowUnderlay: (showUnderlay) => set({ showUnderlay }),
 
@@ -170,3 +185,12 @@ export const useUi = create<UiStore>((set) => ({
     toastTimer = setTimeout(() => set({ toast: null }), 3500);
   },
 }));
+
+/** The ids of the selected items of one kind (a stable Set between selection changes). */
+export function useSelectedIds(kind: ItemKind): Set<string> {
+  const selected = useUi((s) => s.selected);
+  return useMemo(() => new Set(selected.filter((r) => r.kind === kind).map((r) => r.id)), [selected, kind]);
+}
+
+/** True while more than one thing is selected (single items get handles/transformers; groups get outlines). */
+export const useIsMulti = () => useUi((s) => s.selected.length > 1);

@@ -1,20 +1,15 @@
 import { Group, Line, Rect, Text } from 'react-konva';
-import type { Point, TextLabel } from '../../model';
-import { dist, formatLength, snapPoint } from '../../geometry';
+import type { Point } from '../../model';
+import { dist, formatLength, textBox as labelBox } from '../../geometry';
 import { useDesign } from '../../store/design';
 import { useOnFloor } from '../../store/floor';
-import { useUi } from '../../store/ui';
-import { dragSession, input } from '../input';
+import { useIsMulti, useSelectedIds, useUi } from '../../store/ui';
+import { input } from '../input';
+import { pressItem } from '../press';
 import { SELECT_COLOR } from '../style';
 
 const DIM_COLOR = '#0f766e';
 
-/** Rough text size in meters: good enough for centering and hit areas without measuring fonts. */
-export function labelBox(l: Pick<TextLabel, 'text' | 'size'>) {
-  const lines = l.text.split('\n');
-  const chars = Math.max(1, ...lines.map((s) => s.length));
-  return { w: chars * l.size * 0.62 + l.size * 0.4, h: lines.length * l.size * 1.25 };
-}
 
 /** A dimension line with end ticks and the length written alongside it. Also used as the measure-tool preview. */
 export function DimensionShape({ a, b, zoom, selected, id, interactive }: { a: Point; b: Point; zoom: number; selected?: boolean; id?: string; interactive?: boolean }) {
@@ -43,23 +38,7 @@ export function DimensionShape({ a, b, zoom, selected, id, interactive }: { a: P
       onMouseDown={(e) => {
         if (!id || e.evt.button !== 0 || input.space) return;
         e.cancelBubble = true;
-        useUi.getState().select({ kind: 'dimension', id });
-        const a0 = { ...a };
-        const b0 = { ...b };
-        dragSession(e.evt, (world, start) => {
-          const step = useDesign.getState().design.settings.gridStep;
-          const moved = { x: a0.x + world.x - start.x, y: a0.y + world.y - start.y };
-          const t = useUi.getState().snap ? snapPoint(moved, step) : moved;
-          const dx = t.x - a0.x;
-          const dy = t.y - a0.y;
-          useDesign.getState().update((d) => {
-            const m = d.dimensions.find((x) => x.id === id);
-            if (m) {
-              m.a = { x: a0.x + dx, y: a0.y + dy };
-              m.b = { x: b0.x + dx, y: b0.y + dy };
-            }
-          });
-        });
+        pressItem(e.evt, { kind: 'dimension', id }, 'move');
       }}
     >
       <Line points={[a.x, a.y, b.x, b.y]} stroke="rgba(0,0,0,0.001)" strokeWidth={14} strokeScaleEnabled={false} />
@@ -80,14 +59,16 @@ export function NotesLayer() {
   const layer = useDesign((s) => s.design.layers.notes);
   const tool = useUi((s) => s.tool);
   const zoom = useUi((s) => s.viewport.zoom);
-  const sel = useUi((s) => s.selection);
+  const dimIds = useSelectedIds('dimension');
+  const labelIds = useSelectedIds('label');
+  const multi = useIsMulti();
   if (!layer.visible) return null;
   const interactive = tool === 'select' && !layer.locked;
 
   return (
     <Group listening={interactive}>
       {dimensions.map((m) => (
-        <DimensionShape key={m.id} id={m.id} a={m.a} b={m.b} zoom={zoom} selected={sel?.kind === 'dimension' && sel.id === m.id} interactive={interactive} />
+        <DimensionShape key={m.id} id={m.id} a={m.a} b={m.b} zoom={zoom} selected={dimIds.has(m.id)} interactive={interactive} />
       ))}
       {labels.map((l) => {
         const box = labelBox(l);
@@ -98,35 +79,14 @@ export function NotesLayer() {
             x={l.x}
             y={l.y}
             rotation={l.rotation}
-            draggable={interactive}
             onMouseDown={(e) => {
-              if (e.evt.button !== 0 || input.space) {
-                e.target.stopDrag();
-                return;
-              }
+              if (e.evt.button !== 0 || input.space) return;
               e.cancelBubble = true;
-              useUi.getState().select({ kind: 'label', id: l.id });
+              pressItem(e.evt, { kind: 'label', id: l.id }, 'move');
             }}
             onDblClick={() => useUi.getState().requestTextFocus()}
-            onDragStart={() => useDesign.getState().beginTx()}
-            onDragMove={(e) => {
-              const node = e.target;
-              let p = { x: node.x(), y: node.y() };
-              if (useUi.getState().snap) {
-                p = snapPoint(p, useDesign.getState().design.settings.gridStep);
-                node.position(p);
-              }
-              useDesign.getState().update((d) => {
-                const item = d.labels.find((x) => x.id === l.id);
-                if (item) {
-                  item.x = p.x;
-                  item.y = p.y;
-                }
-              });
-            }}
-            onDragEnd={() => useDesign.getState().endTx()}
           >
-            <Rect x={-box.w / 2} y={-box.h / 2} width={box.w} height={box.h} fill="rgba(0,0,0,0.001)" />
+            <Rect x={-box.w / 2} y={-box.h / 2} width={box.w} height={box.h} fill="rgba(0,0,0,0.001)" stroke={multi && labelIds.has(l.id) ? SELECT_COLOR : undefined} strokeWidth={2} strokeScaleEnabled={false} />
             <Text
               x={-box.w / 2}
               y={-box.h / 2}

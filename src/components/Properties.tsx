@@ -9,6 +9,7 @@ import { useDesign } from '../store/design';
 import { useOnFloor } from '../store/floor';
 import { useUi } from '../store/ui';
 import { ColorField, NumberField, TextField } from './fields';
+import { GroupPanel } from './GroupPanel';
 
 const TITLES: Record<ItemRef['kind'], string> = {
   wall: 'Wall',
@@ -34,10 +35,12 @@ const OPENING_TYPES: [OpeningKind, string][] = [
 
 export function Properties() {
   const sel = useUi((s) => s.selection);
+  const count = useUi((s) => s.selected.length);
   const design = useDesign((s) => s.design);
 
+  if (count > 1) return <GroupPanel />;
   if (!sel) return <Summary />;
-  const locked = isLayerLocked(sel.kind);
+  const locked = isLayerLocked(sel);
 
   return (
     <div className="panel" data-testid="properties">

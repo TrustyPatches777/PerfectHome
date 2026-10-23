@@ -3,6 +3,30 @@ import type { Opening, Point, Wall } from './model';
 
 export const dist = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
 
+export interface Bounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/** Rotate `p` about `c` by `deg` degrees (clockwise on screen, y down). */
+export function rotatePoint(p: Point, c: Point, deg: number): Point {
+  const r = (deg * Math.PI) / 180;
+  const cos = Math.cos(r);
+  const sin = Math.sin(r);
+  const dx = p.x - c.x;
+  const dy = p.y - c.y;
+  return { x: c.x + dx * cos - dy * sin, y: c.y + dx * sin + dy * cos };
+}
+
+/** Rough size in meters of a text label (good enough for centering and hit areas without measuring fonts). */
+export function textBox(l: { text: string; size: number }) {
+  const lines = l.text.split('\n');
+  const chars = Math.max(1, ...lines.map((s) => s.length));
+  return { w: chars * l.size * 0.62 + l.size * 0.4, h: lines.length * l.size * 1.25 };
+}
+
 export function snapValue(v: number, step: number): number {
   return Math.round(v / step) * step;
 }
@@ -26,6 +50,18 @@ export interface WallFrame {
   n: Point;
   /** Angle of a→b in degrees (Konva rotation). */
   angle: number;
+}
+
+/** The four corners of a wall's drawn rectangle (including the half-thickness extension at both ends). */
+export function wallOutlinePoints(w: Wall): Point[] {
+  const f = wallFrame(w);
+  const h = w.thickness / 2;
+  return [
+    { x: w.a.x - f.u.x * h + f.n.x * h, y: w.a.y - f.u.y * h + f.n.y * h },
+    { x: w.a.x - f.u.x * h - f.n.x * h, y: w.a.y - f.u.y * h - f.n.y * h },
+    { x: w.b.x + f.u.x * h - f.n.x * h, y: w.b.y + f.u.y * h - f.n.y * h },
+    { x: w.b.x + f.u.x * h + f.n.x * h, y: w.b.y + f.u.y * h + f.n.y * h },
+  ];
 }
 
 export function wallFrame(w: Wall): WallFrame {

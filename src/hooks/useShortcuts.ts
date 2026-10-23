@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { deleteSelection, duplicateSelection, nudgeSelection, rotateSelection } from '../actions';
+import { copySelection, cutSelection, deleteSelection, duplicateSelection, nudgeSelection, pasteSelection, rotateSelection, selectAll } from '../actions';
 import { fitView, zoomByCenter } from '../canvas/camera';
 import { stepFloor } from '../floors';
 import { TOOL_KEYS } from '../shortcuts';
@@ -30,6 +30,14 @@ export function useShortcuts(toggleHelp: () => void) {
           design.redo();
         } else if (key === 'd') {
           duplicateSelection();
+        } else if (key === 'a') {
+          selectAll();
+        } else if (key === 'c') {
+          copySelection();
+        } else if (key === 'x') {
+          cutSelection();
+        } else if (key === 'v') {
+          pasteSelection();
         } else return;
         e.preventDefault();
         return;

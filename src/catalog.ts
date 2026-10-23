@@ -14,6 +14,8 @@ export type Prim =
 
 export type Category = 'Bedroom' | 'Living' | 'Kitchen & dining' | 'Office' | 'Bathroom' | 'Utility' | 'Garage & cars' | 'Outdoor' | 'Other';
 
+import type { LayerId } from './model';
+
 export interface CatalogItem {
   type: string;
   label: string;
@@ -23,6 +25,12 @@ export interface CatalogItem {
   d: number;
   color: string;
   shapes: Prim[];
+  /** Layer the item lives on when it is not the default 'furniture' (lamps, sockets, taps...). */
+  layer?: LayerId;
+  /** Height in meters, for shadows. */
+  height?: number;
+  /** Lamps: light radius in meters and glow color. */
+  lamp?: { radius: number; color: string };
 }
 
 const R = (x: number, y: number, w: number, h: number, fill: Fill = 'body', r = 0): Prim => ({ t: 'rect', x, y, w, h, fill, r });
@@ -402,6 +410,8 @@ export const CATEGORIES: Category[] = ['Bedroom', 'Living', 'Kitchen & dining', 
 
 const byType = new Map(CATALOG.map((c) => [c.type, c]));
 const GENERIC = byType.get('box')!;
+
+export const catalogLayer = (type: string): LayerId => catalogItem(type).layer ?? 'furniture';
 
 /** Look up a catalog entry; unknown types (e.g. from a newer app version) render as a plain box. */
 export const catalogItem = (type: string): CatalogItem => byType.get(type) ?? GENERIC;

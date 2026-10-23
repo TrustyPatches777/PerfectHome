@@ -4,9 +4,9 @@ import type { Opening, Wall } from '../../model';
 import { doorGeometry, wallFrame, wallSolidSegments } from '../../geometry';
 import { useDesign } from '../../store/design';
 import { useOnFloor } from '../../store/floor';
-import { useUi } from '../../store/ui';
+import { useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
-import { startOpeningDrag, startWallMove } from '../editing';
+import { pressItem } from '../press';
 import { SELECT_COLOR, WALL_COLOR } from '../style';
 
 export function WallShape({ wall, openings, selected, ghost }: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean }) {
@@ -21,8 +21,7 @@ export function WallShape({ wall, openings, selected, ghost }: { wall: Wall; ope
       onMouseDown={(e) => {
         if (e.evt.button !== 0 || input.space) return;
         e.cancelBubble = true;
-        useUi.getState().select({ kind: 'wall', id: wall.id });
-        startWallMove(e.evt, wall.id);
+        pressItem(e.evt, { kind: 'wall', id: wall.id }, 'move');
       }}
     >
       {segs.map(([s0, s1], i) => (
@@ -86,8 +85,7 @@ export function OpeningShape({ wall, opening, selected, ghost }: { wall: Wall; o
         onMouseDown={(e) => {
           if (ghost || e.evt.button !== 0 || input.space) return;
           e.cancelBubble = true;
-          useUi.getState().select({ kind: 'opening', id: opening.id });
-          startOpeningDrag(e.evt, opening.id);
+          pressItem(e.evt, { kind: 'opening', id: opening.id }, 'move');
         }}
       >
         {kind === 'window' ? (
@@ -131,7 +129,8 @@ export function StructureLayer() {
   }, [walls, allOpenings]);
   const layer = useDesign((s) => s.design.layers.structure);
   const tool = useUi((s) => s.tool);
-  const sel = useUi((s) => s.selection);
+  const wallIds = useSelectedIds('wall');
+  const openingIds = useSelectedIds('opening');
   if (!layer.visible) return null;
   const byWall = new Map<string, Opening[]>();
   for (const o of openings) byWall.set(o.wallId, [...(byWall.get(o.wallId) ?? []), o]);
@@ -139,11 +138,11 @@ export function StructureLayer() {
   return (
     <Group listening={tool === 'select' && !layer.locked}>
       {walls.map((w) => (
-        <WallShape key={w.id} wall={w} openings={byWall.get(w.id) ?? []} selected={sel?.kind === 'wall' && sel.id === w.id} />
+        <WallShape key={w.id} wall={w} openings={byWall.get(w.id) ?? []} selected={wallIds.has(w.id)} />
       ))}
       {openings.map((o) => {
         const wall = walls.find((w) => w.id === o.wallId);
-        return wall && <OpeningShape key={o.id} wall={wall} opening={o} selected={sel?.kind === 'opening' && sel.id === o.id} />;
+        return wall && <OpeningShape key={o.id} wall={wall} opening={o} selected={openingIds.has(o.id)} />;
       })}
     </Group>
   );

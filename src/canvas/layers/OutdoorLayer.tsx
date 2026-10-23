@@ -5,21 +5,15 @@ import { formatArea, labelPoint, polygonArea } from '../../geometry';
 import { STRIP_STYLES, samplePolyline } from '../../outdoor';
 import { useOnFloor } from '../../store/floor';
 import { useDesign } from '../../store/design';
-import { useUi } from '../../store/ui';
-import { startPan } from '../camera';
-import { startPolyMove } from '../editing';
+import { useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
+import { pressItem } from '../press';
 import { SELECT_COLOR } from '../style';
 
-/**
- * Press on a zone/strip: if it is already selected, drag moves it; otherwise a click selects it and a drag
- * pans the plan (big lawns and plots would otherwise trap the mouse).
- */
-function pressArea(e: { evt: MouseEvent; cancelBubble: boolean }, kind: 'zone' | 'strip', id: string, selected: boolean) {
+function pressArea(e: { evt: MouseEvent; cancelBubble: boolean }, kind: 'zone' | 'strip', id: string) {
   if (e.evt.button !== 0 || input.space) return;
   e.cancelBubble = true;
-  if (selected) startPolyMove(e.evt, kind, id);
-  else startPan(e.evt.clientX, e.evt.clientY, () => useUi.getState().select({ kind, id }));
+  pressItem(e.evt, { kind, id }, 'area');
 }
 
 function ZoneShape({ zone, selected, zoom }: { zone: Zone; selected: boolean; zoom: number }) {
@@ -42,7 +36,7 @@ function ZoneShape({ zone, selected, zoom }: { zone: Zone; selected: boolean; zo
         strokeWidth={selected ? 2.5 : 1}
         dash={plot && !selected ? [10, 6] : undefined}
         strokeScaleEnabled={false}
-        onMouseDown={(e) => pressArea(e, 'zone', zone.id, selected)}
+        onMouseDown={(e) => pressArea(e, 'zone', zone.id)}
       />
       {big && (
         <Text
@@ -67,7 +61,7 @@ function StripShape({ strip, selected, zoom }: { strip: Strip; selected: boolean
   const style = STRIP_STYLES[strip.kind];
   const pts = strip.points.flatMap((p) => [p.x, p.y]);
   const px = 1 / zoom;
-  const onDown = (e: Parameters<typeof pressArea>[0]) => pressArea(e, 'strip', strip.id, selected);
+  const onDown = (e: Parameters<typeof pressArea>[0]) => pressArea(e, 'strip', strip.id);
   const grab = Math.max(strip.width, 12 * px); // an easy-to-hit invisible band
   return (
     <>
@@ -104,17 +98,18 @@ export function OutdoorLayer() {
   const layer = useDesign((s) => s.design.layers.outdoor);
   const tool = useUi((s) => s.tool);
   const zoom = useUi((s) => s.viewport.zoom);
-  const sel = useUi((s) => s.selection);
+  const zoneIds = useSelectedIds('zone');
+  const stripIds = useSelectedIds('strip');
   if (!layer.visible) return null;
   // roads and paths are drawn under hedges and fences
   const rank = (s: Strip) => (s.kind === 'road' ? 0 : s.kind === 'path' ? 1 : 2);
   return (
     <Group listening={tool === 'select' && !layer.locked}>
       {zones.map((z) => (
-        <ZoneShape key={z.id} zone={z} zoom={zoom} selected={sel?.kind === 'zone' && sel.id === z.id} />
+        <ZoneShape key={z.id} zone={z} zoom={zoom} selected={zoneIds.has(z.id)} />
       ))}
       {[...strips].sort((a, b) => rank(a) - rank(b)).map((s) => (
-        <StripShape key={s.id} strip={s} zoom={zoom} selected={sel?.kind === 'strip' && sel.id === s.id} />
+        <StripShape key={s.id} strip={s} zoom={zoom} selected={stripIds.has(s.id)} />
       ))}
     </Group>
   );

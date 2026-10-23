@@ -653,3 +653,20 @@ button.primary:hover:not(:disabled) {
   font-style: normal;
   font-weight: 400;
 }
+
+/* ---------- multi-select ---------- */
+.marquee {
+  position: absolute;
+  border: 1.5px dashed var(--accent);
+  background: rgba(47, 111, 237, 0.1);
+  pointer-events: none;
+}
+.icon-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.icon-row button.icon {
+  border-color: var(--border);
+  color: var(--text);
+}

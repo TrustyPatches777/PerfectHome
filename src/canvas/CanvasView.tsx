@@ -2,7 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { Layer, Stage } from 'react-konva';
 import type Konva from 'konva';
 import { useUi } from '../store/ui';
-import { startPan, zoomAt } from './camera';
+import { refsInRect } from '../selection';
+import { useDesign } from '../store/design';
+import { floorId } from '../store/floor';
+import { screenToWorld, startPan, zoomAt } from './camera';
 import { setStage } from './stage';
 import { input } from './input';
 import { GridLayer } from './GridLayer';
@@ -26,6 +29,7 @@ export function CanvasView() {
   const tool = useUi((s) => s.tool);
   const panning = useUi((s) => s.panning);
   const [spaceHeld, setSpaceHeld] = useState(false);
+  const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
 
   // Track the size of the canvas area.
   useLayoutEffect(() => {
@@ -78,9 +82,43 @@ export function CanvasView() {
     ui.setViewport(zoomAt(ui.viewport, factor, p.x, p.y));
   }, []);
 
+  /** Shift+drag on empty space: add everything the box touches to the selection. */
+  const startMarquee = (startX: number, startY: number) => {
+    const rect = wrapRef.current!.getBoundingClientRect();
+    const local = (cx: number, cy: number) => ({ x: cx - rect.left, y: cy - rect.top });
+    const a = local(startX, startY);
+    setMarquee({ x0: a.x, y0: a.y, x1: a.x, y1: a.y });
+    const move = (e: MouseEvent) => {
+      const p = local(e.clientX, e.clientY);
+      setMarquee({ x0: a.x, y0: a.y, x1: p.x, y1: p.y });
+    };
+    const up = (e: MouseEvent) => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      setMarquee(null);
+      const p = local(e.clientX, e.clientY);
+      if (Math.hypot(p.x - a.x, p.y - a.y) < 4) return;
+      const v = useUi.getState().viewport;
+      const w0 = screenToWorld(v, Math.min(a.x, p.x), Math.min(a.y, p.y));
+      const w1 = screenToWorld(v, Math.max(a.x, p.x), Math.max(a.y, p.y));
+      const hits = refsInRect(useDesign.getState().design, floorId(), { minX: w0.x, minY: w0.y, maxX: w1.x, maxY: w1.y });
+      const ui = useUi.getState();
+      const merged = [...ui.selected];
+      for (const h of hits) if (!merged.some((r) => r.kind === h.kind && r.id === h.id)) merged.push(h);
+      ui.setSelected(merged);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
   const onMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const onBackground = e.target === e.target.getStage();
     const button = e.evt.button;
+    if (button === 0 && tool === 'select' && onBackground && e.evt.shiftKey && !input.space) {
+      e.evt.preventDefault();
+      startMarquee(e.evt.clientX, e.evt.clientY);
+      return;
+    }
     const selectBg = button === 0 && tool === 'select' && onBackground;
     if (button === 1 || button === 2 || (button === 0 && input.space) || selectBg) {
       e.evt.preventDefault();
@@ -120,6 +158,12 @@ export function CanvasView() {
         </Layer>
         <OverlayLayer />
       </Stage>
+      {marquee && (
+        <div
+          className="marquee"
+          style={{ left: Math.min(marquee.x0, marquee.x1), top: Math.min(marquee.y0, marquee.y1), width: Math.abs(marquee.x1 - marquee.x0), height: Math.abs(marquee.y1 - marquee.y0) }}
+        />
+      )}
       <FloorSwitcher />
       <ToolOptions />
       <ScaleBar />

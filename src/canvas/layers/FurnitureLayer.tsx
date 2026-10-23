@@ -1,11 +1,12 @@
 import { Ellipse, Group, Line, Rect, Text } from 'react-konva';
 import type { Furniture } from '../../model';
 import { catalogItem, fillColor } from '../../catalog';
-import { snapPoint } from '../../geometry';
 import { useDesign } from '../../store/design';
 import { useOnFloor } from '../../store/floor';
-import { useUi } from '../../store/ui';
+import { useIsMulti, useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
+import { pressItem } from '../press';
+import { SELECT_COLOR } from '../style';
 
 const OUTLINE = '#475569';
 
@@ -42,6 +43,8 @@ export function FurnitureLayer() {
   const layer = useDesign((s) => s.design.layers.furniture);
   const tool = useUi((s) => s.tool);
   const zoom = useUi((s) => s.viewport.zoom);
+  const selectedIds = useSelectedIds('furniture');
+  const multi = useIsMulti();
   if (!layer.visible) return null;
   const interactive = tool === 'select' && !layer.locked;
 
@@ -56,35 +59,15 @@ export function FurnitureLayer() {
           offsetX={f.w / 2}
           offsetY={f.d / 2}
           rotation={f.rotation}
-          draggable={interactive}
           onMouseDown={(e) => {
-            if (e.evt.button !== 0 || input.space) {
-              e.target.stopDrag();
-              return;
-            }
+            if (e.evt.button !== 0 || input.space) return;
             e.cancelBubble = true;
-            useUi.getState().select({ kind: 'furniture', id: f.id });
+            pressItem(e.evt, { kind: 'furniture', id: f.id }, 'move');
           }}
-          onDragStart={() => useDesign.getState().beginTx()}
-          onDragMove={(e) => {
-            const node = e.target;
-            let p = { x: node.x(), y: node.y() };
-            if (useUi.getState().snap) {
-              p = snapPoint(p, useDesign.getState().design.settings.gridStep);
-              node.position(p);
-            }
-            useDesign.getState().update((d) => {
-              const item = d.furniture.find((x) => x.id === f.id);
-              if (item) {
-                item.x = p.x;
-                item.y = p.y;
-              }
-            });
-          }}
-          onDragEnd={() => useDesign.getState().endTx()}
         >
           <Rect width={f.w} height={f.d} fill="rgba(0,0,0,0.001)" />
           <SymbolShapes type={f.type} w={f.w} d={f.d} color={f.color} />
+          {multi && selectedIds.has(f.id) && <Rect width={f.w} height={f.d} stroke={SELECT_COLOR} strokeWidth={2.5} strokeScaleEnabled={false} listening={false} />}
         </Group>
       ))}
       {furniture.map((f) => {
