@@ -7,6 +7,8 @@ import { SELECT_COLOR } from '../style';
 import { WallTool } from '../tools/WallTool';
 import { OpeningTool } from '../tools/OpeningTool';
 import { RoomTool } from '../tools/RoomTool';
+import { FurnitureTool } from '../tools/FurnitureTool';
+import { SelectionTransformer } from '../SelectionTransformer';
 
 /** Always on top: drag handles for the selection and the active drawing tool's preview. */
 export function OverlayLayer() {
@@ -58,6 +60,8 @@ export function OverlayLayer() {
       {tool === 'door' && <OpeningTool kind="door" />}
       {tool === 'window' && <OpeningTool kind="window" />}
       {tool === 'room' && <RoomTool />}
+      {tool === 'furniture' && <FurnitureTool />}
+      <SelectionTransformer />
     </Layer>
   );
 }

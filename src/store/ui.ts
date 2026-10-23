@@ -37,6 +37,9 @@ interface UiStore {
   /** Furniture catalog key to place while tool === 'furniture'. */
   placing: string | null;
   setPlacing: (type: string | null) => void;
+  /** Rotation (degrees) of the item being placed. */
+  placingRotation: number;
+  setPlacingRotation: (deg: number) => void;
 
   roomMode: 'auto' | 'draw';
   setRoomMode: (m: 'auto' | 'draw') => void;
@@ -71,7 +74,9 @@ export const useUi = create<UiStore>((set) => ({
   setCursor: (cursor) => set({ cursor }),
 
   placing: null,
-  setPlacing: (placing) => set({ placing }),
+  setPlacing: (placing) => set({ placing, placingRotation: 0 }),
+  placingRotation: 0,
+  setPlacingRotation: (placingRotation) => set({ placingRotation }),
 
   roomMode: 'auto',
   setRoomMode: (roomMode) => set({ roomMode }),

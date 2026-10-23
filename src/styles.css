@@ -186,9 +186,12 @@ button:focus-visible {
   overflow-y: auto;
 }
 .sidebar.left {
-  width: 150px;
+  width: 214px;
   border-right: 1px solid var(--border);
-  padding: 10px 8px;
+  padding: 10px 8px 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .sidebar.right {
   width: 260px;
@@ -404,4 +407,71 @@ kbd {
 }
 .help-table td:last-child {
   width: 100%;
+}
+
+/* ---------- furniture palette ---------- */
+.tools {
+  flex: none;
+}
+.palette {
+  margin-top: 12px;
+  padding: 10px 2px 12px 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.palette h4,
+.palette h5 {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+}
+.palette h5 {
+  font-size: 11px;
+  font-weight: 600;
+  margin: 6px 0 2px;
+}
+.palette input {
+  width: 100%;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  min-width: 0;
+}
+.tile.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.tile-icon {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tile-label {
+  font-size: 11.5px;
+  color: var(--muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row.two > .field {
+  flex: 1;
+  min-width: 0;
 }

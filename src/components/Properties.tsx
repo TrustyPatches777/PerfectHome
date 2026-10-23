@@ -1,8 +1,9 @@
+import { catalogItem, FURNITURE_COLORS } from '../catalog';
 import { deleteSelection, duplicateSelection, isLayerLocked } from '../actions';
 import { setWallLength } from '../canvas/editing';
 import { FLOOR_COLORS } from '../canvas/style';
 import { clampOpeningPos, detectRoom, formatArea, formatLength, openingOverlaps, polygonArea, wallFrame } from '../geometry';
-import type { ItemRef, Opening, Room } from '../model';
+import type { Furniture, ItemRef, Opening, Room } from '../model';
 import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
 import { ColorField, NumberField, TextField } from './fields';
@@ -31,6 +32,7 @@ export function Properties() {
         {sel.kind === 'wall' && <WallProps id={sel.id} />}
         {sel.kind === 'opening' && <OpeningProps id={sel.id} />}
         {sel.kind === 'room' && <RoomProps id={sel.id} />}
+        {sel.kind === 'furniture' && <FurnitureProps id={sel.id} />}
         <div className="row actions">
           {sel.kind !== 'opening' && (
             <button onClick={duplicateSelection} title="Ctrl+D" data-testid="duplicate">
@@ -171,6 +173,45 @@ function RoomProps({ id }: { id: string }) {
           Refit to walls
         </button>
       )}
+    </>
+  );
+}
+
+function FurnitureProps({ id }: { id: string }) {
+  const item = useDesign((s) => s.design.furniture.find((f) => f.id === id));
+  if (!item) return null;
+  const edit = (fn: (f: Furniture) => void) =>
+    useDesign.getState().update((d) => {
+      const f = d.furniture.find((x) => x.id === id);
+      if (f) fn(f);
+    });
+  const cat = catalogItem(item.type);
+  return (
+    <>
+      <TextField label="Label" value={item.label} testId="furn-label" placeholder={cat.label} onChange={(v) => edit((f) => void (f.label = v))} />
+      <div className="row two">
+        <NumberField label="Width" value={item.w} scale={100} unit="cm" min={5} max={5000} testId="furn-w" onCommit={(v) => edit((f) => void (f.w = v))} />
+        <NumberField label="Depth" value={item.d} scale={100} unit="cm" min={5} max={5000} testId="furn-d" onCommit={(v) => edit((f) => void (f.d = v))} />
+      </div>
+      <NumberField
+        label="Rotation"
+        value={item.rotation}
+        unit="°"
+        testId="furn-rotation"
+        onCommit={(v) => edit((f) => void (f.rotation = ((v % 360) + 360) % 360))}
+      />
+      <ColorField label="Color" value={item.color} swatches={FURNITURE_COLORS} onChange={(c) => edit((f) => void (f.color = c))} />
+      <div className="row">
+        <button onClick={() => edit((f) => void (f.rotation = (f.rotation + 90) % 360))} title="R">
+          Rotate 90°
+        </button>
+        <button
+          onClick={() => edit((f) => void ([f.w, f.d] = [cat.w, cat.d]))}
+          title="Back to the catalog size"
+        >
+          Reset size
+        </button>
+      </div>
     </>
   );
 }

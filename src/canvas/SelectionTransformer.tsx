@@ -1,0 +1,86 @@
+import { useEffect, useRef } from 'react';
+import { Transformer } from 'react-konva';
+import type Konva from 'konva';
+import { LAYER_OF } from '../model';
+import { useDesign } from '../store/design';
+import { useUi } from '../store/ui';
+import { SELECT_COLOR } from './style';
+
+const norm = (deg: number) => (((Math.round(deg * 10) / 10) % 360) + 360) % 360;
+const cm = (m: number) => Math.round(m * 100) / 100;
+
+/** Resize/rotate handles for the selected furniture (and rotate handle for text labels). */
+export function SelectionTransformer() {
+  const ref = useRef<Konva.Transformer>(null);
+  const sel = useUi((s) => s.selection);
+  const tool = useUi((s) => s.tool);
+  const design = useDesign((s) => s.design);
+
+  const kind = sel?.kind === 'furniture' || sel?.kind === 'label' ? sel.kind : null;
+  const locked = kind ? design.layers[LAYER_OF[kind]].locked : false;
+  const visible = kind ? design.layers[LAYER_OF[kind]].visible : false;
+  const active = !!sel && !!kind && tool === 'select' && !locked && visible;
+
+  // Re-attach after every design change: the node may have been re-created or resized.
+  useEffect(() => {
+    const tr = ref.current;
+    if (!tr) return;
+    const node = active ? tr.getStage()?.findOne<Konva.Node>(`#${sel!.id}`) : null;
+    tr.nodes(node ? [node] : []);
+    tr.forceUpdate();
+    tr.getLayer()?.batchDraw();
+  });
+
+  const onEnd = () => {
+    const tr = ref.current;
+    const node = tr?.nodes()[0];
+    if (!node || !sel) return;
+    const sx = node.scaleX();
+    const sy = node.scaleY();
+    const rotation = norm(node.rotation());
+    const x = node.x();
+    const y = node.y();
+    node.scale({ x: 1, y: 1 });
+    useDesign.getState().update((d) => {
+      if (sel.kind === 'furniture') {
+        const f = d.furniture.find((i) => i.id === sel.id);
+        if (!f) return;
+        f.w = cm(f.w * sx);
+        f.d = cm(f.d * sy);
+        f.x = x;
+        f.y = y;
+        f.rotation = rotation;
+      } else if (sel.kind === 'label') {
+        const l = d.labels.find((i) => i.id === sel.id);
+        if (!l) return;
+        l.rotation = rotation;
+        l.x = x;
+        l.y = y;
+      }
+    });
+  };
+
+  return (
+    <Transformer
+      ref={ref}
+      rotateEnabled
+      keepRatio={false}
+      ignoreStroke
+      enabledAnchors={
+        sel?.kind === 'furniture'
+          ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
+          : []
+      }
+      rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
+      rotationSnapTolerance={5}
+      borderStroke={SELECT_COLOR}
+      anchorStroke={SELECT_COLOR}
+      anchorFill="#ffffff"
+      anchorSize={9}
+      anchorCornerRadius={2}
+      rotateAnchorOffset={26}
+      boundBoxFunc={(oldBox, newBox) => (newBox.width < 8 || newBox.height < 8 ? oldBox : newBox)}
+      onTransformEnd={onEnd}
+    />
+  );
+}

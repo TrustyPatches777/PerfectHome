@@ -56,20 +56,22 @@ export function TextField({
   onChange,
   testId,
   multiline,
+  placeholder,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   testId?: string;
   multiline?: boolean;
+  placeholder?: string;
 }) {
   return (
     <label className="field">
       <span>{label}</span>
       {multiline ? (
-        <textarea value={value} rows={2} data-testid={testId} onChange={(e) => onChange(e.target.value)} />
+        <textarea value={value} rows={2} placeholder={placeholder} data-testid={testId} onChange={(e) => onChange(e.target.value)} />
       ) : (
-        <input type="text" value={value} data-testid={testId} onChange={(e) => onChange(e.target.value)} />
+        <input type="text" value={value} placeholder={placeholder} data-testid={testId} onChange={(e) => onChange(e.target.value)} />
       )}
     </label>
   );

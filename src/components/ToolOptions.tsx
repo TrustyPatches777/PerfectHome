@@ -1,4 +1,5 @@
 import { useDesign } from '../store/design';
+import { catalogItem } from '../catalog';
 import { useUi } from '../store/ui';
 import { NumberField } from './fields';
 
@@ -7,6 +8,7 @@ export function ToolOptions() {
   const tool = useUi((s) => s.tool);
   const roomMode = useUi((s) => s.roomMode);
   const width = useUi((s) => s.openingWidth);
+  const placing = useUi((s) => s.placing);
   const thickness = useDesign((s) => s.design.settings.wallThickness);
 
   let body = null;
@@ -54,6 +56,13 @@ export function ToolOptions() {
           </button>
         </div>
       </>
+    );
+  }
+  else if (tool === 'furniture' && placing) {
+    body = (
+      <span className="muted">
+        Placing <strong>{catalogItem(placing).label}</strong> · click to drop · R rotates · Shift+click for several · Esc to stop
+      </span>
     );
   }
   if (!body) return null;

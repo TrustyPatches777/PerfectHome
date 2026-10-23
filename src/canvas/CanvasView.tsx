@@ -8,6 +8,7 @@ import { input } from './input';
 import { GridLayer } from './GridLayer';
 import { RoomsLayer } from './layers/RoomsLayer';
 import { StructureLayer } from './layers/StructureLayer';
+import { FurnitureLayer } from './layers/FurnitureLayer';
 import { OverlayLayer } from './layers/OverlayLayer';
 import { ScaleBar } from '../components/ScaleBar';
 import { ToolOptions } from '../components/ToolOptions';
@@ -125,6 +126,7 @@ export function CanvasView() {
         <GridLayer />
         <RoomsLayer />
         <StructureLayer />
+        <FurnitureLayer />
         <OverlayLayer />
       </Stage>
       <ToolOptions />
