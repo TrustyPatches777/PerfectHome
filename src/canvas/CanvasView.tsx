@@ -18,6 +18,7 @@ import { Underlay } from './layers/Underlay';
 import { FloorSwitcher } from '../components/FloorSwitcher';
 import { OverlayLayer } from './layers/OverlayLayer';
 import { ScaleBar } from '../components/ScaleBar';
+import { TypedBox } from '../components/TypedBox';
 import { ToolOptions } from '../components/ToolOptions';
 
 /** The canvas: owns the Konva stage, the camera (pan/zoom) and pointer plumbing. */
@@ -164,6 +165,7 @@ export function CanvasView() {
           style={{ left: Math.min(marquee.x0, marquee.x1), top: Math.min(marquee.y0, marquee.y1), width: Math.abs(marquee.x1 - marquee.x0), height: Math.abs(marquee.y1 - marquee.y0) }}
         />
       )}
+      <TypedBox />
       <FloorSwitcher />
       <ToolOptions />
       <ScaleBar />

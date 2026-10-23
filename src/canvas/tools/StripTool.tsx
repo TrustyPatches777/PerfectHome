@@ -8,7 +8,8 @@ import { STRIP_STYLES, polylineLength } from '../../outdoor';
 import { useDesign } from '../../store/design';
 import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
-import { isDoubleClick, isPrimary, snapWorld, useCaptureKeys, useStageEvents } from '../input';
+import { parseTypedLength, pointAtDistance } from '../../typed';
+import { isDoubleClick, isPrimary, snapWorld, useCaptureKeys, useStageEvents, useTypedInput } from '../input';
 import { SELECT_COLOR } from '../style';
 
 /** Draw a street, footpath, fence or hedge: click the points, then double-click or press Enter to finish. */
@@ -36,6 +37,13 @@ export function StripTool() {
     }
     setPoints([]);
   };
+
+  useTypedInput(points.length > 0, (text) => {
+    const v = parseTypedLength(text);
+    if (!v) return false;
+    const last = points[points.length - 1];
+    setPoints([...points, pointAtDistance(last, hover, v.length, v.angle)]);
+  });
 
   useStageEvents(ref, {
     mousemove: (e, world) => setHover(resolve(world, e.evt.shiftKey)),

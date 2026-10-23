@@ -151,6 +151,51 @@ export function useCaptureKeys(handler: (e: KeyboardEvent) => boolean) {
   }, []);
 }
 
+/**
+ * Exact-length typing for drawing tools: while `active` (a start point exists), typing a number starts an input
+ * that is shown next to the cursor; Enter hands the text to `onSubmit` (return false to keep typing, e.g. when it
+ * could not be understood), Esc cancels the typing, Backspace edits. Register this BEFORE the tool's own key handler.
+ */
+export function useTypedInput(active: boolean, onSubmit: (text: string) => boolean | void) {
+  const latest = useRef(onSubmit);
+  latest.current = onSubmit;
+  useEffect(() => () => useUi.getState().setTyped(null), []);
+  useCaptureKeys((e) => {
+    const ui = useUi.getState();
+    const text = ui.typed;
+    if (!active) {
+      if (text !== null) ui.setTyped(null);
+      return false;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return false;
+    if (text === null) {
+      if (/^[0-9.,]$/.test(e.key)) {
+        ui.setTyped(e.key);
+        return true;
+      }
+      return false;
+    }
+    if (e.key === 'Enter') {
+      if (latest.current(text) === false) ui.showToast(`Could not read “${text}”. Try 3.5, 350, 2.4m or 3.5<45.`);
+      else ui.setTyped(null);
+      return true;
+    }
+    if (e.key === 'Escape') {
+      ui.setTyped(null);
+      return true;
+    }
+    if (e.key === 'Backspace') {
+      ui.setTyped(text.length > 1 ? text.slice(0, -1) : null);
+      return true;
+    }
+    if (e.key.length === 1) {
+      if (/[0-9.,<xXmMcC-]/.test(e.key)) ui.setTyped(text + e.key);
+      return true; // other printable keys are swallowed so they cannot trigger tool shortcuts mid-number
+    }
+    return false;
+  });
+}
+
 /** True when a left-button press should be treated as a tool click (not a pan). */
 export const isPrimary = (e: KonvaEventObject<MouseEvent>) => e.evt.button === 0 && !input.space;
 

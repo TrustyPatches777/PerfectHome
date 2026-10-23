@@ -7,7 +7,8 @@ import { constrainAngle, dist, formatLength, samePoint, snapValue } from '../../
 import { useDesign } from '../../store/design';
 import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
-import { isDoubleClick, isPrimary, snapWorld, useCaptureKeys, useStageEvents } from '../input';
+import { parseTypedLength, pointAtDistance } from '../../typed';
+import { isDoubleClick, isPrimary, snapWorld, useCaptureKeys, useStageEvents, useTypedInput } from '../input';
 import { SELECT_COLOR } from '../style';
 
 /** Click to start a wall, click again to place each corner. Double-click, Enter or Esc to finish. */
@@ -38,6 +39,22 @@ export function WallTool() {
     first.current = null;
   };
 
+  const commit = (from: Point, p: Point) => {
+    if (dist(from, p) < 0.02) return;
+    const floor = floorId();
+    useDesign.getState().update((d) => {
+      d.walls.push({ id: newId(), floor, a: { ...from }, b: { ...p }, thickness, type: wallType, height: WALL_TYPE_HEIGHT[wallType] });
+    });
+    if (first.current && samePoint(p, first.current, 0.01)) finish(); // closed a loop
+    else setStart(p);
+  };
+
+  useTypedInput(!!start, (text) => {
+    const v = parseTypedLength(text);
+    if (!v || !start) return false;
+    commit(start, pointAtDistance(start, hover?.p ?? null, v.length, v.angle));
+  });
+
   useStageEvents(ref, {
     mousemove: (e, world) => setHover(resolve(world, e.evt.shiftKey)),
     mousedown: (e, world) => {
@@ -53,13 +70,7 @@ export function WallTool() {
         first.current = p;
         return;
       }
-      if (dist(start, p) < 0.02) return; // second click of a double-click
-      const floor = floorId();
-      useDesign.getState().update((d) => {
-        d.walls.push({ id: newId(), floor, a: { ...start }, b: { ...p }, thickness, type: wallType, height: WALL_TYPE_HEIGHT[wallType] });
-      });
-      if (first.current && samePoint(p, first.current, 0.01)) finish(); // closed a loop
-      else setStart(p);
+      commit(start, p); // ignores the second click of a double-click (zero length)
     },
   });
 

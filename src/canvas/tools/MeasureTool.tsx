@@ -7,7 +7,8 @@ import { dist } from '../../geometry';
 import { useDesign } from '../../store/design';
 import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
-import { isPrimary, snapWorld, useCaptureKeys, useStageEvents } from '../input';
+import { parseTypedLength, pointAtDistance } from '../../typed';
+import { isPrimary, snapWorld, useCaptureKeys, useStageEvents, useTypedInput } from '../input';
 import { DimensionShape } from '../layers/NotesLayer';
 import { SELECT_COLOR } from '../style';
 
@@ -22,6 +23,16 @@ export function MeasureTool() {
     const r = snapWorld(world, { faces: true });
     return { p: r.p, vertex: r.kind === 'vertex' };
   };
+
+  useTypedInput(!!start, (text) => {
+    const v = parseTypedLength(text);
+    if (!v || !start) return false;
+    const end = pointAtDistance(start, hover?.p ?? null, v.length, v.angle);
+    useDesign.getState().update((d) => {
+      d.dimensions.push({ id: newId(), floor: floorId(), a: { ...start }, b: end });
+    });
+    setStart(null);
+  });
 
   useStageEvents(ref, {
     mousemove: (_e, world) => setHover(resolve(world)),

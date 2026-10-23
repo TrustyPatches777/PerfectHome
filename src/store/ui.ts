@@ -75,6 +75,10 @@ interface UiStore {
   setStripKind: (k: StripKind) => void;
   setStripWidth: (k: StripKind, w: number) => void;
 
+  /** Text being typed to give an exact length while drawing (null = not typing). */
+  typed: string | null;
+  setTyped: (t: string | null) => void;
+
   /** True while the plan is being panned (for the cursor). */
   panning: boolean;
   setPanning: (p: boolean) => void;
@@ -156,6 +160,9 @@ export const useUi = create<UiStore>((set) => ({
   setZoneShape: (zoneShape) => set({ zoneShape }),
   setStripKind: (stripKind) => set({ stripKind }),
   setStripWidth: (k, w) => set((s) => ({ stripWidth: { ...s.stripWidth, [k]: w } })),
+
+  typed: null,
+  setTyped: (typed) => set({ typed }),
 
   panning: false,
   setPanning: (panning) => set({ panning }),

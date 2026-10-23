@@ -8,7 +8,8 @@ import { ZONE_STYLES } from '../../outdoor';
 import { useDesign } from '../../store/design';
 import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
-import { isDoubleClick, isPrimary, snapWorld, useCaptureKeys, useStageEvents } from '../input';
+import { parseTypedLength, parseTypedSize, pointAtDistance } from '../../typed';
+import { isDoubleClick, isPrimary, snapWorld, useCaptureKeys, useStageEvents, useTypedInput } from '../input';
 import { SELECT_COLOR } from '../style';
 
 /** Create a zone of the kind chosen in the Outdoor palette and select it. */
@@ -52,6 +53,21 @@ export function ZoneTool() {
     if (points.length >= 3) addZone(points);
     setPoints([]);
   };
+
+  useTypedInput(shape === 'rect' ? !!start : points.length > 0, (text) => {
+    if (shape === 'rect' && start) {
+      const size = parseTypedSize(text);
+      if (!size) return false;
+      // the box grows toward the side of the start point where the cursor is
+      const sx = hover && hover.x < start.x ? -1 : 1;
+      const sy = hover && hover.y < start.y ? -1 : 1;
+      finishRect(start, { x: start.x + sx * size.w, y: start.y + sy * size.d });
+      return;
+    }
+    const v = parseTypedLength(text);
+    if (!v) return false;
+    setPoints([...points, pointAtDistance(points[points.length - 1], hover, v.length, v.angle)]);
+  });
 
   useStageEvents(ref, {
     mousemove: (_e, world) => setHover(snap(world)),
