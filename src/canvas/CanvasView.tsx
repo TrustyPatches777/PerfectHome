@@ -21,6 +21,7 @@ import { ScaleBar } from '../components/ScaleBar';
 import { TypedBox } from '../components/TypedBox';
 import { Rulers } from '../components/Rulers';
 import { AutoDimensions } from './layers/AutoDimensions';
+import { StickyLayer } from './layers/StickyLayer';
 import { ToolOptions } from '../components/ToolOptions';
 
 /** The canvas: owns the Konva stage, the camera (pan/zoom) and pointer plumbing. */
@@ -160,6 +161,7 @@ export function CanvasView() {
           <FurnitureLayer />
           <NotesLayer />
           <AutoDimensions />
+          <StickyLayer />
         </Layer>
         <OverlayLayer />
       </Stage>

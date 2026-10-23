@@ -4,7 +4,7 @@ import { setWallLength } from '../canvas/editing';
 import { FLOOR_COLORS } from '../canvas/style';
 import { clampOpeningPos, detectRoom, dist, formatArea, formatLength, openingOverlaps, polygonArea, wallLength } from '../geometry';
 import { WALL_STYLE } from '../walls';
-import { newId, STRIP_KINDS, WALL_TYPES, WALL_TYPE_HEIGHT, WALL_TYPE_THICKNESS, ZONE_KINDS, type Wall, type WallType, type Furniture, type ItemRef, type Opening, type OpeningKind, type Room, type Strip, type StripKind, type TextLabel, type Zone, type ZoneKind } from '../model';
+import { newId, STRIP_KINDS, type Note, WALL_TYPES, WALL_TYPE_HEIGHT, WALL_TYPE_THICKNESS, ZONE_KINDS, type Wall, type WallType, type Furniture, type ItemRef, type Opening, type OpeningKind, type Room, type Strip, type StripKind, type TextLabel, type Zone, type ZoneKind } from '../model';
 import { STRIP_STYLES, ZONE_STYLES, polylineLength } from '../outdoor';
 import { STAIR_DEFAULTS, checkStair } from '../stairs';
 import { STAIR_KINDS, type Stair, type StairKind } from '../model';
@@ -63,11 +63,12 @@ export function Properties() {
         {sel.kind === 'zone' && <ZoneProps id={sel.id} />}
         {sel.kind === 'stair' && <StairProps id={sel.id} />}
         {sel.kind === 'guide' && <GuideProps id={sel.id} />}
+        {sel.kind === 'note' && <NoteProps id={sel.id} />}
         {sel.kind === 'strip' && <StripProps id={sel.id} />}
         {sel.kind === 'label' && <LabelProps id={sel.id} />}
         {sel.kind === 'dimension' && <DimensionProps id={sel.id} />}
         <div className="row actions">
-          {sel.kind !== 'opening' && sel.kind !== 'guide' && (
+          {sel.kind !== 'opening' && sel.kind !== 'guide' && sel.kind !== 'note' && (
             <button onClick={duplicateSelection} title="Ctrl+D" data-testid="duplicate">
               Duplicate
             </button>
@@ -505,6 +506,29 @@ function GuideProps({ id }: { id: string }) {
         onCommit={(v) => useDesign.getState().update((d) => void (d.guides.find((g) => g.id === id)!.pos = v))}
       />
       <p className="muted">Things you drag snap to guides. Drag a guide back onto the ruler to remove it.</p>
+    </>
+  );
+}
+
+function NoteProps({ id }: { id: string }) {
+  const note = useDesign((s) => s.design.notes.find((n) => n.id === id));
+  const focus = useUi((s) => s.textFocus);
+  if (!note) return null;
+  const edit = (fn: (n: Note) => void) =>
+    useDesign.getState().update((d) => {
+      const n = d.notes.find((x) => x.id === id);
+      if (n) fn(n);
+    });
+  return (
+    <>
+      <p className="muted" data-testid="note-author">
+        <span className="dot-inline" style={{ background: note.color }} />
+        {note.author || 'Someone'} · {new Date(note.time).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+      </p>
+      <TextField label="Note" value={note.text} multiline focusSignal={focus} testId="note-text" onChange={(v) => edit((n) => void (n.text = v))} />
+      <button onClick={() => edit((n) => void (n.done = !n.done))} data-testid="note-done">
+        {note.done ? 'Reopen' : 'Mark as done'}
+      </button>
     </>
   );
 }

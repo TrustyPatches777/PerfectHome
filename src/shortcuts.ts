@@ -10,6 +10,7 @@ export const TOOL_KEYS: Record<string, Tool> = {
   s: 'stairs',
   m: 'measure',
   t: 'text',
+  c: 'note',
 };
 
 export const SHORTCUT_HELP: { keys: string; what: string }[] = [
@@ -20,6 +21,7 @@ export const SHORTCUT_HELP: { keys: string; what: string }[] = [
   { keys: 'S', what: 'Place a staircase (R rotates it before placing)' },
   { keys: 'M', what: 'Measure a distance' },
   { keys: 'T', what: 'Add a text label' },
+  { keys: 'C', what: 'Leave a sticky note on the plan' },
   { keys: 'Space + drag, or right/middle drag', what: 'Pan' },
   { keys: 'Mouse wheel', what: 'Zoom at the cursor' },
   { keys: 'G', what: 'Toggle snap to grid' },

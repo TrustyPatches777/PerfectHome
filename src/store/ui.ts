@@ -1,16 +1,18 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
+import { loadIdentity, type Identity } from '../identity';
 import type { CustomItem, Design, ItemKind, ItemRef, OpeningKind, Point, StairKind, StripKind, WallType, ZoneKind } from '../model';
 import { STRIP_DEFAULT_WIDTH } from '../model';
 
 /** A modal question or message. Rendered by components/Dialogs.tsx. */
 export type DialogState =
   | { type: 'share'; url: string; copied: boolean; long: boolean }
+  | { type: 'identity'; then?: Point }
   | { type: 'custom-item'; editId: string | null; preset?: Partial<CustomItem> }
   | { type: 'confirm'; title: string; message: string; confirmLabel: string; onConfirm: () => void }
   | { type: 'link-conflict'; incoming: Design; current: Design; sameDesign: boolean; choose: (useShared: boolean) => void };
 
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'stairs';
+export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'stairs' | 'note';
 
 /** Camera: screen = world * zoom + (x, y). `zoom` is pixels per meter. */
 export interface Viewport {
@@ -79,6 +81,10 @@ interface UiStore {
   /** Text being typed to give an exact length while drawing (null = not typing). */
   typed: string | null;
   setTyped: (t: string | null) => void;
+
+  /** Who is using this browser (signs sticky notes). */
+  me: Identity | null;
+  setMe: (me: Identity) => void;
 
   /** What is shown on the plan (remembered between visits). */
   showRulers: boolean;
@@ -184,6 +190,9 @@ export const useUi = create<UiStore>((set) => ({
 
   typed: null,
   setTyped: (typed) => set({ typed }),
+
+  me: loadIdentity(),
+  setMe: (me) => set({ me }),
 
   showRulers: prefs.showRulers !== false,
   showGuides: prefs.showGuides !== false,

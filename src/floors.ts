@@ -1,5 +1,5 @@
 /** Commands that manage floors (levels). Items belong to a floor through their `floor` field. */
-import { newId, type Design, type Floor } from './model';
+import { newId, type Design, type Floor, type ItemRef } from './model';
 import { useDesign } from './store/design';
 import { floorIdOf } from './store/floor';
 import { useUi } from './store/ui';
@@ -112,4 +112,13 @@ export function stepFloor(delta: 1 | -1) {
   const i = d.floors.findIndex((f) => f.id === activeFloor());
   const next: Floor | undefined = d.floors[i + delta];
   if (next) useUi.getState().setActiveFloor(next.id);
+}
+
+/** Show an item: switch to its floor, center the view on it and select it. */
+export function setActiveFloorAndFocus(floor: string, at: { x: number; y: number }, ref: ItemRef) {
+  const ui = useUi.getState();
+  ui.setActiveFloor(floor);
+  const v = ui.viewport;
+  ui.setViewport({ ...v, x: ui.canvasSize.w / 2 - at.x * v.zoom, y: ui.canvasSize.h / 2 - at.y * v.zoom });
+  ui.select(ref);
 }

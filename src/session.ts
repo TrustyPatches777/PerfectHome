@@ -216,7 +216,7 @@ export function exportPng() {
   const layers = stage.getLayers();
   const hide = [layers[0], layers[layers.length - 1]];
   hide.forEach((l) => l.visible(false));
-  const underlay = stage.find('.underlay');
+  const underlay = [...stage.find('.underlay'), ...stage.find('.stickies')]; // not part of the picture
   underlay.forEach((n) => n.visible(false));
   const plan = stage.toCanvas({ x: stage.x() + x0 * zoom, y: stage.y() + y0 * zoom, width: w * zoom, height: h * zoom, pixelRatio: pxPerM / zoom });
   hide.forEach((l) => l.visible(true));

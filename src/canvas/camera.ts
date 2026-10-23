@@ -88,7 +88,8 @@ export function fitView(d: Design) {
   const pad = 60;
   const w = Math.max(b.maxX - b.minX, 1);
   const h = Math.max(b.maxY - b.minY, 1);
-  const zoom = clampZoom(Math.min((canvasSize.w - pad * 2) / w, (canvasSize.h - pad * 2) / h));
+  // never zoom in past twice the normal size: a design with one small thing in it should not be blown up
+  const zoom = clampZoom(Math.min((canvasSize.w - pad * 2) / w, (canvasSize.h - pad * 2) / h, 120));
   setViewport({
     zoom,
     x: (canvasSize.w - w * zoom) / 2 - b.minX * zoom,

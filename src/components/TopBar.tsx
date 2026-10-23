@@ -5,6 +5,7 @@ import { GRID_STEPS } from '../model';
 import { shareLink } from '../session';
 import { FileMenu } from './FileMenu';
 import { ViewMenu } from './ViewMenu';
+import { readableOn } from '../identity';
 
 export function TopBar({ onHelp }: { onHelp: () => void }) {
   const name = useDesign((s) => s.design.name);
@@ -14,6 +15,7 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
   const snap = useUi((s) => s.snap);
   const zoom = useUi((s) => s.viewport.zoom);
   const saveState = useUi((s) => s.saveState);
+  const me = useUi((s) => s.me);
   const { update, undo, redo } = useDesign.getState();
 
   return (
@@ -69,6 +71,24 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
             ? `✓ Saved ${new Date(saveState.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
             : ''}
       </span>
+
+      <button
+        className="user-chip"
+        onClick={() => useUi.getState().setDialog({ type: 'identity' })}
+        title="Your name and color, used on sticky notes"
+        data-testid="user-chip"
+      >
+        {me ? (
+          <>
+            <span className="dot" style={{ background: me.color, color: readableOn(me.color) }}>
+              {me.name[0].toUpperCase()}
+            </span>
+            {me.name}
+          </>
+        ) : (
+          'Who are you?'
+        )}
+      </button>
 
       <div className="group">
         <ViewMenu />

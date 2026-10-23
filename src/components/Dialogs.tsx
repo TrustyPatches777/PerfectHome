@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { copyShareLink } from '../session';
+import { IDENTITY_COLORS, saveIdentity } from '../identity';
+import { createNote } from '../canvas/tools/NoteTool';
 import { CUSTOM_PREFIX, FURNITURE_COLORS, customCatalogItem } from '../catalog';
 import { newId, type CustomItem } from '../model';
 import { useDesign } from '../store/design';
@@ -13,6 +15,7 @@ export function Dialogs() {
   if (!dialog) return null;
   if (dialog.type === 'share') return <ShareDialog url={dialog.url} copied={dialog.copied} long={dialog.long} />;
   if (dialog.type === 'confirm') return <ConfirmDialog dialog={dialog} />;
+  if (dialog.type === 'identity') return <IdentityDialog then={dialog.then} />;
   if (dialog.type === 'custom-item') return <CustomItemDialog editId={dialog.editId} preset={dialog.preset} />;
   return <ConflictDialog dialog={dialog} />;
 }
@@ -189,6 +192,46 @@ function CustomItemDialog({ editId, preset }: { editId: string | null; preset?: 
               Save and place
             </button>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** "Who are you?": a name and a color, so sticky notes show who wrote them. Stays on this device. */
+function IdentityDialog({ then }: { then?: { x: number; y: number } }) {
+  const me = useUi((s) => s.me);
+  const [name, setName] = useState(me?.name ?? '');
+  const [color, setColor] = useState(me?.color ?? IDENTITY_COLORS[0]);
+  const close = () => useUi.getState().setDialog(null);
+  const save = () => {
+    const n = name.trim();
+    if (!n) return;
+    const next = { name: n.slice(0, 40), color };
+    saveIdentity(next);
+    useUi.getState().setMe(next);
+    close();
+    if (then) createNote(then.x, then.y);
+  };
+  return (
+    <div className="modal-backdrop" onMouseDown={close}>
+      <div className="modal" role="dialog" aria-label="Who are you" onMouseDown={(e) => e.stopPropagation()} data-testid="identity-dialog">
+        <h2>Who are you?</h2>
+        <p className="muted">Sticky notes are signed with your name and color, so you can tell who wrote what. This stays on this computer.</p>
+        <TextField label="Your name" value={name} testId="identity-name" onChange={setName} />
+        <div className="field">
+          <span>Your color</span>
+          <div className="swatches">
+            {IDENTITY_COLORS.map((c) => (
+              <button key={c} className={`swatch ${c === color ? 'on' : ''}`} style={{ background: c }} aria-label={`Color ${c}`} data-testid={`identity-color-${c}`} onClick={() => setColor(c)} />
+            ))}
+          </div>
+        </div>
+        <div className="row end">
+          <button onClick={close}>Cancel</button>
+          <button className="primary" onClick={save} disabled={!name.trim()} data-testid="identity-save">
+            {then ? 'Save and add the note' : 'Save'}
+          </button>
         </div>
       </div>
     </div>

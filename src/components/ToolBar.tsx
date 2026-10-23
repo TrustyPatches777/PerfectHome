@@ -8,6 +8,7 @@ const TOOLS: { tool: Tool; label: string; key: string; icon: string }[] = [
   { tool: 'room', label: 'Room', key: 'A', icon: 'M4 4h12v12H4zM8 8h4v4H8z' },
   { tool: 'stairs', label: 'Stairs', key: 'S', icon: 'M3 16h4v-4h4V8h4V4h2M3 16v-2M7 12v-2M11 8V6' },
   { tool: 'measure', label: 'Measure', key: 'M', icon: 'M3 13l10-10 4 4L7 17zM6 10l2 2M9 7l2 2M12 4l2 2' },
+  { tool: 'note', label: 'Sticky note', key: 'C', icon: 'M3 4h14v10H9l-4 3v-3H3zM6 8h8M6 11h5' },
   { tool: 'text', label: 'Text', key: 'T', icon: 'M5 5h10M10 5v11M8 16h4' },
 ];
 

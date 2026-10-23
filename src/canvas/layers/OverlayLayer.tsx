@@ -14,6 +14,7 @@ import { TextTool } from '../tools/TextTool';
 import { ZoneTool } from '../tools/ZoneTool';
 import { StripTool } from '../tools/StripTool';
 import { StairTool } from '../tools/StairTool';
+import { NoteTool } from '../tools/NoteTool';
 import { SelectionTransformer } from '../SelectionTransformer';
 
 /** Always on top: drag handles for the selection and the active drawing tool's preview. */
@@ -87,6 +88,7 @@ export function OverlayLayer() {
       {tool === 'zone' && <ZoneTool />}
       {tool === 'strip' && <StripTool />}
       {tool === 'stairs' && <StairTool />}
+      {tool === 'note' && <NoteTool />}
       <SelectionTransformer />
     </Layer>
   );
