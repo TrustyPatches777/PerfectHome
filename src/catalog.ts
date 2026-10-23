@@ -12,7 +12,7 @@ export type Prim =
   /** Open polyline. */
   | { t: 'line'; pts: number[] };
 
-export type Category = 'My items' | 'Bedroom' | 'Living' | 'Kitchen & dining' | 'Office' | 'Bathroom' | 'Utility' | 'Garage & cars' | 'Outdoor' | 'Other';
+export type Category = 'My items' | 'Lighting' | 'Electrical' | 'Plumbing' | 'Bedroom' | 'Living' | 'Kitchen & dining' | 'Office' | 'Bathroom' | 'Utility' | 'Garage & cars' | 'Outdoor' | 'Other';
 
 import type { CustomItem, LayerId } from './model';
 
@@ -31,6 +31,8 @@ export interface CatalogItem {
   height?: number;
   /** Lamps: light radius in meters and glow color. */
   lamp?: { radius: number; color: string };
+  /** Sockets, switches, taps...: placed flat against the wall face under the cursor. */
+  wallMounted?: boolean;
 }
 
 const R = (x: number, y: number, w: number, h: number, fill: Fill = 'body', r = 0): Prim => ({ t: 'rect', x, y, w, h, fill, r });
@@ -391,6 +393,98 @@ export const CATALOG: CatalogItem[] = [
     type: 'rain-barrel', label: 'Rain barrel', category: 'Outdoor', w: 0.6, d: 0.6, color: '#9ca3af',
     shapes: [E(0, 0, 1, 1, 'body'), E(0.12, 0.12, 0.76, 0.76, 'light')],
   },
+
+  // ---- Lighting (lamps glow in the evening; they live on the "Lamps, electrical & plumbing" layer)
+  {
+    type: 'lamp-ceiling', label: 'Ceiling light', category: 'Lighting', w: 0.4, d: 0.4, color: '#fde68a', layer: 'tech', lamp: { radius: 3.4, color: '#ffd98a' },
+    shapes: [E(0, 0, 1, 1, 'white'), E(0.2, 0.2, 0.6, 0.6, 'body'), L(0.5, 0.05, 0.5, 0.95), L(0.05, 0.5, 0.95, 0.5)],
+  },
+  {
+    type: 'lamp-spot', label: 'Spotlight', category: 'Lighting', w: 0.25, d: 0.25, color: '#fde68a', layer: 'tech', lamp: { radius: 1.8, color: '#fff1c2' },
+    shapes: [E(0, 0, 1, 1, 'white'), E(0.3, 0.3, 0.4, 0.4, 'body')],
+  },
+  {
+    type: 'lamp-pendant', label: 'Pendant lamp', category: 'Lighting', w: 0.55, d: 0.55, color: '#fde68a', layer: 'tech', lamp: { radius: 3, color: '#ffd98a' },
+    shapes: [E(0, 0, 1, 1, 'body'), E(0.18, 0.18, 0.64, 0.64, 'white'), E(0.38, 0.38, 0.24, 0.24, 'dark')],
+  },
+  {
+    type: 'lamp-chandelier', label: 'Chandelier', category: 'Lighting', w: 0.9, d: 0.9, color: '#fde68a', layer: 'tech', lamp: { radius: 4.2, color: '#ffd98a' },
+    shapes: [E(0.3, 0.3, 0.4, 0.4, 'body'), E(0, 0.3, 0.22, 0.4, 'white'), E(0.78, 0.3, 0.22, 0.4, 'white'), E(0.3, 0, 0.4, 0.22, 'white'), E(0.3, 0.78, 0.4, 0.22, 'white'), L(0.3, 0.5, 0.2, 0.5), L(0.7, 0.5, 0.8, 0.5), L(0.5, 0.3, 0.5, 0.2), L(0.5, 0.7, 0.5, 0.8)],
+  },
+  {
+    type: 'lamp-wall', label: 'Wall light', category: 'Lighting', w: 0.3, d: 0.16, color: '#fde68a', layer: 'tech', wallMounted: true, lamp: { radius: 2.2, color: '#ffd98a' },
+    shapes: [R(0, 0, 1, 0.35, 'dark'), E(0.1, 0, 0.8, 1, 'body')],
+  },
+  {
+    type: 'lamp-table', label: 'Table lamp', category: 'Lighting', w: 0.3, d: 0.3, color: '#fde68a', layer: 'tech', lamp: { radius: 1.8, color: '#ffd98a' },
+    shapes: [E(0, 0, 1, 1, 'body'), E(0.25, 0.25, 0.5, 0.5, 'white'), E(0.44, 0.44, 0.12, 0.12, 'dark')],
+  },
+  {
+    type: 'lamp-garden', label: 'Garden lamp', category: 'Lighting', w: 0.3, d: 0.3, color: '#fde68a', layer: 'tech', lamp: { radius: 4, color: '#ffe3a3' },
+    shapes: [E(0, 0, 1, 1, 'dark'), E(0.2, 0.2, 0.6, 0.6, 'body'), L(0.5, 0.2, 0.5, 0.8), L(0.2, 0.5, 0.8, 0.5)],
+  },
+  // ---- Electrical
+  {
+    type: 'socket', label: 'Socket', category: 'Electrical', w: 0.22, d: 0.1, color: '#fecaca', layer: 'tech', wallMounted: true,
+    shapes: [R(0, 0, 1, 1, 'body', 0.2), E(0.2, 0.15, 0.25, 0.7, 'white'), E(0.55, 0.15, 0.25, 0.7, 'white')],
+  },
+  {
+    type: 'socket-double', label: 'Double socket', category: 'Electrical', w: 0.34, d: 0.1, color: '#fecaca', layer: 'tech', wallMounted: true,
+    shapes: [R(0, 0, 1, 1, 'body', 0.2), E(0.1, 0.15, 0.15, 0.7, 'white'), E(0.3, 0.15, 0.15, 0.7, 'white'), E(0.55, 0.15, 0.15, 0.7, 'white'), E(0.75, 0.15, 0.15, 0.7, 'white')],
+  },
+  {
+    type: 'switch', label: 'Light switch', category: 'Electrical', w: 0.18, d: 0.1, color: '#fde68a', layer: 'tech', wallMounted: true,
+    shapes: [R(0, 0, 1, 1, 'body', 0.2), L(0.2, 0.8, 0.8, 0.2), E(0.1, 0.55, 0.3, 0.4, 'white')],
+  },
+  {
+    type: 'switch-dimmer', label: 'Dimmer', category: 'Electrical', w: 0.18, d: 0.1, color: '#fde68a', layer: 'tech', wallMounted: true,
+    shapes: [R(0, 0, 1, 1, 'body', 0.2), E(0.25, 0.1, 0.5, 0.8, 'white'), L(0.5, 0.2, 0.5, 0.5)],
+  },
+  {
+    type: 'data-point', label: 'Network point', category: 'Electrical', w: 0.2, d: 0.1, color: '#bfdbfe', layer: 'tech', wallMounted: true,
+    shapes: [R(0, 0, 1, 1, 'body', 0.2), R(0.25, 0.2, 0.5, 0.6, 'white', 0.1), L(0.4, 0.2, 0.4, 0.5), L(0.6, 0.2, 0.6, 0.5)],
+  },
+  {
+    type: 'tv-point', label: 'TV / antenna', category: 'Electrical', w: 0.2, d: 0.1, color: '#ddd6fe', layer: 'tech', wallMounted: true,
+    shapes: [R(0, 0, 1, 1, 'body', 0.2), L(0.2, 0.85, 0.5, 0.15), L(0.5, 0.15, 0.8, 0.85), L(0.3, 0.55, 0.7, 0.55)],
+  },
+  {
+    type: 'thermostat', label: 'Thermostat', category: 'Electrical', w: 0.18, d: 0.1, color: '#fed7aa', layer: 'tech', wallMounted: true,
+    shapes: [R(0, 0, 1, 1, 'body', 0.2), E(0.25, 0.1, 0.5, 0.8, 'white'), L(0.5, 0.2, 0.5, 0.55)],
+  },
+  {
+    type: 'smoke-detector', label: 'Smoke detector', category: 'Electrical', w: 0.3, d: 0.3, color: '#fecaca', layer: 'tech',
+    shapes: [E(0, 0, 1, 1, 'body'), E(0.2, 0.2, 0.6, 0.6, 'white'), E(0.4, 0.4, 0.2, 0.2, 'dark')],
+  },
+  {
+    type: 'junction', label: 'Junction box', category: 'Electrical', w: 0.22, d: 0.22, color: '#e5e7eb', layer: 'tech',
+    shapes: [R(0, 0, 1, 1, 'body'), L(0, 0, 1, 1), L(1, 0, 0, 1)],
+  },
+  // ---- Plumbing
+  {
+    type: 'tap', label: 'Water tap', category: 'Plumbing', w: 0.2, d: 0.1, color: '#bfdbfe', layer: 'tech', wallMounted: true,
+    shapes: [R(0, 0, 1, 1, 'body', 0.2), L(0.2, 0.3, 0.8, 0.3), L(0.5, 0.3, 0.5, 0.9), E(0.4, 0.05, 0.2, 0.25, 'white')],
+  },
+  {
+    type: 'tap-garden', label: 'Garden tap', category: 'Plumbing', w: 0.2, d: 0.1, color: '#a7f3d0', layer: 'tech', wallMounted: true,
+    shapes: [R(0, 0, 1, 1, 'body', 0.2), L(0.2, 0.3, 0.8, 0.3), L(0.5, 0.3, 0.5, 0.9), E(0.4, 0.05, 0.2, 0.25, 'white')],
+  },
+  {
+    type: 'drain', label: 'Floor drain', category: 'Plumbing', w: 0.3, d: 0.3, color: '#cbd5e1', layer: 'tech',
+    shapes: [R(0, 0, 1, 1, 'body', 0.1), L(0.25, 0.1, 0.25, 0.9), L(0.5, 0.1, 0.5, 0.9), L(0.75, 0.1, 0.75, 0.9)],
+  },
+  {
+    type: 'water-meter', label: 'Water meter', category: 'Plumbing', w: 0.3, d: 0.3, color: '#bfdbfe', layer: 'tech',
+    shapes: [E(0, 0, 1, 1, 'body'), E(0.15, 0.15, 0.7, 0.7, 'white'), L(0.5, 0.5, 0.5, 0.25), L(0.5, 0.5, 0.7, 0.5)],
+  },
+  {
+    type: 'gas-point', label: 'Gas connection', category: 'Plumbing', w: 0.25, d: 0.25, color: '#fde047', layer: 'tech',
+    shapes: [R(0.14, 0.14, 0.72, 0.72, 'body', 0.05), L(0.5, 0, 0.9, 0.5), L(0.9, 0.5, 0.5, 1), L(0.5, 1, 0.1, 0.5), L(0.1, 0.5, 0.5, 0)],
+  },
+  {
+    type: 'pipe-stack', label: 'Pipe / riser', category: 'Plumbing', w: 0.2, d: 0.2, color: '#9ca3af', layer: 'tech',
+    shapes: [E(0, 0, 1, 1, 'body'), E(0.25, 0.25, 0.5, 0.5, 'white')],
+  },
   // ---- Other
   {
     type: 'plant', label: 'Plant', category: 'Other', w: 0.5, d: 0.5, color: '#86c08a',
@@ -406,7 +500,11 @@ export const CATALOG: CatalogItem[] = [
   },
 ];
 
-export const CATEGORIES: Category[] = ['My items', 'Bedroom', 'Living', 'Kitchen & dining', 'Office', 'Bathroom', 'Utility', 'Garage & cars', 'Outdoor', 'Other'];
+// Extra properties of a few older items.
+Object.assign(CATALOG.find((c) => c.type === 'floor-lamp')!, { lamp: { radius: 2.6, color: '#ffd98a' } });
+Object.assign(CATALOG.find((c) => c.type === 'radiator')!, { wallMounted: true });
+
+export const CATEGORIES: Category[] = ['My items', 'Bedroom', 'Living', 'Kitchen & dining', 'Office', 'Bathroom', 'Utility', 'Lighting', 'Electrical', 'Plumbing', 'Garage & cars', 'Outdoor', 'Other'];
 
 const byType = new Map(CATALOG.map((c) => [c.type, c]));
 const GENERIC = byType.get('box')!;
@@ -419,6 +517,9 @@ const CATEGORY_HEIGHT: Record<Category, number> = {
   Office: 0.75,
   Bathroom: 0.5,
   Utility: 0.9,
+  Lighting: 2.4,
+  Electrical: 0.3,
+  Plumbing: 0.3,
   'Garage & cars': 1.5,
   Outdoor: 1.0,
   Other: 0.5,

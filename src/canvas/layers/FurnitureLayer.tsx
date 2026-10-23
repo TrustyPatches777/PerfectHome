@@ -1,6 +1,6 @@
 import { Ellipse, Group, Line, Rect, Text } from 'react-konva';
 import type { Furniture } from '../../model';
-import { catalogItem, fillColor } from '../../catalog';
+import { catalogItem, catalogLayer, fillColor } from '../../catalog';
 import { useDesign } from '../../store/design';
 import { useOnFloor } from '../../store/floor';
 import { useIsMulti, useSelectedIds, useUi } from '../../store/ui';
@@ -41,56 +41,67 @@ function labelFont(f: Furniture, zoom: number) {
 export function FurnitureLayer() {
   const furniture = useOnFloor((d) => d.furniture);
   useDesign((s) => s.design.custom); // redraw when a custom item is edited
-  const layer = useDesign((s) => s.design.layers.furniture);
+  const furnitureLayer = useDesign((s) => s.design.layers.furniture);
+  const techLayer = useDesign((s) => s.design.layers.tech);
   const tool = useUi((s) => s.tool);
   const zoom = useUi((s) => s.viewport.zoom);
   const selectedIds = useSelectedIds('furniture');
   const multi = useIsMulti();
-  if (!layer.visible) return null;
-  const interactive = tool === 'select' && !layer.locked;
+  const groups = [
+    { layer: furnitureLayer, items: furniture.filter((f) => catalogLayer(f.type) === 'furniture') },
+    { layer: techLayer, items: furniture.filter((f) => catalogLayer(f.type) === 'tech') },
+  ];
 
   return (
-    <Group listening={interactive}>
-      {furniture.map((f) => (
-        <Group
-          key={f.id}
-          id={f.id}
-          x={f.x}
-          y={f.y}
-          offsetX={f.w / 2}
-          offsetY={f.d / 2}
-          rotation={f.rotation}
-          onMouseDown={(e) => {
-            if (e.evt.button !== 0 || input.space) return;
-            e.cancelBubble = true;
-            pressItem(e.evt, { kind: 'furniture', id: f.id }, 'move');
-          }}
-        >
-          <Rect width={f.w} height={f.d} fill="rgba(0,0,0,0.001)" />
-          <SymbolShapes type={f.type} w={f.w} d={f.d} color={f.color} />
-          {multi && selectedIds.has(f.id) && <Rect width={f.w} height={f.d} stroke={SELECT_COLOR} strokeWidth={2.5} strokeScaleEnabled={false} listening={false} />}
-        </Group>
-      ))}
-      {furniture.map((f) => {
-        const { size, show } = labelFont(f, zoom);
-        if (!show) return null;
-        const width = Math.max(f.w, f.d, 1.2);
+    <>
+      {groups.map(({ layer, items }, gi) => {
+        if (!layer.visible) return null;
+        const interactive = tool === 'select' && !layer.locked;
         return (
-          <Text
-            key={`l-${f.id}`}
-            x={f.x - width / 2}
-            y={f.y - size * 0.55}
-            width={width}
-            align="center"
-            text={f.label || catalogItem(f.type).label}
-            fontSize={size}
-            fill="#1f2937"
-            opacity={0.85}
-            wrap="none"
-            listening={false}
-          />
+          <Group key={gi} listening={interactive}>
+            {items.map((f) => (
+              <Group
+                key={f.id}
+                id={f.id}
+                x={f.x}
+                y={f.y}
+                offsetX={f.w / 2}
+                offsetY={f.d / 2}
+                rotation={f.rotation}
+                onMouseDown={(e) => {
+                  if (e.evt.button !== 0 || input.space) return;
+                  e.cancelBubble = true;
+                  pressItem(e.evt, { kind: 'furniture', id: f.id }, 'move');
+                }}
+              >
+                <Rect width={f.w} height={f.d} fill="rgba(0,0,0,0.001)" />
+                <SymbolShapes type={f.type} w={f.w} d={f.d} color={f.color} />
+                {multi && selectedIds.has(f.id) && <Rect width={f.w} height={f.d} stroke={SELECT_COLOR} strokeWidth={2.5} strokeScaleEnabled={false} listening={false} />}
+              </Group>
+            ))}
+            {items.map((f) => {
+              const { size, show } = labelFont(f, zoom);
+              if (!show || catalogItem(f.type).layer === 'tech') return null; // small symbols carry no text
+              const width = Math.max(f.w, f.d, 1.2);
+              return (
+                <Text
+                  key={`l-${f.id}`}
+                  x={f.x - width / 2}
+                  y={f.y - size * 0.55}
+                  width={width}
+                  align="center"
+                  text={f.label || catalogItem(f.type).label}
+                  fontSize={size}
+                  fill="#1f2937"
+                  opacity={0.85}
+                  wrap="none"
+                  listening={false}
+                />
+              );
+            })}
+          </Group>
         );
       })}
-    </Group>
+    </>
   );
 }

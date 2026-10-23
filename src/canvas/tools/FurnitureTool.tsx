@@ -2,7 +2,8 @@ import { useRef, useState } from 'react';
 import { Group } from 'react-konva';
 import type Konva from 'konva';
 import { layerBlocksEditing } from '../../actions';
-import { catalogItem } from '../../catalog';
+import { catalogItem, catalogLayer } from '../../catalog';
+import { mountOnWall } from '../../mount';
 import { newId, type Point } from '../../model';
 import { useDesign } from '../../store/design';
 import { floorId } from '../../store/floor';
@@ -18,6 +19,20 @@ export function FurnitureTool() {
   const [hover, setHover] = useState<Point | null>(null);
   const item = placing ? catalogItem(placing) : null;
 
+  /** Where and how the item would be placed for a cursor position: against a wall for wall-mounted symbols. */
+  const placeAt = (world: Point): { x: number; y: number; rotation: number } => {
+    if (item?.wallMounted) {
+      const floor = floorId();
+      const walls = useDesign.getState().design.walls.filter((w) => w.floor === floor);
+      const step = useUi.getState().snap ? useDesign.getState().design.settings.gridStep : 0;
+      const m = mountOnWall(world, walls, item.d, 0.6, step);
+      if (m) return m;
+    }
+    const p = snapWorld(world, { ignore: () => true }).p;
+    return { x: p.x, y: p.y, rotation };
+  };
+
+
   useCaptureKeys((e) => {
     if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) {
       useUi.getState().setPlacingRotation((rotation + (e.shiftKey ? 270 : 90)) % 360);
@@ -27,13 +42,13 @@ export function FurnitureTool() {
   });
 
   useStageEvents(ref, {
-    mousemove: (_e, world) => setHover(snapWorld(world, { ignore: () => true }).p),
+    mousemove: (_e, world) => setHover(world),
     mousedown: (e, world) => {
-      if (!isPrimary(e) || !item || layerBlocksEditing('furniture')) return;
-      const p = snapWorld(world, { ignore: () => true }).p;
+      if (!isPrimary(e) || !item || layerBlocksEditing(catalogLayer(item.type))) return;
+      const at = placeAt(world);
       const id = newId();
       useDesign.getState().update((d) => {
-        d.furniture.push({ id, floor: floorId(), type: item.type, x: p.x, y: p.y, w: item.w, d: item.d, rotation, color: item.color, label: '' });
+        d.furniture.push({ id, floor: floorId(), type: item.type, x: at.x, y: at.y, w: item.w, d: item.d, rotation: at.rotation, color: item.color, label: '' });
       });
       if (!e.evt.shiftKey) {
         useUi.getState().setTool('select');
@@ -45,7 +60,7 @@ export function FurnitureTool() {
   return (
     <Group ref={ref} listening={false}>
       {item && hover && (
-        <Group x={hover.x} y={hover.y} offsetX={item.w / 2} offsetY={item.d / 2} rotation={rotation} opacity={0.6}>
+        <Group x={placeAt(hover).x} y={placeAt(hover).y} offsetX={item.w / 2} offsetY={item.d / 2} rotation={placeAt(hover).rotation} opacity={0.6}>
           <SymbolShapes type={item.type} w={item.w} d={item.d} color={item.color} />
         </Group>
       )}

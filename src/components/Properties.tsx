@@ -321,6 +321,12 @@ function FurnitureProps({ id }: { id: string }) {
         testId="furn-height"
         onCommit={(v) => edit((f) => void (f.height = v))}
       />
+      {cat.lamp && (
+        <label className="check">
+          <input type="checkbox" checked={item.on !== false} data-testid="lamp-on" onChange={(e) => edit((f) => void (e.target.checked ? delete f.on : (f.on = false)))} />
+          Switched on (glows in the evening)
+        </label>
+      )}
       <div className="row">
         {item.type.startsWith(CUSTOM_PREFIX) ? (
           <button onClick={() => useUi.getState().setDialog({ type: 'custom-item', editId: item.type.slice(CUSTOM_PREFIX.length) })} data-testid="edit-custom">
