@@ -3,7 +3,7 @@ import { CanvasView } from './canvas/CanvasView';
 import { TopBar } from './components/TopBar';
 import { StatusBar } from './components/StatusBar';
 import { ToolBar } from './components/ToolBar';
-import { FurniturePalette } from './components/FurniturePalette';
+import { PalettePanel } from './components/PalettePanel';
 import { Properties } from './components/Properties';
 import { LayersPanel } from './components/LayersPanel';
 import { FloorsPanel } from './components/FloorsPanel';
@@ -25,7 +25,7 @@ export function App() {
       <div className="main">
         <aside className="sidebar left">
           <ToolBar />
-          <FurniturePalette />
+          <PalettePanel />
         </aside>
         <div className="stage-area">
           <CanvasView />

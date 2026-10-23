@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { Layer, Stage } from 'react-konva';
 import type Konva from 'konva';
 import { useUi } from '../store/ui';
-import { zoomAt } from './camera';
+import { startPan, zoomAt } from './camera';
 import { setStage } from './stage';
 import { input } from './input';
 import { GridLayer } from './GridLayer';
@@ -10,6 +10,7 @@ import { RoomsLayer } from './layers/RoomsLayer';
 import { StructureLayer } from './layers/StructureLayer';
 import { FurnitureLayer } from './layers/FurnitureLayer';
 import { NotesLayer } from './layers/NotesLayer';
+import { OutdoorLayer } from './layers/OutdoorLayer';
 import { Underlay } from './layers/Underlay';
 import { FloorSwitcher } from '../components/FloorSwitcher';
 import { OverlayLayer } from './layers/OverlayLayer';
@@ -23,7 +24,7 @@ export function CanvasView() {
   const viewport = useUi((s) => s.viewport);
   const { w, h } = useUi((s) => s.canvasSize);
   const tool = useUi((s) => s.tool);
-  const [panning, setPanning] = useState(false);
+  const panning = useUi((s) => s.panning);
   const [spaceHeld, setSpaceHeld] = useState(false);
 
   // Track the size of the canvas area.
@@ -77,31 +78,13 @@ export function CanvasView() {
     ui.setViewport(zoomAt(ui.viewport, factor, p.x, p.y));
   }, []);
 
-  const startPan = useCallback((startX: number, startY: number, clearOnClick: boolean) => {
-    const origin = useUi.getState().viewport;
-    let moved = false;
-    setPanning(true);
-    const move = (e: MouseEvent) => {
-      if (Math.hypot(e.clientX - startX, e.clientY - startY) > 3) moved = true;
-      useUi.getState().setViewport({ ...origin, x: origin.x + e.clientX - startX, y: origin.y + e.clientY - startY });
-    };
-    const up = () => {
-      setPanning(false);
-      window.removeEventListener('mousemove', move);
-      window.removeEventListener('mouseup', up);
-      if (clearOnClick && !moved) useUi.getState().select(null); // a plain click on empty space deselects
-    };
-    window.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', up);
-  }, []);
-
   const onMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const onBackground = e.target === e.target.getStage();
     const button = e.evt.button;
     const selectBg = button === 0 && tool === 'select' && onBackground;
     if (button === 1 || button === 2 || (button === 0 && input.space) || selectBg) {
       e.evt.preventDefault();
-      startPan(e.evt.clientX, e.evt.clientY, selectBg);
+      startPan(e.evt.clientX, e.evt.clientY, selectBg ? () => useUi.getState().select(null) : undefined);
     }
   };
 
@@ -129,6 +112,7 @@ export function CanvasView() {
         <GridLayer />
         <Layer>
           <Underlay />
+          <OutdoorLayer />
           <RoomsLayer />
           <StructureLayer />
           <FurnitureLayer />

@@ -3,6 +3,8 @@ import { formatArea, labelPoint, polygonArea } from '../../geometry';
 import { useDesign } from '../../store/design';
 import { useOnFloor } from '../../store/floor';
 import { useUi } from '../../store/ui';
+import { startPan } from '../camera';
+import { input } from '../input';
 import { SELECT_COLOR } from '../style';
 
 export function RoomsLayer() {
@@ -30,9 +32,10 @@ export function RoomsLayer() {
             strokeScaleEnabled={false}
             name={`room-${r.id}`}
             onMouseDown={(e) => {
-              if (e.evt.button !== 0) return;
+              if (e.evt.button !== 0 || input.space) return;
               e.cancelBubble = true;
-              useUi.getState().select({ kind: 'room', id: r.id });
+              // click selects; dragging pans (rooms fill most of the screen)
+              startPan(e.evt.clientX, e.evt.clientY, () => useUi.getState().select({ kind: 'room', id: r.id }));
             }}
           />
         );

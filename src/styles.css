@@ -610,3 +610,25 @@ button.primary:hover:not(:disabled) {
   padding: 1px 7px;
   font-size: 11px;
 }
+
+/* ---------- sidebar tabs ---------- */
+.tabs {
+  display: flex;
+  margin-top: 12px;
+  flex: none;
+}
+.tabs button {
+  flex: 1;
+  border-radius: 0;
+}
+.tabs button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.tabs button:last-child {
+  border-radius: 0 6px 6px 0;
+  border-left: none;
+}
+.palette {
+  margin-top: 8px;
+  border-top: none;
+}

@@ -2,7 +2,7 @@ import { Circle, Layer } from 'react-konva';
 import { useDesign } from '../../store/design';
 import { useUi } from '../../store/ui';
 import { input } from '../input';
-import { startDimensionEndpointDrag, startEndpointDrag, startRoomVertexDrag } from '../editing';
+import { startDimensionEndpointDrag, startEndpointDrag, startPointDrag } from '../editing';
 import { SELECT_COLOR } from '../style';
 import { WallTool } from '../tools/WallTool';
 import { OpeningTool } from '../tools/OpeningTool';
@@ -10,6 +10,8 @@ import { RoomTool } from '../tools/RoomTool';
 import { FurnitureTool } from '../tools/FurnitureTool';
 import { MeasureTool } from '../tools/MeasureTool';
 import { TextTool } from '../tools/TextTool';
+import { ZoneTool } from '../tools/ZoneTool';
+import { StripTool } from '../tools/StripTool';
 import { SelectionTransformer } from '../SelectionTransformer';
 
 /** Always on top: drag handles for the selection and the active drawing tool's preview. */
@@ -57,9 +59,13 @@ export function OverlayLayer() {
         handles.push(handle('db', m.b.x, m.b.y, (e) => startDimensionEndpointDrag(e, m.id, 'b')));
       }
     }
+    if ((sel.kind === 'zone' || sel.kind === 'strip') && !design.layers.outdoor.locked) {
+      const item = (sel.kind === 'zone' ? design.zones : design.strips).find((x) => x.id === sel.id);
+      item?.points.forEach((p, i) => handles.push(handle(`o${i}`, p.x, p.y, (e) => startPointDrag(e, sel.kind as 'zone' | 'strip', item.id, i))));
+    }
     if (sel.kind === 'room' && !design.layers.rooms.locked) {
       const room = design.rooms.find((x) => x.id === sel.id);
-      room?.points.forEach((p, i) => handles.push(handle(`v${i}`, p.x, p.y, (e) => startRoomVertexDrag(e, room.id, i))));
+      room?.points.forEach((p, i) => handles.push(handle(`v${i}`, p.x, p.y, (e) => startPointDrag(e, 'room', room.id, i))));
     }
   }
 
@@ -73,6 +79,8 @@ export function OverlayLayer() {
       {tool === 'furniture' && <FurnitureTool />}
       {tool === 'measure' && <MeasureTool />}
       {tool === 'text' && <TextTool />}
+      {tool === 'zone' && <ZoneTool />}
+      {tool === 'strip' && <StripTool />}
       <SelectionTransformer />
     </Layer>
   );

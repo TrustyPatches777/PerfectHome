@@ -113,18 +113,39 @@ export function startOpeningDrag(evt: MouseEvent, openingId: string) {
   });
 }
 
-/** Drag a corner of a room polygon. */
-export function startRoomVertexDrag(evt: MouseEvent, roomId: string, index: number) {
-  const room = useDesign.getState().design.rooms.find((r) => r.id === roomId);
-  if (!room) return;
-  const origin = { ...room.points[index] };
-  let current = origin;
+type PolyKind = 'room' | 'zone' | 'strip';
+
+const polyList = (d: Draft<Design>, kind: PolyKind) => (kind === 'room' ? d.rooms : kind === 'zone' ? d.zones : d.strips);
+
+/** Drag one corner/point of a room, outdoor area or street/fence line. */
+export function startPointDrag(evt: MouseEvent, kind: PolyKind, id: string, index: number) {
+  const item = (polyList(useDesign.getState().design as Draft<Design>, kind) as { id: string; points: Point[] }[]).find((x) => x.id === id);
+  if (!item) return;
+  const origin = { ...item.points[index] };
+  let current = origin; // the point's own latest position must not act as a snap target
   dragSession(evt, (world) => {
-    const p = snapWorld(world, { ignore: (q) => samePoint(q, origin) || samePoint(q, current) }).p;
+    const p = snapWorld(world, { ignore: (q) => samePoint(q, origin) || samePoint(q, current), faces: kind !== 'room' }).p;
     current = p;
     useDesign.getState().update((d) => {
-      const r = d.rooms.find((x) => x.id === roomId);
+      const r = (polyList(d, kind) as { id: string; points: Point[] }[]).find((x) => x.id === id);
       if (r) r.points[index] = { ...p };
+    });
+  });
+}
+
+/** Drag a whole outdoor area or line feature. */
+export function startPolyMove(evt: MouseEvent, kind: 'zone' | 'strip', id: string) {
+  const item = (polyList(useDesign.getState().design as Draft<Design>, kind) as { id: string; points: Point[] }[]).find((x) => x.id === id);
+  if (!item) return;
+  const orig = item.points.map((p) => ({ ...p }));
+  dragSession(evt, (world, start) => {
+    const raw = { x: orig[0].x + world.x - start.x, y: orig[0].y + world.y - start.y };
+    const snapped = snapWorld(raw, { ignore: () => true }).p; // grid only
+    const dx = snapped.x - orig[0].x;
+    const dy = snapped.y - orig[0].y;
+    useDesign.getState().update((d) => {
+      const r = (polyList(d, kind) as { id: string; points: Point[] }[]).find((x) => x.id === id);
+      if (r) r.points = orig.map((p) => ({ x: p.x + dx, y: p.y + dy }));
     });
   });
 }

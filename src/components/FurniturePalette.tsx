@@ -37,7 +37,6 @@ export function FurniturePalette() {
 
   return (
     <div className="palette" data-testid="palette">
-      <h4>Furniture</h4>
       <input type="text" placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search furniture" />
       {CATEGORIES.map((cat) => {
         const items = CATALOG.filter((c) => c.category === cat && (!q || c.label.toLowerCase().includes(q)));

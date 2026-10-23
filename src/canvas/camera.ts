@@ -15,6 +15,29 @@ export function zoomAt(v: Viewport, factor: number, cx: number, cy: number): Vie
   return { zoom, x: cx - wx * zoom, y: cy - wy * zoom };
 }
 
+/**
+ * Pan the plan with the mouse from a press at (startX, startY). When the mouse never really moves,
+ * `onClick` runs instead (select the thing that was pressed, or deselect on empty space).
+ */
+export function startPan(startX: number, startY: number, onClick?: () => void) {
+  const ui = useUi.getState();
+  const origin = ui.viewport;
+  let moved = false;
+  ui.setPanning(true);
+  const move = (e: MouseEvent) => {
+    if (Math.hypot(e.clientX - startX, e.clientY - startY) > 3) moved = true;
+    useUi.getState().setViewport({ ...origin, x: origin.x + e.clientX - startX, y: origin.y + e.clientY - startY });
+  };
+  const up = () => {
+    useUi.getState().setPanning(false);
+    window.removeEventListener('mousemove', move);
+    window.removeEventListener('mouseup', up);
+    if (!moved) onClick?.();
+  };
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
+}
+
 export function zoomByCenter(factor: number) {
   const { viewport, canvasSize, setViewport } = useUi.getState();
   setViewport(zoomAt(viewport, factor, canvasSize.w / 2, canvasSize.h / 2));

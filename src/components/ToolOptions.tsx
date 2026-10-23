@@ -2,6 +2,7 @@ import { useDesign } from '../store/design';
 import { catalogItem } from '../catalog';
 import { useUi } from '../store/ui';
 import type { OpeningKind } from '../model';
+import { STRIP_STYLES, ZONE_STYLES } from '../outdoor';
 import { NumberField } from './fields';
 
 const DOOR_KINDS: { kind: Exclude<OpeningKind, 'window'>; label: string }[] = [
@@ -18,6 +19,10 @@ export function ToolOptions() {
   const width = useUi((s) => s.openingWidth);
   const placing = useUi((s) => s.placing);
   const doorKind = useUi((s) => s.doorKind);
+  const zoneKind = useUi((s) => s.zoneKind);
+  const zoneShape = useUi((s) => s.zoneShape);
+  const stripKind = useUi((s) => s.stripKind);
+  const stripWidth = useUi((s) => s.stripWidth);
   const thickness = useDesign((s) => s.design.settings.wallThickness);
 
   let body = null;
@@ -75,7 +80,37 @@ export function ToolOptions() {
       </>
     );
   }
-  else if (tool === 'furniture' && placing) {
+  else if (tool === 'zone') {
+    body = (
+      <>
+        <strong>{ZONE_STYLES[zoneKind].label}</strong>
+        <div className="segmented" role="group" aria-label="Area shape">
+          <button className={zoneShape === 'rect' ? 'active' : ''} onClick={() => useUi.getState().setZoneShape('rect')} data-testid="zone-rect">
+            Rectangle
+          </button>
+          <button className={zoneShape === 'poly' ? 'active' : ''} onClick={() => useUi.getState().setZoneShape('poly')} data-testid="zone-poly">
+            Polygon
+          </button>
+        </div>
+      </>
+    );
+  } else if (tool === 'strip') {
+    body = (
+      <>
+        <strong>{STRIP_STYLES[stripKind].label}</strong>
+        <NumberField
+          label="Width"
+          value={stripWidth[stripKind]}
+          scale={100}
+          unit="cm"
+          min={2}
+          max={5000}
+          testId="opt-strip-width"
+          onCommit={(v) => useUi.getState().setStripWidth(stripKind, v)}
+        />
+      </>
+    );
+  } else if (tool === 'furniture' && placing) {
     body = (
       <span className="muted">
         Placing <strong>{catalogItem(placing).label}</strong> · click to drop · R rotates · Shift+click for several · Esc to stop

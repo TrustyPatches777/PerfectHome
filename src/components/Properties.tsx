@@ -3,7 +3,8 @@ import { deleteSelection, duplicateSelection, isLayerLocked } from '../actions';
 import { setWallLength } from '../canvas/editing';
 import { FLOOR_COLORS } from '../canvas/style';
 import { clampOpeningPos, detectRoom, dist, formatArea, formatLength, openingOverlaps, polygonArea, wallFrame } from '../geometry';
-import type { Furniture, ItemRef, Opening, OpeningKind, Room, TextLabel } from '../model';
+import { STRIP_KINDS, ZONE_KINDS, type Furniture, type ItemRef, type Opening, type OpeningKind, type Room, type Strip, type StripKind, type TextLabel, type Zone, type ZoneKind } from '../model';
+import { STRIP_STYLES, ZONE_STYLES, polylineLength } from '../outdoor';
 import { useDesign } from '../store/design';
 import { useOnFloor } from '../store/floor';
 import { useUi } from '../store/ui';
@@ -44,6 +45,8 @@ export function Properties() {
         {sel.kind === 'opening' && <OpeningProps id={sel.id} />}
         {sel.kind === 'room' && <RoomProps id={sel.id} />}
         {sel.kind === 'furniture' && <FurnitureProps id={sel.id} />}
+        {sel.kind === 'zone' && <ZoneProps id={sel.id} />}
+        {sel.kind === 'strip' && <StripProps id={sel.id} />}
         {sel.kind === 'label' && <LabelProps id={sel.id} />}
         {sel.kind === 'dimension' && <DimensionProps id={sel.id} />}
         <div className="row actions">
@@ -270,5 +273,62 @@ function DimensionProps({ id }: { id: string }) {
     <p className="stat" data-testid="dimension-length">
       Length <strong>{formatLength(dist(dim.a, dim.b))}</strong>
     </p>
+  );
+}
+
+function ZoneProps({ id }: { id: string }) {
+  const zone = useDesign((s) => s.design.zones.find((z) => z.id === id));
+  if (!zone) return null;
+  const edit = (fn: (z: Zone) => void) =>
+    useDesign.getState().update((d) => {
+      const z = d.zones.find((x) => x.id === id);
+      if (z) fn(z);
+    });
+  return (
+    <>
+      <TextField label="Name" value={zone.name} testId="zone-name" onChange={(v) => edit((z) => void (z.name = v))} />
+      <label className="field">
+        <span>Type</span>
+        <select value={zone.kind} data-testid="zone-kind" onChange={(e) => edit((z) => void (z.kind = e.target.value as ZoneKind))}>
+          {ZONE_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {ZONE_STYLES[k].label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <ColorField label="Color" value={zone.color} swatches={ZONE_STYLES[zone.kind].swatches} onChange={(c) => edit((z) => void (z.color = c))} />
+      <p className="stat" data-testid="zone-area">
+        Area <strong>{formatArea(polygonArea(zone.points))}</strong>
+      </p>
+    </>
+  );
+}
+
+function StripProps({ id }: { id: string }) {
+  const strip = useDesign((s) => s.design.strips.find((x) => x.id === id));
+  if (!strip) return null;
+  const edit = (fn: (s: Strip) => void) =>
+    useDesign.getState().update((d) => {
+      const x = d.strips.find((i) => i.id === id);
+      if (x) fn(x);
+    });
+  return (
+    <>
+      <label className="field">
+        <span>Type</span>
+        <select value={strip.kind} data-testid="strip-kind" onChange={(e) => edit((x) => void (x.kind = e.target.value as StripKind))}>
+          {STRIP_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {STRIP_STYLES[k].label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <NumberField label="Width" value={strip.width} scale={100} unit="cm" min={2} max={5000} testId="strip-width" onCommit={(v) => edit((x) => void (x.width = v))} />
+      <p className="stat" data-testid="strip-length">
+        Length <strong>{formatLength(polylineLength(strip.points))}</strong>
+      </p>
+    </>
   );
 }

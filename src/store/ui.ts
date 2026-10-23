@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { Design, ItemRef, OpeningKind, Point } from '../model';
+import type { Design, ItemRef, OpeningKind, Point, StripKind, ZoneKind } from '../model';
+import { STRIP_DEFAULT_WIDTH } from '../model';
 
 /** A modal question or message. Rendered by components/Dialogs.tsx. */
 export type DialogState =
@@ -7,7 +8,7 @@ export type DialogState =
   | { type: 'confirm'; title: string; message: string; confirmLabel: string; onConfirm: () => void }
   | { type: 'link-conflict'; incoming: Design; current: Design; sameDesign: boolean; choose: (useShared: boolean) => void };
 
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text';
+export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip';
 
 /** Camera: screen = world * zoom + (x, y). `zoom` is pixels per meter. */
 export interface Viewport {
@@ -56,6 +57,20 @@ interface UiStore {
 
   roomMode: 'auto' | 'draw';
   setRoomMode: (m: 'auto' | 'draw') => void;
+
+  /** Outdoor tools: which kind of area / line feature is being drawn, and how areas are drawn. */
+  zoneKind: ZoneKind;
+  zoneShape: 'rect' | 'poly';
+  stripKind: StripKind;
+  stripWidth: Record<StripKind, number>;
+  setZoneKind: (k: ZoneKind) => void;
+  setZoneShape: (s: 'rect' | 'poly') => void;
+  setStripKind: (k: StripKind) => void;
+  setStripWidth: (k: StripKind, w: number) => void;
+
+  /** True while the plan is being panned (for the cursor). */
+  panning: boolean;
+  setPanning: (p: boolean) => void;
 
   /** Width (meters) of newly placed doors, windows and other openings, per kind. */
   openingWidth: Record<OpeningKind, number>;
@@ -112,6 +127,18 @@ export const useUi = create<UiStore>((set) => ({
 
   roomMode: 'auto',
   setRoomMode: (roomMode) => set({ roomMode }),
+
+  zoneKind: 'lawn',
+  zoneShape: 'rect',
+  stripKind: 'road',
+  stripWidth: { ...STRIP_DEFAULT_WIDTH },
+  setZoneKind: (zoneKind) => set({ zoneKind }),
+  setZoneShape: (zoneShape) => set({ zoneShape }),
+  setStripKind: (stripKind) => set({ stripKind }),
+  setStripWidth: (k, w) => set((s) => ({ stripWidth: { ...s.stripWidth, [k]: w } })),
+
+  panning: false,
+  setPanning: (panning) => set({ panning }),
 
   openingWidth: { door: 0.9, double: 1.6, window: 1.2, garage: 2.5, gap: 1.0 },
   setOpeningWidth: (kind, w) => set((s) => ({ openingWidth: { ...s.openingWidth, [kind]: w } })),
