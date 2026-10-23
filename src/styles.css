@@ -904,3 +904,82 @@ button.material.on {
 .north-arrow:active {
   cursor: grabbing;
 }
+
+/* ---------- plan check, area table ---------- */
+.issues {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.issue {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+  text-align: left;
+  border-color: transparent;
+  padding: 4px 6px;
+  font-size: 12.5px;
+}
+.issue-dot {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  line-height: 18px;
+  font-size: 12px;
+}
+.modal.wide {
+  width: min(680px, calc(100vw - 40px));
+}
+.area-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.area-table caption {
+  text-align: left;
+  font-weight: 700;
+  padding: 8px 0 4px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 12px;
+}
+.area-table td {
+  padding: 3px 8px 3px 0;
+  border-bottom: 1px solid #eef1f6;
+}
+.area-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.area-table .note {
+  color: var(--muted);
+  font-size: 12px;
+}
+.area-table tr.sum td {
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+.area-table tr.minor td:first-child {
+  color: var(--muted);
+}
+
+.area-table {
+  table-layout: fixed;
+}
+.area-table td:first-child {
+  width: 46%;
+}
+.area-table td.num {
+  width: 20%;
+}

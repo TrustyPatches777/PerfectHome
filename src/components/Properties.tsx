@@ -95,6 +95,9 @@ function Summary() {
           {rooms.length} room{rooms.length > 1 ? 's' : ''} · total {formatArea(total)}
         </p>
       )}
+      <button onClick={() => useUi.getState().setDialog({ type: 'areas' })} data-testid="open-areas">
+        Area table &amp; plot figures…
+      </button>
     </div>
   );
 }

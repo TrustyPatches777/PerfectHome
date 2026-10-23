@@ -9,6 +9,7 @@ import { LayersPanel } from './components/LayersPanel';
 import { FloorsPanel } from './components/FloorsPanel';
 import { NotesPanel } from './components/NotesPanel';
 import { SunPanel } from './components/SunPanel';
+import { ChecksPanel } from './components/ChecksPanel';
 import { HelpDialog } from './components/HelpDialog';
 import { Dialogs } from './components/Dialogs';
 import { useShortcuts } from './hooks/useShortcuts';
@@ -36,6 +37,7 @@ export function App() {
         <aside className="sidebar right">
           <FloorsPanel />
           <SunPanel />
+          <ChecksPanel />
           <Properties />
           <NotesPanel />
           <LayersPanel />

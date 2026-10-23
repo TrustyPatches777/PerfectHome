@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useUi } from '../store/ui';
 import { exportJson, exportPng, hasBackup, importJsonFile, newDesign, restoreBackup } from '../session';
 
 export function FileMenu() {
@@ -41,6 +42,7 @@ export function FileMenu() {
         <div className="menu-list" role="menu">
           {item('New design', newDesign, 'menu-new')}
           {item('Import JSON…', () => fileInput.current?.click(), 'menu-import')}
+          {item('Area table…', () => useUi.getState().setDialog({ type: 'areas' }), 'menu-areas')}
           {item('Export JSON', exportJson, 'menu-export-json')}
           {item('Export PNG', exportPng, 'menu-export-png')}
           {item('Restore previous design', restoreBackup, 'menu-restore', !hasBackup())}

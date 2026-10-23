@@ -7,6 +7,7 @@ import { STRIP_DEFAULT_WIDTH } from '../model';
 /** A modal question or message. Rendered by components/Dialogs.tsx. */
 export type DialogState =
   | { type: 'share'; url: string; copied: boolean; long: boolean }
+  | { type: 'areas' }
   | { type: 'identity'; then?: Point }
   | { type: 'custom-item'; editId: string | null; preset?: Partial<CustomItem> }
   | { type: 'confirm'; title: string; message: string; confirmLabel: string; onConfirm: () => void }
@@ -91,6 +92,14 @@ interface UiStore {
   /** Who is using this browser (signs sticky notes). */
   me: Identity | null;
   setMe: (me: Identity) => void;
+
+  /** Plan check: look for problems, the narrowest passage in meters, and boundary distances shown on the plan. */
+  showChecks: boolean;
+  setShowChecks: (v: boolean) => void;
+  minPassage: number;
+  setMinPassage: (v: number) => void;
+  showSetbacks: boolean;
+  setShowSetbacks: (v: boolean) => void;
 
   /** What is shown on the plan (remembered between visits). */
   showRulers: boolean;
@@ -196,6 +205,13 @@ export const useUi = create<UiStore>((set) => ({
 
   typed: null,
   setTyped: (typed) => set({ typed }),
+
+  showChecks: false,
+  setShowChecks: (showChecks) => set({ showChecks }),
+  minPassage: 0.7,
+  setMinPassage: (minPassage) => set({ minPassage }),
+  showSetbacks: false,
+  setShowSetbacks: (showSetbacks) => set({ showSetbacks }),
 
   timeOfDay: 15,
   setTimeOfDay: (timeOfDay) => set({ timeOfDay }),

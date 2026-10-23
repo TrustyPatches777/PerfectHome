@@ -23,6 +23,7 @@ import { Rulers } from '../components/Rulers';
 import { AutoDimensions } from './layers/AutoDimensions';
 import { StickyLayer } from './layers/StickyLayer';
 import { LightingLayer } from './layers/LightingLayer';
+import { ChecksLayer } from './layers/ChecksLayer';
 import { NorthArrow } from '../components/NorthArrow';
 import { ToolOptions } from '../components/ToolOptions';
 
@@ -164,6 +165,7 @@ export function CanvasView() {
           <NotesLayer />
           <AutoDimensions />
           <StickyLayer />
+          <ChecksLayer />
         </Layer>
         <LightingLayer />
         <OverlayLayer />
