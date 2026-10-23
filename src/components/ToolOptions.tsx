@@ -1,14 +1,17 @@
 import { useDesign } from '../store/design';
 import { catalogItem } from '../catalog';
 import { useUi } from '../store/ui';
-import type { OpeningKind } from '../model';
+import { WALL_TYPES, WALL_TYPE_THICKNESS, type OpeningKind } from '../model';
+import { WALL_STYLE } from '../walls';
 import { STRIP_STYLES, ZONE_STYLES } from '../outdoor';
 import { NumberField } from './fields';
 
 const DOOR_KINDS: { kind: Exclude<OpeningKind, 'window' | 'bay'>; label: string }[] = [
   { kind: 'door', label: 'Door' },
-  { kind: 'double', label: 'Double door' },
-  { kind: 'garage', label: 'Garage door' },
+  { kind: 'double', label: 'Double' },
+  { kind: 'french', label: 'French' },
+  { kind: 'sliding', label: 'Sliding' },
+  { kind: 'garage', label: 'Garage' },
   { kind: 'gap', label: 'Open passage' },
 ];
 
@@ -19,6 +22,8 @@ export function ToolOptions() {
   const width = useUi((s) => s.openingWidth);
   const placing = useUi((s) => s.placing);
   const doorKind = useUi((s) => s.doorKind);
+  const windowKind = useUi((s) => s.windowKind);
+  const wallType = useUi((s) => s.wallType);
   const zoneKind = useUi((s) => s.zoneKind);
   const zoneShape = useUi((s) => s.zoneShape);
   const stripKind = useUi((s) => s.stripKind);
@@ -29,6 +34,21 @@ export function ToolOptions() {
   if (tool === 'wall') {
     body = (
       <>
+        <div className="segmented" role="group" aria-label="Wall type">
+          {WALL_TYPES.map((t) => (
+            <button
+              key={t}
+              className={wallType === t ? 'active' : ''}
+              data-testid={`wall-type-${t}`}
+              onClick={() => {
+                useUi.getState().setWallType(t);
+                useDesign.getState().update((d) => void (d.settings.wallThickness = WALL_TYPE_THICKNESS[t])); // each type has its usual thickness
+              }}
+            >
+              {WALL_STYLE[t].label}
+            </button>
+          ))}
+        </div>
         <NumberField
           label="Wall thickness"
           value={thickness}
@@ -42,7 +62,7 @@ export function ToolOptions() {
       </>
     );
   } else if (tool === 'door' || tool === 'window') {
-    const kind: OpeningKind = tool === 'door' ? doorKind : 'window';
+    const kind: OpeningKind = tool === 'door' ? doorKind : windowKind;
     body = (
       <>
         {tool === 'door' && (
@@ -52,6 +72,16 @@ export function ToolOptions() {
                 {k.label}
               </button>
             ))}
+          </div>
+        )}
+        {tool === 'window' && (
+          <div className="segmented" role="group" aria-label="Window type">
+            <button className={windowKind === 'window' ? 'active' : ''} onClick={() => useUi.getState().setWindowKind('window')} data-testid="window-kind-window">
+              Window
+            </button>
+            <button className={windowKind === 'bay' ? 'active' : ''} onClick={() => useUi.getState().setWindowKind('bay')} data-testid="window-kind-bay">
+              Bay window
+            </button>
           </div>
         )}
         <NumberField

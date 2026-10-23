@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   detectRoom,
+  pointOnWall,
+  projectOnWall,
+  wallArc,
+  wallLength,
+  wallOutlinePoints,
+  wallPointAt,
   doorGeometry,
   formatLength,
   labelPoint,
@@ -174,5 +180,100 @@ describe('polygonsOverlap', () => {
     expect(polygonsOverlap(rect(0, 0, 4, 3), rect(4, 0, 8, 3))).toBe(false); // shared edge
     expect(polygonsOverlap(rect(0, 0, 4, 3), rect(4, 3, 8, 6))).toBe(false); // shared corner
     expect(polygonsOverlap(rect(0, 0, 4, 3), rect(5, 0, 8, 3))).toBe(false);
+  });
+});
+
+describe('curved walls', () => {
+  const curved = (bulge: number): Wall => ({ ...wall('c', 0, 0, 4, 0), bulge });
+
+  it('has the arc length of the circle through the end points and the apex', () => {
+    const w = curved(1); // chord 4, rise 1 -> radius 2.5, angle 2*asin(0.8)
+    const arc = wallArc(w)!;
+    expect(arc.r).toBeCloseTo(2.5, 9);
+    expect(wallLength(w)).toBeCloseTo(2.5 * 2 * Math.asin(0.8), 9);
+    expect(wallLength(curved(0))).toBe(4);
+    expect(wallArc(curved(0.0004))).toBeNull(); // practically straight
+    // a half circle: chord 4, rise 2 -> length pi * 2
+    expect(wallLength(curved(2))).toBeCloseTo(Math.PI * 2, 9);
+  });
+
+  it('bulges to the right of a→b for positive values and to the left for negative ones', () => {
+    const L = wallLength(curved(1));
+    const apex = pointOnWall(curved(1), L / 2);
+    expect(apex.x).toBeCloseTo(2, 9);
+    expect(apex.y).toBeCloseTo(1, 9); // +y is the right-hand side of a left-to-right wall on screen
+    expect(pointOnWall(curved(-1), L / 2).y).toBeCloseTo(-1, 9);
+    // both ends stay put
+    expect(pointOnWall(curved(1), 0).x).toBeCloseTo(0, 9);
+    const end = pointOnWall(curved(1), L);
+    expect(end.x).toBeCloseTo(4, 9);
+    expect(end.y).toBeCloseTo(0, 9);
+  });
+
+  it('has a tangent that follows the curve and a normal on the right', () => {
+    const w = curved(1);
+    const start = wallPointAt(w, 0);
+    const mid = wallPointAt(w, wallLength(w) / 2);
+    expect(mid.u.x).toBeCloseTo(1, 9); // heading along +x at the apex
+    expect(mid.n.y).toBeCloseTo(1, 9);
+    expect(start.u.y).toBeGreaterThan(0.5); // bulging right (down): it starts out heading down-right
+    expect(start.u.x).toBeGreaterThan(0);
+  });
+
+  it('projects points back to the same position (round trip), also for bulging left and beyond the ends', () => {
+    for (const bulge of [1, -1, 2, -0.5]) {
+      const w = curved(bulge);
+      const L = wallLength(w);
+      for (const s of [0, 0.3 * L, 0.5 * L, 0.9 * L, L]) {
+        for (const d of [-0.2, 0, 0.3]) {
+          const back = projectOnWall(w, pointOnWall(w, s, d));
+          expect(back.s, `bulge ${bulge} s ${s}`).toBeCloseTo(s, 6);
+          expect(back.d, `bulge ${bulge} d ${d}`).toBeCloseTo(d, 6);
+        }
+      }
+    }
+    const w = curved(1);
+    expect(projectOnWall(w, pointOnWall(w, -0.5)).s).toBeCloseTo(-0.5, 6); // before the start
+    expect(projectOnWall(w, pointOnWall(w, wallLength(w) + 0.5)).s).toBeCloseTo(wallLength(w) + 0.5, 6);
+  });
+
+  it('finds the nearest curved wall and the side of the cursor', () => {
+    const w = curved(1);
+    const hit = nearestWall({ x: 2, y: 1.2 }, [w], 0.5)!; // just outside the apex
+    expect(hit.d).toBeGreaterThan(0);
+    expect(hit.s).toBeCloseTo(wallLength(w) / 2, 1);
+    expect(nearestWall({ x: 2, y: 0 }, [w], 0.5)).toBeNull(); // on the chord: not near the arc
+  });
+
+  it('cuts doors out along the curve and draws them tangent to it', () => {
+    const w = curved(1);
+    const L = wallLength(w);
+    const segs = wallSolidSegments(w, [door({ wallId: 'c', pos: L / 2, width: 1 })]);
+    expect(segs).toHaveLength(2);
+    expect(segs[0][1]).toBeCloseTo(L / 2 - 0.5, 9);
+    const g = doorGeometry(w, door({ wallId: 'c', pos: L / 2, width: 1, hinge: 'a', swing: 1 }));
+    expect(g.hinge.x).toBeCloseTo(1.5, 6); // at the apex the tangent is horizontal
+    expect(g.hinge.y).toBeCloseTo(1, 6);
+    expect(g.leafEnd.y).toBeCloseTo(2, 6); // swings to the right (down)
+  });
+
+  it('has an outline polygon around the curve', () => {
+    const w = curved(1);
+    const pts = wallOutlinePoints(w);
+    expect(pts.length).toBeGreaterThan(8);
+    const ys = pts.map((p) => p.y);
+    expect(Math.max(...ys)).toBeCloseTo(1.1, 1); // apex + half the 0.2 thickness (a sampled polygon, so not exact)
+    expect(polygonArea(pts)).toBeCloseTo((wallLength(w) + 0.2) * 0.2, 1);
+  });
+
+  it('detects a D-shaped room closed by a straight wall and an arc', () => {
+    const walls = [wall('s', 0, 0, 4, 0), { ...wall('c', 4, 0, 0, 0), bulge: 2 }]; // half circle below... or above
+    const above = detectRoom({ x: 2, y: -1 }, walls);
+    const below = detectRoom({ x: 2, y: 1 }, walls);
+    const room = above ?? below;
+    expect(room).not.toBeNull();
+    // inner radius 1.9, minus the straight wall's half thickness
+    expect(Math.abs(polygonArea(room!) - (Math.PI * 1.9 * 1.9) / 2 + 0.1 * 3.8)).toBeLessThan(0.25);
+    expect(above === null || below === null).toBe(true); // only one side is enclosed
   });
 });

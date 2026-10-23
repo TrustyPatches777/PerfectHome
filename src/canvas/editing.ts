@@ -1,7 +1,7 @@
 /** Mouse-driven edits of existing items: moving walls, dragging endpoints, sliding doors along walls. */
 import type { Draft } from 'immer';
 import type { Design, Point } from '../model';
-import { clampOpeningPos, openingOverlaps, projectOnWall, samePoint, wallFrame } from '../geometry';
+import { clampOpeningPos, openingOverlaps, projectOnWall, samePoint, wallFrame, wallLength } from '../geometry';
 import { useDesign } from '../store/design';
 import { dragSession, snapScalar, snapWorld } from './input';
 
@@ -12,7 +12,7 @@ export function fixOpenings(d: Draft<Design>, wallIds: Set<string>) {
   for (const o of d.openings) {
     if (!wallIds.has(o.wallId)) continue;
     const wall = d.walls.find((w) => w.id === o.wallId);
-    if (wall) o.pos = clampOpeningPos(o.pos, o.width, wallFrame(wall).length);
+    if (wall) o.pos = clampOpeningPos(o.pos, o.width, wallLength(wall));
   }
 }
 
@@ -31,7 +31,7 @@ function endsAt(d: Design, p: Point, floor: string): { id: string; end: End }[] 
 export function setWallLength(wallId: string, length: number) {
   useDesign.getState().update((d) => {
     const w = d.walls.find((x) => x.id === wallId);
-    if (!w || length < 0.05) return;
+    if (!w || length < 0.05 || w.bulge) return; // a curved wall's length follows from its curve
     const f = wallFrame(w);
     const nb = { x: w.a.x + f.u.x * length, y: w.a.y + f.u.y * length };
     const touched = new Set([wallId]);
@@ -105,7 +105,7 @@ export function startOpeningDrag(evt: MouseEvent, openingId: string) {
   if (!opening || !wall) return;
   dragSession(evt, (world) => {
     const { s } = projectOnWall(wall, world);
-    const L = wallFrame(wall).length;
+    const L = wallLength(wall);
     const pos = clampOpeningPos(snapScalar(s), opening.width, L);
     const others = useDesign.getState().design.openings.filter((o) => o.wallId === wall.id);
     if (openingOverlaps(others, pos, opening.width, openingId)) return;
@@ -161,6 +161,27 @@ export function startDimensionEndpointDrag(evt: MouseEvent, id: string, end: End
     useDesign.getState().update((d) => {
       const m = d.dimensions.find((x) => x.id === id);
       if (m) m[end] = { ...p };
+    });
+  });
+}
+
+/** Bend a wall by dragging the handle at its middle: the wall's bulge follows the cursor (snaps back to straight near 0). */
+export function startCurveDrag(evt: MouseEvent, wallId: string) {
+  const wall = useDesign.getState().design.walls.find((w) => w.id === wallId);
+  if (!wall) return;
+  const f = wallFrame({ ...wall, bulge: undefined }); // the straight chord a→b
+  const mid = { x: (wall.a.x + wall.b.x) / 2, y: (wall.a.y + wall.b.y) / 2 };
+  const chord = Math.hypot(wall.b.x - wall.a.x, wall.b.y - wall.a.y);
+  dragSession(evt, (world) => {
+    let h = (world.x - mid.x) * f.n.x + (world.y - mid.y) * f.n.y;
+    h = Math.round(h / 0.05) * 0.05; // 5 cm steps
+    h = Math.max(-chord, Math.min(chord, h));
+    useDesign.getState().update((d) => {
+      const w = d.walls.find((x) => x.id === wallId);
+      if (!w) return;
+      if (Math.abs(h) < 0.04) delete w.bulge;
+      else w.bulge = Math.round(h * 100) / 100;
+      fixOpenings(d, new Set([wallId]));
     });
   });
 }

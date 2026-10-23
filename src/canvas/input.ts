@@ -2,7 +2,7 @@ import { useEffect, useRef, type RefObject } from 'react';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Point } from '../model';
-import { snapPoint, wallFrame } from '../geometry';
+import { snapPoint, wallLength, wallPointAt } from '../geometry';
 import { useDesign } from '../store/design';
 import { floorBelow, floorId } from '../store/floor';
 import { useUi } from '../store/ui';
@@ -32,11 +32,9 @@ export function snapTargets(faces = false): Point[] {
     if (w.floor !== floor && w.floor !== below) continue; // the floor below is snappable so walls line up
     pts.push(w.a, w.b);
     if (faces) {
-      const f = wallFrame(w);
       const h = w.thickness / 2;
-      for (const s of [-1, 1]) {
-        pts.push({ x: w.a.x + f.n.x * h * s, y: w.a.y + f.n.y * h * s }, { x: w.b.x + f.n.x * h * s, y: w.b.y + f.n.y * h * s });
-      }
+      const ends = [wallPointAt(w, 0), wallPointAt(w, wallLength(w))];
+      for (const e of ends) for (const s of [-1, 1]) pts.push({ x: e.p.x + e.n.x * h * s, y: e.p.y + e.n.y * h * s });
     }
   }
   for (const r of d.rooms) if (r.floor === floor) pts.push(...r.points);
@@ -141,6 +139,7 @@ export function useCaptureKeys(handler: (e: KeyboardEvent) => boolean) {
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      lastPress = { t: 0, x: 0, y: 0 }; // a key press between two clicks means they are not a double-click
       if (latest.current(e)) {
         e.preventDefault();
         e.stopImmediatePropagation();

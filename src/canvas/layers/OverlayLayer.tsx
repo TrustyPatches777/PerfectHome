@@ -2,7 +2,8 @@ import { Circle, Layer } from 'react-konva';
 import { useDesign } from '../../store/design';
 import { useUi } from '../../store/ui';
 import { input } from '../input';
-import { startDimensionEndpointDrag, startEndpointDrag, startPointDrag } from '../editing';
+import { startCurveDrag, startDimensionEndpointDrag, startEndpointDrag, startPointDrag } from '../editing';
+import { wallLength, wallPointAt } from '../../geometry';
 import { SELECT_COLOR } from '../style';
 import { WallTool } from '../tools/WallTool';
 import { OpeningTool } from '../tools/OpeningTool';
@@ -18,18 +19,19 @@ import { SelectionTransformer } from '../SelectionTransformer';
 export function OverlayLayer() {
   const tool = useUi((s) => s.tool);
   const doorKind = useUi((s) => s.doorKind);
+  const windowKind = useUi((s) => s.windowKind);
   const sel = useUi((s) => s.selection);
   const zoom = useUi((s) => s.viewport.zoom);
   const design = useDesign((s) => s.design);
   const r = 6 / zoom;
 
-  const handle = (key: string, x: number, y: number, onDown: (e: MouseEvent) => void) => (
+  const handle = (key: string, x: number, y: number, onDown: (e: MouseEvent) => void, variant: 'corner' | 'curve' = 'corner') => (
     <Circle
       key={key}
       x={x}
       y={y}
-      radius={r}
-      fill="#ffffff"
+      radius={variant === 'curve' ? r * 0.8 : r}
+      fill={variant === 'curve' ? SELECT_COLOR : '#ffffff'}
       stroke={SELECT_COLOR}
       strokeWidth={2}
       strokeScaleEnabled={false}
@@ -50,6 +52,8 @@ export function OverlayLayer() {
       if (w) {
         handles.push(handle('a', w.a.x, w.a.y, (e) => startEndpointDrag(e, w.id, 'a')));
         handles.push(handle('b', w.b.x, w.b.y, (e) => startEndpointDrag(e, w.id, 'b')));
+        const mid = wallPointAt(w, wallLength(w) / 2).p;
+        handles.push(handle('curve', mid.x, mid.y, (e) => startCurveDrag(e, w.id), 'curve'));
       }
     }
     if (sel.kind === 'dimension' && !design.layers.notes.locked) {
@@ -74,7 +78,7 @@ export function OverlayLayer() {
       {handles}
       {tool === 'wall' && <WallTool />}
       {tool === 'door' && <OpeningTool kind={doorKind} />}
-      {tool === 'window' && <OpeningTool kind="window" />}
+      {tool === 'window' && <OpeningTool kind={windowKind} />}
       {tool === 'room' && <RoomTool />}
       {tool === 'furniture' && <FurnitureTool />}
       {tool === 'measure' && <MeasureTool />}

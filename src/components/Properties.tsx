@@ -2,8 +2,9 @@ import { catalogItem, FURNITURE_COLORS } from '../catalog';
 import { deleteSelection, duplicateSelection, isLayerLocked } from '../actions';
 import { setWallLength } from '../canvas/editing';
 import { FLOOR_COLORS } from '../canvas/style';
-import { clampOpeningPos, detectRoom, dist, formatArea, formatLength, openingOverlaps, polygonArea, wallFrame } from '../geometry';
-import { STRIP_KINDS, ZONE_KINDS, type Furniture, type ItemRef, type Opening, type OpeningKind, type Room, type Strip, type StripKind, type TextLabel, type Zone, type ZoneKind } from '../model';
+import { clampOpeningPos, detectRoom, dist, formatArea, formatLength, openingOverlaps, polygonArea, wallLength } from '../geometry';
+import { WALL_STYLE } from '../walls';
+import { STRIP_KINDS, WALL_TYPES, WALL_TYPE_HEIGHT, WALL_TYPE_THICKNESS, ZONE_KINDS, type Wall, type WallType, type Furniture, type ItemRef, type Opening, type OpeningKind, type Room, type Strip, type StripKind, type TextLabel, type Zone, type ZoneKind } from '../model';
 import { STRIP_STYLES, ZONE_STYLES, polylineLength } from '../outdoor';
 import { useDesign } from '../store/design';
 import { useOnFloor } from '../store/floor';
@@ -28,7 +29,10 @@ const TITLES: Record<ItemRef['kind'], string> = {
 const OPENING_TYPES: [OpeningKind, string][] = [
   ['door', 'Door'],
   ['double', 'Double door'],
+  ['french', 'French door'],
+  ['sliding', 'Sliding door'],
   ['window', 'Window'],
+  ['bay', 'Bay window'],
   ['garage', 'Garage door'],
   ['gap', 'Open passage'],
 ];
@@ -90,27 +94,68 @@ function Summary() {
 function WallProps({ id }: { id: string }) {
   const wall = useDesign((s) => s.design.walls.find((w) => w.id === id));
   if (!wall) return null;
+  const edit = (fn: (w: Wall) => void) =>
+    useDesign.getState().update((d) => {
+      const w = d.walls.find((x) => x.id === id);
+      if (w) fn(w);
+    });
+  const curved = !!wall.bulge;
   return (
     <>
+      <label className="field">
+        <span>Type</span>
+        <select
+          value={wall.type}
+          data-testid="wall-type"
+          onChange={(e) =>
+            edit((w) => {
+              const next = e.target.value as WallType;
+              // keep a custom thickness/height; switch only when they were the old type's defaults
+              if (Math.abs(w.thickness - WALL_TYPE_THICKNESS[w.type]) < 1e-6) w.thickness = WALL_TYPE_THICKNESS[next];
+              if (Math.abs(w.height - WALL_TYPE_HEIGHT[w.type]) < 1e-6) w.height = WALL_TYPE_HEIGHT[next];
+              w.type = next;
+            })
+          }
+        >
+          {WALL_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {WALL_STYLE[t].label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="row two">
+        <NumberField label="Thickness" value={wall.thickness} scale={100} unit="cm" min={2} max={100} testId="wall-thickness" onCommit={(v) => edit((w) => void (w.thickness = v))} />
+        <NumberField label="Height" value={wall.height} scale={100} unit="cm" min={10} max={3000} testId="wall-height" onCommit={(v) => edit((w) => void (w.height = v))} />
+      </div>
+      {curved ? (
+        <p className="stat" data-testid="wall-length-curved">
+          Length along the curve <strong>{formatLength(wallLength(wall))}</strong>
+        </p>
+      ) : (
+        <NumberField label="Length" value={wallLength(wall)} scale={100} unit="cm" min={5} testId="wall-length" onCommit={(v) => setWallLength(id, v)} />
+      )}
       <NumberField
-        label="Thickness"
-        value={wall.thickness}
+        label="Curve (sideways bulge)"
+        value={wall.bulge ?? 0}
         scale={100}
         unit="cm"
-        min={2}
-        max={100}
-        testId="wall-thickness"
-        onCommit={(v) => useDesign.getState().update((d) => void (d.walls.find((w) => w.id === id)!.thickness = v))}
+        min={-5000}
+        max={5000}
+        testId="wall-curve"
+        onCommit={(v) =>
+          edit((w) => {
+            if (Math.abs(v) < 0.04) delete w.bulge;
+            else w.bulge = v;
+          })
+        }
       />
-      <NumberField
-        label="Length"
-        value={wallFrame(wall).length}
-        scale={100}
-        unit="cm"
-        min={5}
-        testId="wall-length"
-        onCommit={(v) => setWallLength(id, v)}
-      />
+      {curved && (
+        <button onClick={() => edit((w) => void delete w.bulge)} data-testid="wall-straighten">
+          Make straight
+        </button>
+      )}
+      <p className="muted">Drag the filled dot in the middle of a selected wall to bend it.</p>
     </>
   );
 }
@@ -119,7 +164,7 @@ function OpeningProps({ id }: { id: string }) {
   const opening = useDesign((s) => s.design.openings.find((o) => o.id === id));
   const wall = useDesign((s) => s.design.walls.find((w) => w.id === opening?.wallId));
   if (!opening || !wall) return null;
-  const L = wallFrame(wall).length;
+  const L = wallLength(wall);
   const edit = (fn: (o: Opening) => void) =>
     useDesign.getState().update((d) => {
       const o = d.openings.find((x) => x.id === id);

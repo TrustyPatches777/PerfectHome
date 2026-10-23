@@ -52,44 +52,128 @@ export interface WallFrame {
   angle: number;
 }
 
-/** The four corners of a wall's drawn rectangle (including the half-thickness extension at both ends). */
-export function wallOutlinePoints(w: Wall): Point[] {
-  const f = wallFrame(w);
-  const h = w.thickness / 2;
-  return [
-    { x: w.a.x - f.u.x * h + f.n.x * h, y: w.a.y - f.u.y * h + f.n.y * h },
-    { x: w.a.x - f.u.x * h - f.n.x * h, y: w.a.y - f.u.y * h - f.n.y * h },
-    { x: w.b.x + f.u.x * h - f.n.x * h, y: w.b.y + f.u.y * h - f.n.y * h },
-    { x: w.b.x + f.u.x * h + f.n.x * h, y: w.b.y + f.u.y * h + f.n.y * h },
-  ];
+const TWO_PI = Math.PI * 2;
+const normAngle = (x: number) => ((x % TWO_PI) + TWO_PI) % TWO_PI;
+
+/** A curved wall: the circle arc through a, b and the apex `bulge` meters from the middle of the chord. */
+export interface WallArc {
+  c: Point;
+  r: number;
+  /** Angle (radians) of point `a` seen from the center, and the signed angle swept going to `b`. */
+  a0: number;
+  sweep: number;
+  length: number;
 }
 
+/** The arc of a curved wall, or null for a straight one. */
+export function wallArc(w: Wall): WallArc | null {
+  const chord = dist(w.a, w.b);
+  const raw = w.bulge ?? 0;
+  if (Math.abs(raw) < 0.001 || chord < 1e-6) return null;
+  const h = Math.sign(raw) * Math.min(Math.abs(raw), chord); // at most a bit more than a half circle
+  const u = { x: (w.b.x - w.a.x) / chord, y: (w.b.y - w.a.y) / chord };
+  const n = { x: -u.y, y: u.x };
+  const r = (chord * chord / 4 + h * h) / (2 * Math.abs(h));
+  const mid = { x: (w.a.x + w.b.x) / 2, y: (w.a.y + w.b.y) / 2 };
+  const apex = { x: mid.x + n.x * h, y: mid.y + n.y * h };
+  const k = h - Math.sign(h) * r;
+  const c = { x: mid.x + n.x * k, y: mid.y + n.y * k };
+  const a0 = Math.atan2(w.a.y - c.y, w.a.x - c.x);
+  const toB = normAngle(Math.atan2(w.b.y - c.y, w.b.x - c.x) - a0);
+  const toApex = normAngle(Math.atan2(apex.y - c.y, apex.x - c.x) - a0);
+  const sweep = toApex <= toB ? toB : toB - TWO_PI; // go the way that passes through the apex
+  return { c, r, a0, sweep, length: r * Math.abs(sweep) };
+}
+
+/** Length along the wall: the arc length for curved walls, the distance a→b for straight ones. */
+export const wallLength = (w: Wall): number => wallArc(w)?.length ?? dist(w.a, w.b);
+
+export interface WallPoint {
+  p: Point;
+  /** Unit tangent (direction of travel a→b) and unit normal to the right of it. */
+  u: Point;
+  n: Point;
+  /** Direction of the tangent in degrees (Konva rotation). */
+  angle: number;
+}
+
+/** Position and direction at distance `s` along the wall (values outside 0..length extend the wall). */
+export function wallPointAt(w: Wall, s: number): WallPoint {
+  const arc = wallArc(w);
+  if (!arc) {
+    const f = wallFrame(w);
+    return { p: { x: w.a.x + f.u.x * s, y: w.a.y + f.u.y * s }, u: f.u, n: f.n, angle: f.angle };
+  }
+  const th = arc.a0 + arc.sweep * (s / arc.length);
+  const dir = Math.sign(arc.sweep);
+  const u = { x: -Math.sin(th) * dir, y: Math.cos(th) * dir };
+  return {
+    p: { x: arc.c.x + arc.r * Math.cos(th), y: arc.c.y + arc.r * Math.sin(th) },
+    u,
+    n: { x: -u.y, y: u.x },
+    angle: (Math.atan2(u.y, u.x) * 180) / Math.PI,
+  };
+}
+
+/** The outline of a wall's drawn body as a polygon (including the half-thickness extension at both ends). */
+export function wallOutlinePoints(w: Wall): Point[] {
+  const h = w.thickness / 2;
+  const arc = wallArc(w);
+  const steps = arc ? Math.max(6, Math.ceil(Math.abs(arc.sweep) / (Math.PI / 24))) : 1;
+  const L = wallLength(w);
+  const outer: Point[] = [];
+  const inner: Point[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const wp = wallPointAt(w, -h + ((L + 2 * h) * i) / steps);
+    outer.push({ x: wp.p.x + wp.n.x * h, y: wp.p.y + wp.n.y * h });
+    inner.push({ x: wp.p.x - wp.n.x * h, y: wp.p.y - wp.n.y * h });
+  }
+  return [...outer, ...inner.reverse()];
+}
+
+/** Frame of the straight chord a→b. For curved walls `length` is the length along the curve. */
 export function wallFrame(w: Wall): WallFrame {
-  const length = dist(w.a, w.b);
-  const u = length > 1e-9 ? { x: (w.b.x - w.a.x) / length, y: (w.b.y - w.a.y) / length } : { x: 1, y: 0 };
-  return { length, u, n: { x: -u.y, y: u.x }, angle: (Math.atan2(u.y, u.x) * 180) / Math.PI };
+  const chord = dist(w.a, w.b);
+  const u = chord > 1e-9 ? { x: (w.b.x - w.a.x) / chord, y: (w.b.y - w.a.y) / chord } : { x: 1, y: 0 };
+  return { length: wallLength(w), u, n: { x: -u.y, y: u.x }, angle: (Math.atan2(u.y, u.x) * 180) / Math.PI };
 }
 
 /** Point at distance `s` along the wall from `a`, offset `d` toward the normal. */
 export function pointOnWall(w: Wall, s: number, d = 0): Point {
-  const f = wallFrame(w);
-  return { x: w.a.x + f.u.x * s + f.n.x * d, y: w.a.y + f.u.y * s + f.n.y * d };
+  const wp = wallPointAt(w, s);
+  return { x: wp.p.x + wp.n.x * d, y: wp.p.y + wp.n.y * d };
 }
 
 /** Position of `p` in the wall's frame: `s` along the wall (unclamped), `d` signed distance to the centerline. */
 export function projectOnWall(w: Wall, p: Point): { s: number; d: number } {
-  const f = wallFrame(w);
-  const dx = p.x - w.a.x;
-  const dy = p.y - w.a.y;
-  return { s: dx * f.u.x + dy * f.u.y, d: dx * f.n.x + dy * f.n.y };
+  const arc = wallArc(w);
+  if (!arc) {
+    const f = wallFrame(w);
+    const dx = p.x - w.a.x;
+    const dy = p.y - w.a.y;
+    return { s: dx * f.u.x + dy * f.u.y, d: dx * f.n.x + dy * f.n.y };
+  }
+  const dx = p.x - arc.c.x;
+  const dy = p.y - arc.c.y;
+  const dir = Math.sign(arc.sweep);
+  const span = Math.abs(arc.sweep);
+  const t = normAngle((Math.atan2(dy, dx) - arc.a0) * dir);
+  let travelled = t;
+  if (t > span) {
+    const beyond = t - span;
+    const before = TWO_PI - t;
+    travelled = beyond < before ? span + beyond : -before; // closer to the b end or to the a end
+  }
+  // the normal points away from the center when the wall bulges right (bulge > 0), toward it otherwise
+  return { s: travelled * arc.r, d: (Math.hypot(dx, dy) - arc.r) * Math.sign(w.bulge ?? 1) };
 }
 
-/** Nearest wall to `p` within `maxDist` meters (to the wall's centerline segment). */
+/** Nearest wall to `p` within `maxDist` meters (to the wall's centerline). */
 export function nearestWall(p: Point, walls: Wall[], maxDist: number): { wall: Wall; s: number; d: number } | null {
   let best: { wall: Wall; s: number; d: number; dist: number } | null = null;
   for (const wall of walls) {
     const { s, d } = projectOnWall(wall, p);
-    const L = wallFrame(wall).length;
+    const L = wallLength(wall);
     const sc = Math.min(L, Math.max(0, s));
     const dd = Math.hypot(s - sc, d);
     if (dd <= maxDist && (!best || dd < best.dist)) best = { wall, s, d, dist: dd };
@@ -145,13 +229,13 @@ export interface DoorGeometry {
 }
 
 export function doorGeometry(w: Wall, o: Opening, steps = 14): DoorGeometry {
-  const f = wallFrame(w);
-  const hingeS = o.hinge === 'a' ? o.pos - o.width / 2 : o.pos + o.width / 2;
-  const jambS = o.hinge === 'a' ? o.pos + o.width / 2 : o.pos - o.width / 2;
-  const hinge = pointOnWall(w, hingeS);
-  const jamb = pointOnWall(w, jambS);
-  const closedDir = o.hinge === 'a' ? f.u : { x: -f.u.x, y: -f.u.y };
-  const openDir = { x: f.n.x * o.swing, y: f.n.y * o.swing };
+  const wp = wallPointAt(w, o.pos); // for curved walls the door is drawn straight along the tangent at its center
+  const half = o.width / 2;
+  const sgn = o.hinge === 'a' ? -1 : 1;
+  const hinge = { x: wp.p.x + wp.u.x * half * sgn, y: wp.p.y + wp.u.y * half * sgn };
+  const jamb = { x: wp.p.x - wp.u.x * half * sgn, y: wp.p.y - wp.u.y * half * sgn };
+  const closedDir = o.hinge === 'a' ? wp.u : { x: -wp.u.x, y: -wp.u.y };
+  const openDir = { x: wp.n.x * o.swing, y: wp.n.y * o.swing };
   const arc: Point[] = [];
   for (let i = 0; i <= steps; i++) {
     const t = (i / steps) * (Math.PI / 2);
@@ -294,11 +378,12 @@ export function detectRoom(seed: Point, walls: Wall[]): Point[] | null {
   let maxX = -Infinity;
   let maxY = -Infinity;
   for (const w of walls) {
-    const r = w.thickness / 2;
-    minX = Math.min(minX, w.a.x - r, w.b.x - r);
-    minY = Math.min(minY, w.a.y - r, w.b.y - r);
-    maxX = Math.max(maxX, w.a.x + r, w.b.x + r);
-    maxY = Math.max(maxY, w.a.y + r, w.b.y + r);
+    for (const p of wallOutlinePoints(w)) {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    }
   }
   minX -= pad;
   minY -= pad;
@@ -314,19 +399,17 @@ export function detectRoom(seed: Point, walls: Wall[]): Point[] | null {
   const blocked = new Uint8Array(nx * ny);
 
   for (const w of walls) {
-    const f = wallFrame(w);
     const r = w.thickness / 2;
-    const x0 = Math.max(0, Math.floor((Math.min(w.a.x, w.b.x) - r - minX) / c));
-    const x1 = Math.min(nx - 1, Math.ceil((Math.max(w.a.x, w.b.x) + r - minX) / c));
-    const y0 = Math.max(0, Math.floor((Math.min(w.a.y, w.b.y) - r - minY) / c));
-    const y1 = Math.min(ny - 1, Math.ceil((Math.max(w.a.y, w.b.y) + r - minY) / c));
+    const L = wallLength(w);
+    const box = wallOutlinePoints(w);
+    const x0 = Math.max(0, Math.floor((Math.min(...box.map((p) => p.x)) - minX) / c));
+    const x1 = Math.min(nx - 1, Math.ceil((Math.max(...box.map((p) => p.x)) - minX) / c));
+    const y0 = Math.max(0, Math.floor((Math.min(...box.map((p) => p.y)) - minY) / c));
+    const y1 = Math.min(ny - 1, Math.ceil((Math.max(...box.map((p) => p.y)) - minY) / c));
     for (let j = y0; j <= y1; j++) {
-      const py = minY + (j + 0.5) * c - w.a.y;
       for (let i = x0; i <= x1; i++) {
-        const px = minX + (i + 0.5) * c - w.a.x;
-        const s = px * f.u.x + py * f.u.y;
-        const d = px * f.n.x + py * f.n.y;
-        if (s >= -r && s <= f.length + r && Math.abs(d) <= r) blocked[j * nx + i] = 1;
+        const { s, d } = projectOnWall(w, { x: minX + (i + 0.5) * c, y: minY + (j + 0.5) * c });
+        if (s >= -r && s <= L + r && Math.abs(d) <= r) blocked[j * nx + i] = 1;
       }
     }
   }
