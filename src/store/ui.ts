@@ -48,6 +48,10 @@ interface UiStore {
   openingWidth: { door: number; window: number };
   setOpeningWidth: (kind: 'door' | 'window', w: number) => void;
 
+  /** Bumped to ask the properties panel to focus its text field (new/double-clicked label). */
+  textFocus: number;
+  requestTextFocus: () => void;
+
   /** Transient one-line message (errors, hints). */
   toast: string | null;
   showToast: (msg: string) => void;
@@ -83,6 +87,9 @@ export const useUi = create<UiStore>((set) => ({
 
   openingWidth: { door: 0.9, window: 1.2 },
   setOpeningWidth: (kind, w) => set((s) => ({ openingWidth: { ...s.openingWidth, [kind]: w } })),
+
+  textFocus: 0,
+  requestTextFocus: () => set((s) => ({ textFocus: s.textFocus + 1 })),
 
   toast: null,
   showToast: (toast) => {

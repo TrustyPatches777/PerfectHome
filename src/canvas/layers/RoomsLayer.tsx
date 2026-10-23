@@ -1,4 +1,4 @@
-import { Layer, Line, Text } from 'react-konva';
+import { Group, Line, Text } from 'react-konva';
 import { formatArea, labelPoint, polygonArea } from '../../geometry';
 import { useDesign } from '../../store/design';
 import { useUi } from '../../store/ui';
@@ -15,7 +15,7 @@ export function RoomsLayer() {
   const fs = 13 / zoom; // labels keep a constant on-screen size
 
   return (
-    <Layer listening={tool === 'select' && !layer.locked}>
+    <Group listening={tool === 'select' && !layer.locked}>
       {rooms.map((r) => {
         return (
           <Line
@@ -58,6 +58,6 @@ export function RoomsLayer() {
           />
         );
       })}
-    </Layer>
+    </Group>
   );
 }

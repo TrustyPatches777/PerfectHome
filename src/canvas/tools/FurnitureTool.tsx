@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Group } from 'react-konva';
 import type Konva from 'konva';
+import { layerBlocksEditing } from '../../actions';
 import { catalogItem } from '../../catalog';
 import { newId, type Point } from '../../model';
 import { useDesign } from '../../store/design';
@@ -27,7 +28,7 @@ export function FurnitureTool() {
   useStageEvents(ref, {
     mousemove: (_e, world) => setHover(snapWorld(world, { ignore: () => true }).p),
     mousedown: (e, world) => {
-      if (!isPrimary(e) || !item) return;
+      if (!isPrimary(e) || !item || layerBlocksEditing('furniture')) return;
       const p = snapWorld(world, { ignore: () => true }).p;
       const id = newId();
       useDesign.getState().update((d) => {

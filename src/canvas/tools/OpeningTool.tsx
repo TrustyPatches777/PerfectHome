@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Group } from 'react-konva';
 import type Konva from 'konva';
+import { layerBlocksEditing } from '../../actions';
 import { newId, type Opening, type OpeningKind, type Wall } from '../../model';
 import { clampOpeningPos, nearestWall, openingOverlaps, wallFrame } from '../../geometry';
 import { useDesign } from '../../store/design';
@@ -47,7 +48,7 @@ export function OpeningTool({ kind }: { kind: OpeningKind }) {
     mousedown: (e, world) => {
       if (!isPrimary(e)) return;
       const h = locate(world);
-      if (!h) return;
+      if (!h || layerBlocksEditing('opening')) return;
       if (h.blocked) {
         useUi.getState().showToast('There is already a door or window there.');
         return;

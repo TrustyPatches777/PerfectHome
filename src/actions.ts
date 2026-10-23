@@ -1,6 +1,6 @@
 /** Commands that act on the current selection. Used by keyboard shortcuts and the properties panel. */
 import type { Draft } from 'immer';
-import { LAYER_OF, newId, type Design, type ItemKind, type ItemRef } from './model';
+import { LAYER_OF, newId, type Design, type ItemKind, type ItemRef, type LayerId } from './model';
 import { useDesign } from './store/design';
 import { useUi } from './store/ui';
 
@@ -133,4 +133,24 @@ export function rotateSelection(deg: number) {
       if (l) l.rotation = norm(l.rotation + deg);
     }
   });
+}
+
+/**
+ * Drawing tools call this before adding anything. Returns true (after telling the user why) when the
+ * target layer is locked or hidden, so new items can never be added to a layer that looks frozen.
+ */
+export function layerBlocksEditing(kind: ItemKind): boolean {
+  const layer = useDesign.getState().design.layers[LAYER_OF[kind]];
+  if (layer.locked || !layer.visible) {
+    useUi.getState().showToast(`That layer is ${layer.locked ? 'locked' : 'hidden'}. Change it in the Layers panel.`);
+    return true;
+  }
+  return false;
+}
+
+/** Hide/lock a layer; anything selected on it is deselected. */
+export function setLayerFlag(layer: LayerId, flag: 'visible' | 'locked', value: boolean) {
+  useDesign.getState().update((d) => void (d.layers[layer][flag] = value));
+  const sel = useUi.getState().selection;
+  if (sel && LAYER_OF[sel.kind] === layer && (flag === 'locked' || !value)) useUi.getState().select(null);
 }

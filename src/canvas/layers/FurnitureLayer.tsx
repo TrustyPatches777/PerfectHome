@@ -1,4 +1,4 @@
-import { Ellipse, Group, Layer, Line, Rect, Text } from 'react-konva';
+import { Ellipse, Group, Line, Rect, Text } from 'react-konva';
 import type { Furniture } from '../../model';
 import { catalogItem, fillColor } from '../../catalog';
 import { snapPoint } from '../../geometry';
@@ -45,7 +45,7 @@ export function FurnitureLayer() {
   const interactive = tool === 'select' && !layer.locked;
 
   return (
-    <Layer listening={interactive}>
+    <Group listening={interactive}>
       {furniture.map((f) => (
         <Group
           key={f.id}
@@ -106,6 +106,6 @@ export function FurnitureLayer() {
           />
         );
       })}
-    </Layer>
+    </Group>
   );
 }

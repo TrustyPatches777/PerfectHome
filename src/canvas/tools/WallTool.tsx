@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Circle, Group, Line, Text } from 'react-konva';
 import type Konva from 'konva';
+import { layerBlocksEditing } from '../../actions';
 import { newId, type Point } from '../../model';
 import { constrainAngle, dist, formatLength, samePoint, snapValue } from '../../geometry';
 import { useDesign } from '../../store/design';
@@ -43,6 +44,7 @@ export function WallTool() {
         finish();
         return;
       }
+      if (!start && layerBlocksEditing('wall')) return;
       const { p } = resolve(world, e.evt.shiftKey);
       if (!start) {
         setStart(p);

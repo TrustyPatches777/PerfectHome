@@ -1,4 +1,4 @@
-import { Group, Layer, Line, Rect } from 'react-konva';
+import { Group, Line, Rect } from 'react-konva';
 import type { Opening, Wall } from '../../model';
 import { doorGeometry, wallFrame, wallSolidSegments } from '../../geometry';
 import { useDesign } from '../../store/design';
@@ -97,7 +97,7 @@ export function StructureLayer() {
   for (const o of openings) byWall.set(o.wallId, [...(byWall.get(o.wallId) ?? []), o]);
 
   return (
-    <Layer listening={tool === 'select' && !layer.locked}>
+    <Group listening={tool === 'select' && !layer.locked}>
       {walls.map((w) => (
         <WallShape key={w.id} wall={w} openings={byWall.get(w.id) ?? []} selected={sel?.kind === 'wall' && sel.id === w.id} />
       ))}
@@ -105,6 +105,6 @@ export function StructureLayer() {
         const wall = walls.find((w) => w.id === o.wallId);
         return wall && <OpeningShape key={o.id} wall={wall} opening={o} selected={sel?.kind === 'opening' && sel.id === o.id} />;
       })}
-    </Layer>
+    </Group>
   );
 }

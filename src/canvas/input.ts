@@ -2,7 +2,7 @@ import { useEffect, useRef, type RefObject } from 'react';
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Point } from '../model';
-import { snapPoint } from '../geometry';
+import { snapPoint, wallFrame } from '../geometry';
 import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
 import { getStage } from './stage';
@@ -21,11 +21,20 @@ export interface SnapResult {
   kind: 'vertex' | 'grid' | 'none';
 }
 
-/** Corners other things can snap to: wall ends and room corners. */
-export function snapTargets(): Point[] {
+/** Corners other things can snap to: wall ends and room corners (and, for measuring, the wall faces). */
+export function snapTargets(faces = false): Point[] {
   const d = useDesign.getState().design;
   const pts: Point[] = [];
-  for (const w of d.walls) pts.push(w.a, w.b);
+  for (const w of d.walls) {
+    pts.push(w.a, w.b);
+    if (faces) {
+      const f = wallFrame(w);
+      const h = w.thickness / 2;
+      for (const s of [-1, 1]) {
+        pts.push({ x: w.a.x + f.n.x * h * s, y: w.a.y + f.n.y * h * s }, { x: w.b.x + f.n.x * h * s, y: w.b.y + f.n.y * h * s });
+      }
+    }
+  }
   for (const r of d.rooms) pts.push(...r.points);
   return pts;
 }
@@ -34,13 +43,13 @@ export function snapTargets(): Point[] {
  * Snap a world point to nearby corners first, then to the grid. Does nothing when snapping is off.
  * `ignore` lets a drag skip the very points it is moving.
  */
-export function snapWorld(p: Point, opts: { ignore?: (q: Point) => boolean; grid?: boolean } = {}): SnapResult {
+export function snapWorld(p: Point, opts: { ignore?: (q: Point) => boolean; grid?: boolean; faces?: boolean } = {}): SnapResult {
   const ui = useUi.getState();
   if (!ui.snap) return { p, kind: 'none' };
   const tol = VERTEX_SNAP_PX / ui.viewport.zoom;
   let best: Point | null = null;
   let bestD = tol;
-  for (const q of snapTargets()) {
+  for (const q of snapTargets(opts.faces)) {
     if (opts.ignore?.(q)) continue;
     const dd = Math.hypot(q.x - p.x, q.y - p.y);
     if (dd < bestD) {

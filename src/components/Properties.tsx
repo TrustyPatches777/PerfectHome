@@ -2,8 +2,8 @@ import { catalogItem, FURNITURE_COLORS } from '../catalog';
 import { deleteSelection, duplicateSelection, isLayerLocked } from '../actions';
 import { setWallLength } from '../canvas/editing';
 import { FLOOR_COLORS } from '../canvas/style';
-import { clampOpeningPos, detectRoom, formatArea, formatLength, openingOverlaps, polygonArea, wallFrame } from '../geometry';
-import type { Furniture, ItemRef, Opening, Room } from '../model';
+import { clampOpeningPos, detectRoom, dist, formatArea, formatLength, openingOverlaps, polygonArea, wallFrame } from '../geometry';
+import type { Furniture, ItemRef, Opening, Room, TextLabel } from '../model';
 import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
 import { ColorField, NumberField, TextField } from './fields';
@@ -33,6 +33,8 @@ export function Properties() {
         {sel.kind === 'opening' && <OpeningProps id={sel.id} />}
         {sel.kind === 'room' && <RoomProps id={sel.id} />}
         {sel.kind === 'furniture' && <FurnitureProps id={sel.id} />}
+        {sel.kind === 'label' && <LabelProps id={sel.id} />}
+        {sel.kind === 'dimension' && <DimensionProps id={sel.id} />}
         <div className="row actions">
           {sel.kind !== 'opening' && (
             <button onClick={duplicateSelection} title="Ctrl+D" data-testid="duplicate">
@@ -213,5 +215,38 @@ function FurnitureProps({ id }: { id: string }) {
         </button>
       </div>
     </>
+  );
+}
+
+const LABEL_COLORS = ['#1f2937', '#6b7280', '#2f6fed', '#0f766e', '#b45309', '#d9363e', '#7c3aed'];
+
+function LabelProps({ id }: { id: string }) {
+  const label = useDesign((s) => s.design.labels.find((l) => l.id === id));
+  const focus = useUi((s) => s.textFocus);
+  if (!label) return null;
+  const edit = (fn: (l: TextLabel) => void) =>
+    useDesign.getState().update((d) => {
+      const l = d.labels.find((x) => x.id === id);
+      if (l) fn(l);
+    });
+  return (
+    <>
+      <TextField label="Text" value={label.text} multiline focusSignal={focus} testId="label-text" onChange={(v) => edit((l) => void (l.text = v))} />
+      <div className="row two">
+        <NumberField label="Text size" value={label.size} scale={100} unit="cm" min={5} max={500} testId="label-size" onCommit={(v) => edit((l) => void (l.size = v))} />
+        <NumberField label="Rotation" value={label.rotation} unit="°" testId="label-rotation" onCommit={(v) => edit((l) => void (l.rotation = ((v % 360) + 360) % 360))} />
+      </div>
+      <ColorField label="Color" value={label.color} swatches={LABEL_COLORS} onChange={(c) => edit((l) => void (l.color = c))} />
+    </>
+  );
+}
+
+function DimensionProps({ id }: { id: string }) {
+  const dim = useDesign((s) => s.design.dimensions.find((m) => m.id === id));
+  if (!dim) return null;
+  return (
+    <p className="stat" data-testid="dimension-length">
+      Length <strong>{formatLength(dist(dim.a, dim.b))}</strong>
+    </p>
   );
 }

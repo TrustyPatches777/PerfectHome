@@ -5,6 +5,7 @@ import { StatusBar } from './components/StatusBar';
 import { ToolBar } from './components/ToolBar';
 import { FurniturePalette } from './components/FurniturePalette';
 import { Properties } from './components/Properties';
+import { LayersPanel } from './components/LayersPanel';
 import { HelpDialog } from './components/HelpDialog';
 import { useShortcuts } from './hooks/useShortcuts';
 
@@ -27,6 +28,7 @@ export function App() {
         </div>
         <aside className="sidebar right">
           <Properties />
+          <LayersPanel />
         </aside>
       </div>
       {help && <HelpDialog onClose={toggleHelp} />}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Stage } from 'react-konva';
+import { Layer, Stage } from 'react-konva';
 import type Konva from 'konva';
 import { useUi } from '../store/ui';
 import { zoomAt } from './camera';
@@ -9,6 +9,7 @@ import { GridLayer } from './GridLayer';
 import { RoomsLayer } from './layers/RoomsLayer';
 import { StructureLayer } from './layers/StructureLayer';
 import { FurnitureLayer } from './layers/FurnitureLayer';
+import { NotesLayer } from './layers/NotesLayer';
 import { OverlayLayer } from './layers/OverlayLayer';
 import { ScaleBar } from '../components/ScaleBar';
 import { ToolOptions } from '../components/ToolOptions';
@@ -124,9 +125,12 @@ export function CanvasView() {
         onMouseLeave={() => useUi.getState().setCursor(null)}
       >
         <GridLayer />
-        <RoomsLayer />
-        <StructureLayer />
-        <FurnitureLayer />
+        <Layer>
+          <RoomsLayer />
+          <StructureLayer />
+          <FurnitureLayer />
+          <NotesLayer />
+        </Layer>
         <OverlayLayer />
       </Stage>
       <ToolOptions />

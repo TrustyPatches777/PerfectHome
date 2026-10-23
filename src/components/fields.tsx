@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /** A numeric input that commits on Enter/blur, so typing "250" is one undo step, not three. */
 export function NumberField({
@@ -57,6 +57,7 @@ export function TextField({
   testId,
   multiline,
   placeholder,
+  focusSignal,
 }: {
   label: string;
   value: string;
@@ -64,14 +65,26 @@ export function TextField({
   testId?: string;
   multiline?: boolean;
   placeholder?: string;
+  /** When this number changes (and is > 0) the field takes focus and selects its text. */
+  focusSignal?: number;
 }) {
+  const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!focusSignal) return;
+    // Deferred: the mouse press that created the item would otherwise take focus back.
+    const t = setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }, 30);
+    return () => clearTimeout(t);
+  }, [focusSignal]);
   return (
     <label className="field">
       <span>{label}</span>
       {multiline ? (
-        <textarea value={value} rows={2} placeholder={placeholder} data-testid={testId} onChange={(e) => onChange(e.target.value)} />
+        <textarea ref={inputRef} value={value} rows={2} placeholder={placeholder} data-testid={testId} onChange={(e) => onChange(e.target.value)} />
       ) : (
-        <input type="text" value={value} placeholder={placeholder} data-testid={testId} onChange={(e) => onChange(e.target.value)} />
+        <input ref={inputRef} type="text" value={value} placeholder={placeholder} data-testid={testId} onChange={(e) => onChange(e.target.value)} />
       )}
     </label>
   );

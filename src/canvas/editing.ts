@@ -127,3 +127,18 @@ export function startRoomVertexDrag(evt: MouseEvent, roomId: string, index: numb
     });
   });
 }
+
+/** Drag one end of a measurement. */
+export function startDimensionEndpointDrag(evt: MouseEvent, id: string, end: End) {
+  const dim = useDesign.getState().design.dimensions.find((m) => m.id === id);
+  if (!dim) return;
+  let current = { ...dim[end] };
+  dragSession(evt, (world) => {
+    const p = snapWorld(world, { ignore: (q) => samePoint(q, current) }).p;
+    current = p;
+    useDesign.getState().update((d) => {
+      const m = d.dimensions.find((x) => x.id === id);
+      if (m) m[end] = { ...p };
+    });
+  });
+}

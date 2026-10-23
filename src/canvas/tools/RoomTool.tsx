@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Circle, Group, Line } from 'react-konva';
 import type Konva from 'konva';
+import { layerBlocksEditing } from '../../actions';
 import { newId, type Point } from '../../model';
 import { detectRoom, dist } from '../../geometry';
 import { useDesign } from '../../store/design';
@@ -39,6 +40,7 @@ export function RoomTool() {
     mousemove: (_e, world) => setHover(mode === 'draw' ? snapWorld(world).p : world),
     mousedown: (e, world) => {
       if (!isPrimary(e)) return;
+      if (layerBlocksEditing('room')) return;
       const dbl = isDoubleClick(e.evt);
       if (mode === 'draw' && dbl) {
         finish();

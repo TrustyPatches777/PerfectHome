@@ -2,12 +2,14 @@ import { Circle, Layer } from 'react-konva';
 import { useDesign } from '../../store/design';
 import { useUi } from '../../store/ui';
 import { input } from '../input';
-import { startEndpointDrag, startRoomVertexDrag } from '../editing';
+import { startDimensionEndpointDrag, startEndpointDrag, startRoomVertexDrag } from '../editing';
 import { SELECT_COLOR } from '../style';
 import { WallTool } from '../tools/WallTool';
 import { OpeningTool } from '../tools/OpeningTool';
 import { RoomTool } from '../tools/RoomTool';
 import { FurnitureTool } from '../tools/FurnitureTool';
+import { MeasureTool } from '../tools/MeasureTool';
+import { TextTool } from '../tools/TextTool';
 import { SelectionTransformer } from '../SelectionTransformer';
 
 /** Always on top: drag handles for the selection and the active drawing tool's preview. */
@@ -47,6 +49,13 @@ export function OverlayLayer() {
         handles.push(handle('b', w.b.x, w.b.y, (e) => startEndpointDrag(e, w.id, 'b')));
       }
     }
+    if (sel.kind === 'dimension' && !design.layers.notes.locked) {
+      const m = design.dimensions.find((x) => x.id === sel.id);
+      if (m) {
+        handles.push(handle('da', m.a.x, m.a.y, (e) => startDimensionEndpointDrag(e, m.id, 'a')));
+        handles.push(handle('db', m.b.x, m.b.y, (e) => startDimensionEndpointDrag(e, m.id, 'b')));
+      }
+    }
     if (sel.kind === 'room' && !design.layers.rooms.locked) {
       const room = design.rooms.find((x) => x.id === sel.id);
       room?.points.forEach((p, i) => handles.push(handle(`v${i}`, p.x, p.y, (e) => startRoomVertexDrag(e, room.id, i))));
@@ -61,6 +70,8 @@ export function OverlayLayer() {
       {tool === 'window' && <OpeningTool kind="window" />}
       {tool === 'room' && <RoomTool />}
       {tool === 'furniture' && <FurnitureTool />}
+      {tool === 'measure' && <MeasureTool />}
+      {tool === 'text' && <TextTool />}
       <SelectionTransformer />
     </Layer>
   );
