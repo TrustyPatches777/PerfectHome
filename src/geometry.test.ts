@@ -17,6 +17,8 @@ import type { Opening, Wall } from './model';
 const wall = (id: string, ax: number, ay: number, bx: number, by: number, thickness = 0.2): Wall => ({
   id,
   floor: 'f',
+  type: 'interior',
+  height: 2.5,
   a: { x: ax, y: ay },
   b: { x: bx, y: by },
   thickness,

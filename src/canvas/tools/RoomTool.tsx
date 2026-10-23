@@ -17,7 +17,7 @@ export function addRoom(points: Point[], seed?: Point) {
     const floor = floorId();
     const used = d.rooms.filter((r) => r.floor === floor).map((r) => /^Room (\d+)$/.exec(r.name)).map((m) => (m ? Number(m[1]) : 0));
     const n = Math.max(0, ...used) + 1;
-    d.rooms.push({ id, floor, name: `Room ${n}`, color: FLOOR_COLORS[d.rooms.length % FLOOR_COLORS.length], points, seed });
+    d.rooms.push({ id, floor, name: `Room ${n}`, color: FLOOR_COLORS[d.rooms.length % FLOOR_COLORS.length], material: 'plain', living: true, points, seed });
   });
   useUi.getState().select({ kind: 'room', id });
 }

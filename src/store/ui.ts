@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Design, ItemRef, OpeningKind, Point, StripKind, ZoneKind } from '../model';
+import type { Design, ItemRef, OpeningKind, Point, StripKind, WallType, ZoneKind } from '../model';
 import { STRIP_DEFAULT_WIDTH } from '../model';
 
 /** A modal question or message. Rendered by components/Dialogs.tsx. */
@@ -75,9 +75,14 @@ interface UiStore {
   /** Width (meters) of newly placed doors, windows and other openings, per kind. */
   openingWidth: Record<OpeningKind, number>;
   setOpeningWidth: (kind: OpeningKind, w: number) => void;
-  /** Which kind the Door tool places. */
-  doorKind: Exclude<OpeningKind, 'window'>;
-  setDoorKind: (k: Exclude<OpeningKind, 'window'>) => void;
+  /** Which kind the Door tool places, and which the Window tool places. */
+  doorKind: Exclude<OpeningKind, 'window' | 'bay'>;
+  setDoorKind: (k: Exclude<OpeningKind, 'window' | 'bay'>) => void;
+  windowKind: 'window' | 'bay';
+  setWindowKind: (k: 'window' | 'bay') => void;
+  /** Type of the walls being drawn (their thickness is a separate, editable setting). */
+  wallType: WallType;
+  setWallType: (t: WallType) => void;
 
   dialog: DialogState | null;
   setDialog: (d: DialogState | null) => void;
@@ -140,10 +145,14 @@ export const useUi = create<UiStore>((set) => ({
   panning: false,
   setPanning: (panning) => set({ panning }),
 
-  openingWidth: { door: 0.9, double: 1.6, window: 1.2, garage: 2.5, gap: 1.0 },
+  openingWidth: { door: 0.9, double: 1.6, french: 1.6, sliding: 1.8, window: 1.2, bay: 1.6, garage: 2.5, gap: 1.0 },
   setOpeningWidth: (kind, w) => set((s) => ({ openingWidth: { ...s.openingWidth, [kind]: w } })),
   doorKind: 'door',
   setDoorKind: (doorKind) => set({ doorKind }),
+  windowKind: 'window',
+  setWindowKind: (windowKind) => set({ windowKind }),
+  wallType: 'interior',
+  setWallType: (wallType) => set({ wallType }),
 
   dialog: null,
   setDialog: (dialog) => set({ dialog }),

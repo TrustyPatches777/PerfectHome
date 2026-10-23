@@ -59,6 +59,11 @@ export function contentBounds(d: Design, floor?: string): Bounds | null {
   for (const z of on(d.zones)) pts.push(...z.points);
   for (const s of on(d.strips)) pts.push(...s.points);
   for (const dim of on(d.dimensions)) pts.push(dim.a, dim.b);
+  for (const n of on(d.notes)) pts.push({ x: n.x - 0.3, y: n.y - 0.3 }, { x: n.x + 0.3, y: n.y + 0.3 });
+  for (const s of on(d.stairs)) {
+    const r = Math.hypot(s.w, s.d) / 2;
+    pts.push({ x: s.x - r, y: s.y - r }, { x: s.x + r, y: s.y + r });
+  }
   for (const f of on(d.furniture)) {
     const r = Math.hypot(f.w, f.d) / 2;
     pts.push({ x: f.x - r, y: f.y - r }, { x: f.x + r, y: f.y + r });

@@ -39,16 +39,18 @@ export function LayersPanel() {
               >
                 <Eye off={!l.visible} />
               </button>
+              {id !== 'shadows' && (
               <button
-                className={`icon ${l.locked ? 'active' : ''}`}
-                onClick={() => setLayerFlag(id, 'locked', !l.locked)}
-                title={l.locked ? 'Unlock' : 'Lock so it cannot be changed'}
-                aria-label={`${l.locked ? 'Unlock' : 'Lock'} ${LAYER_LABELS[id]}`}
-                aria-pressed={l.locked}
-                data-testid={`lock-${id}`}
-              >
-                <Lock open={!l.locked} />
-              </button>
+                  className={`icon ${l.locked ? 'active' : ''}`}
+                  onClick={() => setLayerFlag(id, 'locked', !l.locked)}
+                  title={l.locked ? 'Unlock' : 'Lock so it cannot be changed'}
+                  aria-label={`${l.locked ? 'Unlock' : 'Lock'} ${LAYER_LABELS[id]}`}
+                  aria-pressed={l.locked}
+                  data-testid={`lock-${id}`}
+                >
+                  <Lock open={!l.locked} />
+                </button>
+              )}
             </li>
           );
         })}

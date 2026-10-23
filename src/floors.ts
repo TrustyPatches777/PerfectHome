@@ -12,7 +12,7 @@ function nextName(count: number, basement: boolean): string {
 }
 
 export const floorHasContent = (d: Design, id: string) =>
-  [d.walls, d.rooms, d.furniture, d.labels, d.dimensions, d.zones, d.strips].some((list) => (list as { floor: string }[]).some((i) => i.floor === id));
+  [d.walls, d.rooms, d.furniture, d.labels, d.dimensions, d.zones, d.strips, d.stairs, d.notes].some((list) => (list as { floor: string }[]).some((i) => i.floor === id));
 
 export function activeFloor(): string {
   return floorIdOf(useDesign.getState().design, useUi.getState().activeFloor);
@@ -57,6 +57,8 @@ export function duplicateFloor() {
     copy(d.dimensions);
     copy(d.zones);
     copy(d.strips);
+    copy(d.stairs);
+    copy(d.notes);
   });
   useUi.getState().setActiveFloor(id);
 }
@@ -82,6 +84,8 @@ function removeFloor(id: string) {
     d.dimensions = d.dimensions.filter((x) => x.floor !== id);
     d.zones = d.zones.filter((x) => x.floor !== id);
     d.strips = d.strips.filter((x) => x.floor !== id);
+    d.stairs = d.stairs.filter((x) => x.floor !== id);
+    d.notes = d.notes.filter((x) => x.floor !== id);
     d.floors = d.floors.filter((f) => f.id !== id);
   });
   useUi.getState().setActiveFloor(neighbour);

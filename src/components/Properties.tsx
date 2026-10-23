@@ -19,6 +19,9 @@ const TITLES: Record<ItemRef['kind'], string> = {
   dimension: 'Measurement',
   zone: 'Outdoor area',
   strip: 'Street / path / fence',
+  stair: 'Stairs',
+  note: 'Sticky note',
+  guide: 'Guide',
 };
 
 const OPENING_TYPES: [OpeningKind, string][] = [

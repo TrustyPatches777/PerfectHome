@@ -5,7 +5,7 @@ import type { OpeningKind } from '../model';
 import { STRIP_STYLES, ZONE_STYLES } from '../outdoor';
 import { NumberField } from './fields';
 
-const DOOR_KINDS: { kind: Exclude<OpeningKind, 'window'>; label: string }[] = [
+const DOOR_KINDS: { kind: Exclude<OpeningKind, 'window' | 'bay'>; label: string }[] = [
   { kind: 'door', label: 'Door' },
   { kind: 'double', label: 'Double door' },
   { kind: 'garage', label: 'Garage door' },

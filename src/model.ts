@@ -18,15 +18,20 @@ export interface Point {
 }
 
 /** Layers can be hidden and locked. Locked layers cannot be selected or moved. */
-export type LayerId = 'structure' | 'rooms' | 'outdoor' | 'furniture' | 'notes';
-export const LAYER_IDS: LayerId[] = ['structure', 'rooms', 'outdoor', 'furniture', 'notes'];
+export type LayerId = 'structure' | 'rooms' | 'outdoor' | 'furniture' | 'tech' | 'notes' | 'comments' | 'shadows';
+export const LAYER_IDS: LayerId[] = ['structure', 'rooms', 'outdoor', 'furniture', 'tech', 'notes', 'comments', 'shadows'];
 export const LAYER_LABELS: Record<LayerId, string> = {
-  structure: 'Walls, doors & windows',
+  structure: 'Walls, doors, windows & stairs',
   rooms: 'Rooms',
   outdoor: 'Garden, driveway & street',
   furniture: 'Furniture & vehicles',
-  notes: 'Labels & measurements',
+  tech: 'Lamps, electrical & plumbing',
+  notes: 'Labels, measurements & guides',
+  comments: 'Sticky notes',
+  shadows: 'Sun & shadows',
 };
+/** `shadows` only draws; it holds no items, so it can be hidden but not locked. */
+export const LAYERS_WITH_ITEMS: LayerId[] = LAYER_IDS.filter((l) => l !== 'shadows');
 
 /** One level of the building. `Design.floors` is ordered from the lowest to the highest. */
 export interface Floor {
@@ -39,21 +44,35 @@ export interface LayerState {
   locked: boolean;
 }
 
-/** A straight wall segment between two centerline points. */
+/** exterior, interior, load-bearing, light partition, or a low railing/parapet. */
+export type WallType = 'exterior' | 'interior' | 'load' | 'partition' | 'railing';
+export const WALL_TYPES: WallType[] = ['exterior', 'interior', 'load', 'partition', 'railing'];
+export const WALL_TYPE_THICKNESS: Record<WallType, number> = { exterior: 0.3, interior: 0.15, load: 0.24, partition: 0.1, railing: 0.06 };
+export const WALL_TYPE_HEIGHT: Record<WallType, number> = { exterior: 2.5, interior: 2.5, load: 2.5, partition: 2.5, railing: 1.0 };
+
+/** A wall between two centerline points; straight, or an arc when `bulge` is set. */
 export interface Wall {
   id: string;
   floor: string;
   a: Point;
   b: Point;
   thickness: number;
+  type: WallType;
+  /** Height in meters (used for shadows). */
+  height: number;
+  /**
+   * Curvature: signed distance in meters from the middle of the chord a→b to the middle of the arc
+   * (positive bulges to the right of a→b on screen). 0 or absent = straight.
+   */
+  bulge?: number;
 }
 
 /**
- * door = single door with swing arc, double = two leaves, window, garage = wide overhead/sliding door,
- * gap = open passage without a door.
+ * door = single door with swing arc, double = two leaves, french = double door with glass, sliding = sliding
+ * door, window, bay = bay window projecting outwards, garage = wide overhead door, gap = open passage.
  */
-export type OpeningKind = 'door' | 'double' | 'window' | 'garage' | 'gap';
-export const OPENING_KINDS: OpeningKind[] = ['door', 'double', 'window', 'garage', 'gap'];
+export type OpeningKind = 'door' | 'double' | 'french' | 'sliding' | 'window' | 'bay' | 'garage' | 'gap';
+export const OPENING_KINDS: OpeningKind[] = ['door', 'double', 'french', 'sliding', 'window', 'bay', 'garage', 'gap'];
 
 /** A door, window or other opening cut into a wall. */
 export interface Opening {
@@ -69,12 +88,19 @@ export interface Opening {
   hinge: 'a' | 'b';
 }
 
+export type FloorMaterial = 'plain' | 'wood' | 'parquet' | 'tile' | 'carpet' | 'stone' | 'concrete';
+export const FLOOR_MATERIALS: FloorMaterial[] = ['plain', 'wood', 'parquet', 'tile', 'carpet', 'stone', 'concrete'];
+
 /** A named floor area. `points` is a closed polygon (implicitly closed). */
 export interface Room {
   id: string;
   floor: string;
   name: string;
   color: string;
+  /** Surface pattern drawn in the room's color. */
+  material: FloorMaterial;
+  /** Counts towards the living area in the area table (turn off for garage, cellar...). */
+  living: boolean;
   points: Point[];
   /** A point inside the room, used to re-detect the outline from the walls. Absent for hand-drawn rooms. */
   seed?: Point;
@@ -94,6 +120,74 @@ export interface Furniture {
   color: string;
   /** Overrides the catalog label when non-empty. */
   label: string;
+  /** Height in meters, overriding the catalog default (used for shadows). */
+  height?: number;
+  /** Lamps only: switched on (glows at night). Absent = on. */
+  on?: boolean;
+}
+
+/** A staircase. Position is its center; `d` runs along the walking direction. */
+export type StairKind = 'straight' | 'l' | 'u' | 'spiral';
+export const STAIR_KINDS: StairKind[] = ['straight', 'l', 'u', 'spiral'];
+export interface Stair {
+  id: string;
+  floor: string;
+  kind: StairKind;
+  x: number;
+  y: number;
+  w: number;
+  d: number;
+  rotation: number;
+  steps: number;
+  /** Height to climb in meters. */
+  rise: number;
+  /** L/U stairs: turn the other way. */
+  flip: boolean;
+}
+
+/** A sticky note pinned on the plan. */
+export interface Note {
+  id: string;
+  floor: string;
+  x: number;
+  y: number;
+  text: string;
+  /** Who wrote it, and their color. */
+  author: string;
+  color: string;
+  /** Unix ms. */
+  time: number;
+  done: boolean;
+}
+
+/** An infinite alignment line: axis 'x' = vertical line at x = pos, 'y' = horizontal line at y = pos. */
+export interface Guide {
+  id: string;
+  axis: 'x' | 'y';
+  pos: number;
+}
+
+/** A piece of furniture you defined yourself. Placed items use type `custom:<id>`. */
+export interface CustomItem {
+  id: string;
+  label: string;
+  w: number;
+  d: number;
+  height: number;
+  color: string;
+  /** rect, rounded rectangle, ellipse, or the drawing of an existing catalog item (`base`). */
+  shape: 'rect' | 'round' | 'ellipse' | 'symbol';
+  base?: string;
+}
+
+/** Where the building stands: used for the sun. */
+export interface Site {
+  /** Direction of true north on the plan, in degrees clockwise from "up" on screen. */
+  north: number;
+  /** Latitude in degrees (north positive). */
+  lat: number;
+  month: number;
+  day: number;
 }
 
 export interface TextLabel {
@@ -148,6 +242,8 @@ export interface Settings {
   gridStep: number;
   /** Thickness used for newly drawn walls. */
   wallThickness: number;
+  /** Height of one storey in meters (shadows of upper floors). */
+  storeyHeight: number;
 }
 
 export interface Design {
@@ -167,9 +263,14 @@ export interface Design {
   dimensions: Dimension[];
   zones: Zone[];
   strips: Strip[];
+  stairs: Stair[];
+  notes: Note[];
+  guides: Guide[];
+  custom: CustomItem[];
+  site: Site;
 }
 
-export type ItemKind = 'wall' | 'opening' | 'room' | 'furniture' | 'label' | 'dimension' | 'zone' | 'strip';
+export type ItemKind = 'wall' | 'opening' | 'room' | 'furniture' | 'label' | 'dimension' | 'zone' | 'strip' | 'stair' | 'note' | 'guide';
 export interface ItemRef {
   kind: ItemKind;
   id: string;
@@ -184,6 +285,9 @@ export const LAYER_OF: Record<ItemKind, LayerId> = {
   dimension: 'notes',
   zone: 'outdoor',
   strip: 'outdoor',
+  stair: 'structure',
+  note: 'comments',
+  guide: 'notes',
 };
 
 // ---------------------------------------------------------------------------
@@ -192,6 +296,8 @@ export const LAYER_OF: Record<ItemKind, LayerId> = {
 
 export const DEFAULT_GRID_STEP = 0.1;
 export const DEFAULT_WALL_THICKNESS = 0.15;
+export const DEFAULT_STOREY_HEIGHT = 2.8;
+export const DEFAULT_SITE: Site = { north: 0, lat: 50, month: 6, day: 21 };
 export const GRID_STEPS = [0.05, 0.1, 0.25, 0.5];
 
 export function newId(): string {
@@ -203,13 +309,16 @@ export function createDesign(): Design {
     v: SCHEMA_VERSION,
     id: newId() + newId(),
     name: 'My home',
-    settings: { gridStep: DEFAULT_GRID_STEP, wallThickness: DEFAULT_WALL_THICKNESS },
+    settings: { gridStep: DEFAULT_GRID_STEP, wallThickness: DEFAULT_WALL_THICKNESS, storeyHeight: DEFAULT_STOREY_HEIGHT },
     layers: {
       structure: { visible: true, locked: false },
       rooms: { visible: true, locked: false },
       outdoor: { visible: true, locked: false },
       furniture: { visible: true, locked: false },
+      tech: { visible: true, locked: false },
       notes: { visible: true, locked: false },
+      comments: { visible: true, locked: false },
+      shadows: { visible: true, locked: false },
     },
     floors: [{ id: newId(), name: 'Ground floor' }],
     walls: [],
@@ -220,6 +329,11 @@ export function createDesign(): Design {
     dimensions: [],
     zones: [],
     strips: [],
+    stairs: [],
+    notes: [],
+    guides: [],
+    custom: [],
+    site: { ...DEFAULT_SITE },
   };
 }
 
@@ -283,13 +397,20 @@ export function parseDesign(input: unknown): Design {
   const floorIds = new Set(floors.map((f) => f.id));
   const floorOf = (v: unknown) => (typeof v === 'string' && floorIds.has(v) ? v : floors[0].id);
 
-  const walls = list<Wall>(input.walls, (o) => ({
-    id: str(o.id, newId(), 20),
-    floor: floorOf(o.floor),
-    a: point(o.a),
-    b: point(o.b),
-    thickness: num(o.thickness, DEFAULT_WALL_THICKNESS, 0.02, 1),
-  }));
+  const walls = list<Wall>(input.walls, (o) => {
+    const type = WALL_TYPES.includes(o.type as WallType) ? (o.type as WallType) : 'interior';
+    const bulge = num(o.bulge, 0, -100, 100);
+    return {
+      id: str(o.id, newId(), 20),
+      floor: floorOf(o.floor),
+      a: point(o.a),
+      b: point(o.b),
+      thickness: num(o.thickness, DEFAULT_WALL_THICKNESS, 0.02, 1),
+      type,
+      height: num(o.height, WALL_TYPE_HEIGHT[type], 0.1, 30),
+      ...(Math.abs(bulge) > 0.001 ? { bulge } : {}),
+    };
+  });
   const wallIds = new Set(walls.map((w) => w.id));
 
   return {
@@ -299,6 +420,7 @@ export function parseDesign(input: unknown): Design {
     settings: {
       gridStep: num(settings.gridStep, DEFAULT_GRID_STEP, 0.01, 5),
       wallThickness: num(settings.wallThickness, DEFAULT_WALL_THICKNESS, 0.02, 1),
+      storeyHeight: num(settings.storeyHeight, DEFAULT_STOREY_HEIGHT, 1.8, 6),
     },
     layers: outLayers,
     floors,
@@ -324,6 +446,8 @@ export function parseDesign(input: unknown): Design {
         floor: floorOf(o.floor),
         name: str(o.name, 'Room', 80),
         color: color(o.color, '#e8eef7'),
+        material: FLOOR_MATERIALS.includes(o.material as FloorMaterial) ? (o.material as FloorMaterial) : 'plain',
+        living: o.living !== false,
         points: pts,
         seed: isObj(o.seed) ? point(o.seed) : undefined,
       };
@@ -339,6 +463,8 @@ export function parseDesign(input: unknown): Design {
       rotation: num(o.rotation, 0, -3600, 3600),
       color: color(o.color, '#cbd5e1'),
       label: str(o.label, '', 60),
+      ...(typeof o.height === 'number' ? { height: num(o.height, 0.5, 0.01, 30) } : {}),
+      ...(o.on === false ? { on: false } : {}),
     })),
     labels: list<TextLabel>(input.labels, (o) => ({
       id: str(o.id, newId(), 20),
@@ -380,6 +506,54 @@ export function parseDesign(input: unknown): Design {
         width: num(o.width, STRIP_DEFAULT_WIDTH[kind], 0.02, 50),
       };
     }),
+    stairs: list<Stair>(input.stairs, (o) => ({
+      id: str(o.id, newId(), 20),
+      floor: floorOf(o.floor),
+      kind: STAIR_KINDS.includes(o.kind as StairKind) ? (o.kind as StairKind) : 'straight',
+      x: num(o.x, 0),
+      y: num(o.y, 0),
+      w: num(o.w, 1, 0.3, 20),
+      d: num(o.d, 3, 0.3, 30),
+      rotation: num(o.rotation, 0, -3600, 3600),
+      steps: Math.round(num(o.steps, 14, 2, 60)),
+      rise: num(o.rise, 2.8, 0.2, 10),
+      flip: o.flip === true,
+    })),
+    notes: list<Note>(input.notes, (o) => ({
+      id: str(o.id, newId(), 20),
+      floor: floorOf(o.floor),
+      x: num(o.x, 0),
+      y: num(o.y, 0),
+      text: str(o.text, '', 1000),
+      author: str(o.author, '', 40),
+      color: color(o.color, '#facc15'),
+      time: num(o.time, 0, 0, 1e14),
+      done: o.done === true,
+    })),
+    guides: list<Guide>(input.guides, (o) => ({
+      id: str(o.id, newId(), 20),
+      axis: o.axis === 'y' ? 'y' : 'x',
+      pos: num(o.pos, 0),
+    })),
+    custom: list<CustomItem>(input.custom, (o) => ({
+      id: str(o.id, newId(), 20),
+      label: str(o.label, 'My item', 60),
+      w: num(o.w, 1, 0.05, 50),
+      d: num(o.d, 1, 0.05, 50),
+      height: num(o.height, 0.5, 0.01, 30),
+      color: color(o.color, '#cbd5e1'),
+      shape: (['rect', 'round', 'ellipse', 'symbol'] as const).includes(o.shape as 'rect') ? (o.shape as CustomItem['shape']) : 'rect',
+      ...(typeof o.base === 'string' ? { base: str(o.base, '', 40) } : {}),
+    })),
+    site: (() => {
+      const s = isObj(input.site) ? input.site : {};
+      return {
+        north: num(s.north, DEFAULT_SITE.north, -360, 360),
+        lat: num(s.lat, DEFAULT_SITE.lat, -66, 66),
+        month: Math.round(num(s.month, DEFAULT_SITE.month, 1, 12)),
+        day: Math.round(num(s.day, DEFAULT_SITE.day, 1, 31)),
+      };
+    })(),
   };
 }
 

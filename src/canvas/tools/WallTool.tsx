@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Circle, Group, Line, Text } from 'react-konva';
 import type Konva from 'konva';
 import { layerBlocksEditing } from '../../actions';
-import { newId, type Point } from '../../model';
+import { newId, WALL_TYPE_HEIGHT, type Point } from '../../model';
 import { constrainAngle, dist, formatLength, samePoint, snapValue } from '../../geometry';
 import { useDesign } from '../../store/design';
 import { floorId } from '../../store/floor';
@@ -15,6 +15,7 @@ export function WallTool() {
   const ref = useRef<Konva.Group>(null);
   const zoom = useUi((s) => s.viewport.zoom);
   const thickness = useDesign((s) => s.design.settings.wallThickness);
+  const wallType = useUi((s) => s.wallType);
   const [start, setStart] = useState<Point | null>(null);
   const [hover, setHover] = useState<{ p: Point; vertex: boolean } | null>(null);
   const first = useRef<Point | null>(null);
@@ -55,7 +56,7 @@ export function WallTool() {
       if (dist(start, p) < 0.02) return; // second click of a double-click
       const floor = floorId();
       useDesign.getState().update((d) => {
-        d.walls.push({ id: newId(), floor, a: { ...start }, b: { ...p }, thickness });
+        d.walls.push({ id: newId(), floor, a: { ...start }, b: { ...p }, thickness, type: wallType, height: WALL_TYPE_HEIGHT[wallType] });
       });
       if (first.current && samePoint(p, first.current, 0.01)) finish(); // closed a loop
       else setStart(p);
