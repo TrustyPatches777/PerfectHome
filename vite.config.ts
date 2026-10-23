@@ -6,5 +6,6 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   server: { port: 5173, strictPort: true },
+  build: { chunkSizeWarningLimit: 900 }, // Konva alone is ~300 kB
   test: { include: ['src/**/*.test.ts'] },
 });
