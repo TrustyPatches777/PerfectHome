@@ -4,6 +4,7 @@ import type Konva from 'konva';
 import { layerBlocksEditing } from '../../actions';
 import { newId } from '../../model';
 import { useDesign } from '../../store/design';
+import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
 import { isPrimary, snapWorld, useStageEvents } from '../input';
 
@@ -16,7 +17,7 @@ export function TextTool() {
       const p = snapWorld(world, { ignore: () => true }).p;
       const id = newId();
       useDesign.getState().update((d) => {
-        d.labels.push({ id, text: 'Text', x: p.x, y: p.y, size: 0.25, rotation: 0, color: '#1f2937' });
+        d.labels.push({ id, floor: floorId(), text: 'Text', x: p.x, y: p.y, size: 0.25, rotation: 0, color: '#1f2937' });
       });
       const ui = useUi.getState();
       ui.setTool('select');

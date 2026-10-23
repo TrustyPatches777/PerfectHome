@@ -3,6 +3,7 @@ import type { Furniture } from '../../model';
 import { catalogItem, fillColor } from '../../catalog';
 import { snapPoint } from '../../geometry';
 import { useDesign } from '../../store/design';
+import { useOnFloor } from '../../store/floor';
 import { useUi } from '../../store/ui';
 import { input } from '../input';
 
@@ -37,7 +38,7 @@ function labelFont(f: Furniture, zoom: number) {
 }
 
 export function FurnitureLayer() {
-  const furniture = useDesign((s) => s.design.furniture);
+  const furniture = useOnFloor((d) => d.furniture);
   const layer = useDesign((s) => s.design.layers.furniture);
   const tool = useUi((s) => s.tool);
   const zoom = useUi((s) => s.viewport.zoom);

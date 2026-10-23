@@ -17,9 +17,10 @@ export function fixOpenings(d: Draft<Design>, wallIds: Set<string>) {
 }
 
 /** All wall endpoints that sit exactly on `p` (so connected walls move together). */
-function endsAt(d: Design, p: Point): { id: string; end: End }[] {
+function endsAt(d: Design, p: Point, floor: string): { id: string; end: End }[] {
   const out: { id: string; end: End }[] = [];
   for (const w of d.walls) {
+    if (w.floor !== floor) continue;
     if (samePoint(w.a, p)) out.push({ id: w.id, end: 'a' });
     if (samePoint(w.b, p)) out.push({ id: w.id, end: 'b' });
   }
@@ -34,7 +35,7 @@ export function setWallLength(wallId: string, length: number) {
     const f = wallFrame(w);
     const nb = { x: w.a.x + f.u.x * length, y: w.a.y + f.u.y * length };
     const touched = new Set([wallId]);
-    for (const e of endsAt(d as Design, w.b)) {
+    for (const e of endsAt(d as Design, w.b, w.floor)) {
       if (e.id === wallId) continue;
       d.walls.find((x) => x.id === e.id)![e.end] = { ...nb };
       touched.add(e.id);
@@ -51,7 +52,7 @@ export function startWallMove(evt: MouseEvent, wallId: string) {
   if (!wall) return;
   const a0 = { ...wall.a };
   const b0 = { ...wall.b };
-  const ends = [...endsAt(d0, a0), ...endsAt(d0, b0)].filter((e) => e.id !== wallId);
+  const ends = [...endsAt(d0, a0, wall.floor), ...endsAt(d0, b0, wall.floor)].filter((e) => e.id !== wallId);
   const origins = new Map(ends.map((e) => [`${e.id}${e.end}`, { ...d0.walls.find((w) => w.id === e.id)![e.end] }]));
 
   dragSession(evt, (world, start) => {
@@ -80,7 +81,7 @@ export function startEndpointDrag(evt: MouseEvent, wallId: string, end: End) {
   const wall = d0.walls.find((w) => w.id === wallId);
   if (!wall) return;
   const origin = { ...wall[end] };
-  const ends = endsAt(d0, origin);
+  const ends = endsAt(d0, origin, wall.floor);
   let current = origin; // the corner's own latest position must not act as a snap target
   dragSession(evt, (world) => {
     const p = snapWorld(world, { ignore: (q) => samePoint(q, origin) || samePoint(q, current) }).p;

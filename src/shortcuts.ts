@@ -28,5 +28,6 @@ export const SHORTCUT_HELP: { keys: string; what: string }[] = [
   { keys: 'Arrow keys', what: 'Nudge the selection (Shift = bigger steps)' },
   { keys: 'R / Shift+R', what: 'Rotate furniture 90° / -90°' },
   { keys: '[ and ]', what: 'Rotate furniture by 15°' },
+  { keys: 'Page Up / Page Down', what: 'Go to the floor above / below' },
   { keys: 'Esc', what: 'Cancel / back to the select tool' },
 ];

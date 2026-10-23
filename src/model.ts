@@ -6,6 +6,7 @@
  *  - All lengths are in METERS. Angles are in DEGREES (clockwise, since the y axis points down).
  *  - World origin (0,0) is arbitrary; +x is right, +y is down (screen orientation).
  *  - Furniture/labels are positioned by their CENTER.
+ *  - Everything you draw belongs to a floor (`floor` = Floor.id). Doors/windows belong to their wall's floor.
  *  - Bump SCHEMA_VERSION and extend `parseDesign` when the shape changes in a breaking way.
  */
 
@@ -17,14 +18,21 @@ export interface Point {
 }
 
 /** Layers can be hidden and locked. Locked layers cannot be selected or moved. */
-export type LayerId = 'structure' | 'rooms' | 'furniture' | 'notes';
-export const LAYER_IDS: LayerId[] = ['structure', 'rooms', 'furniture', 'notes'];
+export type LayerId = 'structure' | 'rooms' | 'outdoor' | 'furniture' | 'notes';
+export const LAYER_IDS: LayerId[] = ['structure', 'rooms', 'outdoor', 'furniture', 'notes'];
 export const LAYER_LABELS: Record<LayerId, string> = {
   structure: 'Walls, doors & windows',
   rooms: 'Rooms',
-  furniture: 'Furniture',
+  outdoor: 'Garden, driveway & street',
+  furniture: 'Furniture & vehicles',
   notes: 'Labels & measurements',
 };
+
+/** One level of the building. `Design.floors` is ordered from the lowest to the highest. */
+export interface Floor {
+  id: string;
+  name: string;
+}
 
 export interface LayerState {
   visible: boolean;
@@ -34,14 +42,20 @@ export interface LayerState {
 /** A straight wall segment between two centerline points. */
 export interface Wall {
   id: string;
+  floor: string;
   a: Point;
   b: Point;
   thickness: number;
 }
 
-export type OpeningKind = 'door' | 'window';
+/**
+ * door = single door with swing arc, double = two leaves, window, garage = wide overhead/sliding door,
+ * gap = open passage without a door.
+ */
+export type OpeningKind = 'door' | 'double' | 'window' | 'garage' | 'gap';
+export const OPENING_KINDS: OpeningKind[] = ['door', 'double', 'window', 'garage', 'gap'];
 
-/** A door or window cut into a wall. */
+/** A door, window or other opening cut into a wall. */
 export interface Opening {
   id: string;
   wallId: string;
@@ -58,6 +72,7 @@ export interface Opening {
 /** A named floor area. `points` is a closed polygon (implicitly closed). */
 export interface Room {
   id: string;
+  floor: string;
   name: string;
   color: string;
   points: Point[];
@@ -67,6 +82,7 @@ export interface Room {
 
 export interface Furniture {
   id: string;
+  floor: string;
   /** Key into the catalog (`catalog.ts`). Unknown keys render as a generic box. */
   type: string;
   x: number;
@@ -82,6 +98,7 @@ export interface Furniture {
 
 export interface TextLabel {
   id: string;
+  floor: string;
   text: string;
   x: number;
   y: number;
@@ -94,8 +111,36 @@ export interface TextLabel {
 /** A measured distance, shown as a dimension line. */
 export interface Dimension {
   id: string;
+  floor: string;
   a: Point;
   b: Point;
+}
+
+/** A ground-surface area outside (or around) the house: lawn, terrace, driveway... drawn as a polygon. */
+export type ZoneKind = 'lawn' | 'terrace' | 'driveway' | 'flowerbed' | 'water' | 'plot';
+export const ZONE_KINDS: ZoneKind[] = ['lawn', 'terrace', 'driveway', 'flowerbed', 'water', 'plot'];
+
+export interface Zone {
+  id: string;
+  floor: string;
+  kind: ZoneKind;
+  name: string;
+  color: string;
+  points: Point[];
+}
+
+/** A line feature with a width: street, footpath, fence or hedge. */
+export type StripKind = 'road' | 'path' | 'fence' | 'hedge';
+export const STRIP_KINDS: StripKind[] = ['road', 'path', 'fence', 'hedge'];
+export const STRIP_DEFAULT_WIDTH: Record<StripKind, number> = { road: 6, path: 1.2, fence: 0.1, hedge: 0.6 };
+
+export interface Strip {
+  id: string;
+  floor: string;
+  kind: StripKind;
+  /** Centerline, at least two points. */
+  points: Point[];
+  width: number;
 }
 
 export interface Settings {
@@ -112,15 +157,19 @@ export interface Design {
   name: string;
   settings: Settings;
   layers: Record<LayerId, LayerState>;
+  /** Lowest floor first. Always at least one. */
+  floors: Floor[];
   walls: Wall[];
   openings: Opening[];
   rooms: Room[];
   furniture: Furniture[];
   labels: TextLabel[];
   dimensions: Dimension[];
+  zones: Zone[];
+  strips: Strip[];
 }
 
-export type ItemKind = 'wall' | 'opening' | 'room' | 'furniture' | 'label' | 'dimension';
+export type ItemKind = 'wall' | 'opening' | 'room' | 'furniture' | 'label' | 'dimension' | 'zone' | 'strip';
 export interface ItemRef {
   kind: ItemKind;
   id: string;
@@ -133,6 +182,8 @@ export const LAYER_OF: Record<ItemKind, LayerId> = {
   furniture: 'furniture',
   label: 'notes',
   dimension: 'notes',
+  zone: 'outdoor',
+  strip: 'outdoor',
 };
 
 // ---------------------------------------------------------------------------
@@ -156,15 +207,19 @@ export function createDesign(): Design {
     layers: {
       structure: { visible: true, locked: false },
       rooms: { visible: true, locked: false },
+      outdoor: { visible: true, locked: false },
       furniture: { visible: true, locked: false },
       notes: { visible: true, locked: false },
     },
+    floors: [{ id: newId(), name: 'Ground floor' }],
     walls: [],
     openings: [],
     rooms: [],
     furniture: [],
     labels: [],
     dimensions: [],
+    zones: [],
+    strips: [],
   };
 }
 
@@ -219,8 +274,18 @@ export function parseDesign(input: unknown): Design {
     if (isObj(l)) outLayers[id] = { visible: l.visible !== false, locked: l.locked === true };
   }
 
+  // Floors: designs made before floors existed have none; everything then lives on one "Ground floor".
+  const floors: Floor[] = [];
+  for (const f of list<Floor>(input.floors, (o) => ({ id: str(o.id, newId(), 20), name: str(o.name, 'Floor', 60) }))) {
+    if (!floors.some((x) => x.id === f.id)) floors.push(f);
+  }
+  if (!floors.length) floors.push({ id: newId(), name: 'Ground floor' });
+  const floorIds = new Set(floors.map((f) => f.id));
+  const floorOf = (v: unknown) => (typeof v === 'string' && floorIds.has(v) ? v : floors[0].id);
+
   const walls = list<Wall>(input.walls, (o) => ({
     id: str(o.id, newId(), 20),
+    floor: floorOf(o.floor),
     a: point(o.a),
     b: point(o.b),
     thickness: num(o.thickness, DEFAULT_WALL_THICKNESS, 0.02, 1),
@@ -236,13 +301,14 @@ export function parseDesign(input: unknown): Design {
       wallThickness: num(settings.wallThickness, DEFAULT_WALL_THICKNESS, 0.02, 1),
     },
     layers: outLayers,
+    floors,
     walls,
     openings: list<Opening>(input.openings, (o) =>
       wallIds.has(o.wallId as string)
         ? {
             id: str(o.id, newId(), 20),
             wallId: o.wallId as string,
-            kind: o.kind === 'window' ? 'window' : 'door',
+            kind: OPENING_KINDS.includes(o.kind as OpeningKind) ? (o.kind as OpeningKind) : 'door',
             pos: num(o.pos, 0, 0),
             width: num(o.width, 0.9, 0.2, 5),
             swing: o.swing === -1 ? -1 : 1,
@@ -255,6 +321,7 @@ export function parseDesign(input: unknown): Design {
       if (pts.length < 3) return null;
       return {
         id: str(o.id, newId(), 20),
+        floor: floorOf(o.floor),
         name: str(o.name, 'Room', 80),
         color: color(o.color, '#e8eef7'),
         points: pts,
@@ -263,6 +330,7 @@ export function parseDesign(input: unknown): Design {
     }),
     furniture: list<Furniture>(input.furniture, (o) => ({
       id: str(o.id, newId(), 20),
+      floor: floorOf(o.floor),
       type: str(o.type, 'box', 40),
       x: num(o.x, 0),
       y: num(o.y, 0),
@@ -274,6 +342,7 @@ export function parseDesign(input: unknown): Design {
     })),
     labels: list<TextLabel>(input.labels, (o) => ({
       id: str(o.id, newId(), 20),
+      floor: floorOf(o.floor),
       text: str(o.text, 'Text', 500),
       x: num(o.x, 0),
       y: num(o.y, 0),
@@ -283,9 +352,34 @@ export function parseDesign(input: unknown): Design {
     })),
     dimensions: list<Dimension>(input.dimensions, (o) => ({
       id: str(o.id, newId(), 20),
+      floor: floorOf(o.floor),
       a: point(o.a),
       b: point(o.b),
     })),
+    zones: list<Zone>(input.zones, (o) => {
+      const pts = Array.isArray(o.points) ? o.points.map(point) : [];
+      if (pts.length < 3) return null;
+      return {
+        id: str(o.id, newId(), 20),
+        floor: floorOf(o.floor),
+        kind: ZONE_KINDS.includes(o.kind as ZoneKind) ? (o.kind as ZoneKind) : 'lawn',
+        name: str(o.name, '', 80),
+        color: color(o.color, '#cfe8c4'),
+        points: pts,
+      };
+    }),
+    strips: list<Strip>(input.strips, (o) => {
+      const pts = Array.isArray(o.points) ? o.points.map(point) : [];
+      if (pts.length < 2) return null;
+      const kind = STRIP_KINDS.includes(o.kind as StripKind) ? (o.kind as StripKind) : 'path';
+      return {
+        id: str(o.id, newId(), 20),
+        floor: floorOf(o.floor),
+        kind,
+        points: pts,
+        width: num(o.width, STRIP_DEFAULT_WIDTH[kind], 0.02, 50),
+      };
+    }),
   };
 }
 

@@ -5,14 +5,15 @@ import { decodeDesign, designFromHash, encodeDesign, fileNameFor, isEmptyDesign,
 
 function sample(): Design {
   const d = createDesign();
+  const F = d.floors[0].id;
   d.name = 'Our flat';
   d.layers.structure.locked = true;
-  d.walls.push({ id: 'w1', a: { x: 0, y: 0 }, b: { x: 4.123, y: 0 }, thickness: 0.15 });
+  d.walls.push({ id: 'w1', floor: F, a: { x: 0, y: 0 }, b: { x: 4.123, y: 0 }, thickness: 0.15 });
   d.openings.push({ id: 'o1', wallId: 'w1', kind: 'door', pos: 1, width: 0.9, swing: -1, hinge: 'b' });
-  d.rooms.push({ id: 'r1', name: 'Küche ☕', color: '#e1efdc', points: [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 3 }], seed: { x: 1, y: 1 } });
-  d.furniture.push({ id: 'f1', type: 'sofa', x: 2, y: 2, w: 2, d: 0.9, rotation: 90, color: '#b7c9a8', label: 'Couch' });
-  d.labels.push({ id: 'l1', text: 'Hello\nworld', x: 1, y: 1, size: 0.25, rotation: 0, color: '#1f2937' });
-  d.dimensions.push({ id: 'm1', a: { x: 0, y: 0 }, b: { x: 3, y: 4 } });
+  d.rooms.push({ id: 'r1', floor: F, name: 'Küche ☕', color: '#e1efdc', points: [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 3 }], seed: { x: 1, y: 1 } });
+  d.furniture.push({ id: 'f1', floor: F, type: 'sofa', x: 2, y: 2, w: 2, d: 0.9, rotation: 90, color: '#b7c9a8', label: 'Couch' });
+  d.labels.push({ id: 'l1', floor: F, text: 'Hello\nworld', x: 1, y: 1, size: 0.25, rotation: 0, color: '#1f2937' });
+  d.dimensions.push({ id: 'm1', floor: F, a: { x: 0, y: 0 }, b: { x: 3, y: 4 } });
   return d;
 }
 
@@ -31,8 +32,9 @@ describe('share links', () => {
 
   it('only uses URL-safe characters and is much smaller than the raw JSON for a bigger design', () => {
     const d = sample();
-    for (let i = 0; i < 60; i++) d.walls.push({ id: `w${i + 10}`, a: { x: i, y: 0 }, b: { x: i, y: 3 }, thickness: 0.15 });
-    for (let i = 0; i < 40; i++) d.furniture.push({ id: `f${i + 10}`, type: 'chair', x: i * 0.5, y: 2, w: 0.45, d: 0.45, rotation: 0, color: '#b9a58a', label: '' });
+    const F = d.floors[0].id;
+    for (let i = 0; i < 60; i++) d.walls.push({ id: `w${i + 10}`, floor: F, a: { x: i, y: 0 }, b: { x: i, y: 3 }, thickness: 0.15 });
+    for (let i = 0; i < 40; i++) d.furniture.push({ id: `f${i + 10}`, floor: F, type: 'chair', x: i * 0.5, y: 2, w: 0.45, d: 0.45, rotation: 0, color: '#b9a58a', label: '' });
     const enc = encodeDesign(d);
     expect(enc).toMatch(/^[A-Za-z0-9+\-$]+$/);
     expect(enc.length).toBeLessThan(serializeDesign(d).length / 2.5);
@@ -93,5 +95,59 @@ describe('validation', () => {
     expect(sameContent(d, { ...d, name: "Other" })).toBe(false);
     expect(fileNameFor({ ...createDesign(), name: ' Our Flat #2! ' }, 'json')).toBe('our-flat-2.json');
     expect(fileNameFor({ ...createDesign(), name: '***' }, 'png')).toBe('design.png');
+  });
+});
+
+describe('floors, outdoor items and older designs', () => {
+  it('opens a design saved before floors existed: everything lands on one Ground floor', () => {
+    const old = {
+      v: 1,
+      id: 'abc',
+      name: 'Old design',
+      walls: [{ id: 'w', a: { x: 0, y: 0 }, b: { x: 3, y: 0 }, thickness: 0.15 }],
+      openings: [{ id: 'o', wallId: 'w', kind: 'window', pos: 1, width: 1, swing: 1, hinge: 'a' }],
+      rooms: [{ id: 'r', name: 'Hall', color: '#e9d8b8', points: [{ x: 0, y: 0 }, { x: 3, y: 0 }, { x: 3, y: 2 }] }],
+      furniture: [{ id: 'f', type: 'sofa', x: 1, y: 1, w: 2, d: 0.9, rotation: 0, color: '#b7c9a8', label: '' }],
+      layers: { structure: { visible: true, locked: true }, rooms: {}, furniture: {}, notes: {} },
+    };
+    // as a shared link, too
+    const d = decodeDesign(LZString.compressToEncodedURIComponent(JSON.stringify(old)));
+    expect(d.floors).toHaveLength(1);
+    expect(d.floors[0].name).toBe('Ground floor');
+    const ground = d.floors[0].id;
+    expect([d.walls[0].floor, d.rooms[0].floor, d.furniture[0].floor]).toEqual([ground, ground, ground]);
+    expect(d.zones).toEqual([]);
+    expect(d.strips).toEqual([]);
+    expect(d.layers.structure.locked).toBe(true);
+    expect(d.layers.outdoor).toEqual({ visible: true, locked: false });
+  });
+
+  it('keeps multiple floors, repairs unknown floor ids, and round-trips zones and strips', () => {
+    const d = createDesign();
+    d.floors.push({ id: 'up', name: '1st floor' });
+    d.walls.push({ id: 'w1', floor: 'up', a: { x: 0, y: 0 }, b: { x: 2, y: 0 }, thickness: 0.15 });
+    d.zones.push({ id: 'z1', floor: d.floors[0].id, kind: 'lawn', name: 'Garden', color: '#cfe8c4', points: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 4 }] });
+    d.strips.push({ id: 's1', floor: d.floors[0].id, kind: 'road', width: 6, points: [{ x: -5, y: 8 }, { x: 15, y: 8 }] });
+    d.openings.push({ id: 'o1', wallId: 'w1', kind: 'garage', pos: 1, width: 2.5, swing: 1, hinge: 'a' });
+    const back = decodeDesign(encodeDesign(d));
+    expect(back.floors.map((f) => f.name)).toEqual(['Ground floor', '1st floor']);
+    expect(back.walls[0].floor).toBe('up');
+    expect(back.zones[0]).toMatchObject({ kind: 'lawn', name: 'Garden' });
+    expect(back.strips[0]).toMatchObject({ kind: 'road', width: 6 });
+    expect(back.openings[0].kind).toBe('garage');
+
+    const broken = parseDesign({
+      v: 1,
+      walls: [{ id: 'w', floor: 'does-not-exist', a: { x: 0, y: 0 }, b: { x: 1, y: 0 } }],
+      zones: [{ kind: 'volcano', points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }] }, { kind: 'lawn', points: [{ x: 0, y: 0 }] }],
+      strips: [{ kind: 'road', points: [{ x: 0, y: 0 }] }, { kind: 'laser', points: [{ x: 0, y: 0 }, { x: 1, y: 1 }], width: -3 }],
+      openings: [{ wallId: 'w', kind: 'portal' }],
+    });
+    expect(broken.walls[0].floor).toBe(broken.floors[0].id);
+    expect(broken.zones).toHaveLength(1);
+    expect(broken.zones[0].kind).toBe('lawn');
+    expect(broken.strips).toHaveLength(1);
+    expect(broken.strips[0]).toMatchObject({ kind: 'path', width: 0.02 });
+    expect(broken.openings[0].kind).toBe('door');
   });
 });

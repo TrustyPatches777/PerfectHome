@@ -1,0 +1,63 @@
+import { addFloor, deleteFloor, duplicateFloor, renameFloor } from '../floors';
+import { useDesign } from '../store/design';
+import { useFloorId } from '../store/floor';
+import { useUi } from '../store/ui';
+
+/** The list of floors (highest first) with add / duplicate / rename / delete for the active one. */
+export function FloorsPanel() {
+  const floors = useDesign((s) => s.design.floors);
+  const active = useFloorId();
+  const underlay = useUi((s) => s.showUnderlay);
+  const current = floors.find((f) => f.id === active)!;
+  const hasBelow = floors[0].id !== active;
+
+  return (
+    <div className="panel" data-testid="floors">
+      <h3>Floors</h3>
+      <ul className="floor-list">
+        {[...floors].reverse().map((f) => (
+          <li key={f.id}>
+            <button
+              className={`floor-item ${f.id === active ? 'active' : ''}`}
+              onClick={() => useUi.getState().setActiveFloor(f.id)}
+              aria-pressed={f.id === active}
+              data-testid={`floor-${f.name}`}
+            >
+              {f.name}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <label className="field">
+        <span>Name of this floor</span>
+        <input type="text" value={current.name} data-testid="floor-name" onChange={(e) => renameFloor(active, e.target.value)} />
+      </label>
+      <div className="row">
+        <button onClick={() => addFloor('above')} title="Add an empty floor above this one" data-testid="add-floor">
+          + Floor above
+        </button>
+        <button onClick={() => addFloor('basement')} title="Add a basement below everything" data-testid="add-basement">
+          + Basement
+        </button>
+      </div>
+      <div className="row">
+        <button onClick={duplicateFloor} title="Copy everything on this floor to a new floor above" data-testid="duplicate-floor">
+          Duplicate floor
+        </button>
+        <button className="danger" onClick={() => deleteFloor(active)} disabled={floors.length < 2} data-testid="delete-floor">
+          Delete floor
+        </button>
+      </div>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={underlay}
+          disabled={!hasBelow}
+          onChange={(e) => useUi.getState().setShowUnderlay(e.target.checked)}
+          data-testid="underlay-toggle"
+        />
+        Show the floor below faintly
+      </label>
+    </div>
+  );
+}

@@ -31,6 +31,12 @@ function removeItem(d: Draft<Design>, ref: ItemRef) {
     case 'dimension':
       drop(d.dimensions);
       break;
+    case 'zone':
+      drop(d.zones);
+      break;
+    case 'strip':
+      drop(d.strips);
+      break;
   }
 }
 
@@ -70,9 +76,19 @@ export function duplicateSelection() {
         if (r) d.rooms.push({ ...r, id, name: `${r.name} copy`, points: r.points.map(shift), seed: undefined });
         break;
       }
+      case 'zone': {
+        const z = d.zones.find((x) => x.id === sel.id);
+        if (z) d.zones.push({ ...z, id, name: z.name ? `${z.name} copy` : '', points: z.points.map(shift) });
+        break;
+      }
+      case 'strip': {
+        const s = d.strips.find((x) => x.id === sel.id);
+        if (s) d.strips.push({ ...s, id, points: s.points.map(shift) });
+        break;
+      }
       case 'dimension': {
         const m = d.dimensions.find((x) => x.id === sel.id);
-        if (m) d.dimensions.push({ id, a: shift(m.a), b: shift(m.b) });
+        if (m) d.dimensions.push({ id, floor: m.floor, a: shift(m.a), b: shift(m.b) });
         break;
       }
     }
@@ -106,6 +122,12 @@ export function nudgeSelection(dx: number, dy: number) {
       }
       case 'room':
         d.rooms.find((r) => r.id === sel.id)?.points.forEach(mv);
+        break;
+      case 'zone':
+        d.zones.find((z) => z.id === sel.id)?.points.forEach(mv);
+        break;
+      case 'strip':
+        d.strips.find((s) => s.id === sel.id)?.points.forEach(mv);
         break;
       case 'dimension': {
         const m = d.dimensions.find((x) => x.id === sel.id);

@@ -5,6 +5,7 @@ import { layerBlocksEditing } from '../../actions';
 import { catalogItem } from '../../catalog';
 import { newId, type Point } from '../../model';
 import { useDesign } from '../../store/design';
+import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
 import { isPrimary, snapWorld, useCaptureKeys, useStageEvents } from '../input';
 import { SymbolShapes } from '../layers/FurnitureLayer';
@@ -32,7 +33,7 @@ export function FurnitureTool() {
       const p = snapWorld(world, { ignore: () => true }).p;
       const id = newId();
       useDesign.getState().update((d) => {
-        d.furniture.push({ id, type: item.type, x: p.x, y: p.y, w: item.w, d: item.d, rotation, color: item.color, label: '' });
+        d.furniture.push({ id, floor: floorId(), type: item.type, x: p.x, y: p.y, w: item.w, d: item.d, rotation, color: item.color, label: '' });
       });
       if (!e.evt.shiftKey) {
         useUi.getState().setTool('select');

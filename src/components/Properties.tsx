@@ -3,8 +3,9 @@ import { deleteSelection, duplicateSelection, isLayerLocked } from '../actions';
 import { setWallLength } from '../canvas/editing';
 import { FLOOR_COLORS } from '../canvas/style';
 import { clampOpeningPos, detectRoom, dist, formatArea, formatLength, openingOverlaps, polygonArea, wallFrame } from '../geometry';
-import type { Furniture, ItemRef, Opening, Room, TextLabel } from '../model';
+import type { Furniture, ItemRef, Opening, OpeningKind, Room, TextLabel } from '../model';
 import { useDesign } from '../store/design';
+import { useOnFloor } from '../store/floor';
 import { useUi } from '../store/ui';
 import { ColorField, NumberField, TextField } from './fields';
 
@@ -15,7 +16,17 @@ const TITLES: Record<ItemRef['kind'], string> = {
   furniture: 'Furniture',
   label: 'Text label',
   dimension: 'Measurement',
+  zone: 'Outdoor area',
+  strip: 'Street / path / fence',
 };
+
+const OPENING_TYPES: [OpeningKind, string][] = [
+  ['door', 'Door'],
+  ['double', 'Double door'],
+  ['window', 'Window'],
+  ['garage', 'Garage door'],
+  ['gap', 'Open passage'],
+];
 
 export function Properties() {
   const sel = useUi((s) => s.selection);
@@ -52,7 +63,7 @@ export function Properties() {
 }
 
 function Summary() {
-  const rooms = useDesign((s) => s.design.rooms);
+  const rooms = useOnFloor((d) => d.rooms);
   const total = rooms.reduce((sum, r) => sum + polygonArea(r.points), 0);
   return (
     <div className="panel">
@@ -107,7 +118,16 @@ function OpeningProps({ id }: { id: string }) {
     });
   return (
     <>
-      <p className="muted">{opening.kind === 'door' ? 'Door' : 'Window'} · {formatLength(opening.width)} wide</p>
+      <label className="field">
+        <span>Type</span>
+        <select value={opening.kind} data-testid="opening-kind" onChange={(e) => edit((o) => void (o.kind = e.target.value as OpeningKind))}>
+          {OPENING_TYPES.map(([k, label]) => (
+            <option key={k} value={k}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
       <NumberField
         label="Width"
         value={opening.width}
@@ -136,14 +156,16 @@ function OpeningProps({ id }: { id: string }) {
           else edit((o) => void (o.pos = pos));
         }}
       />
-      {opening.kind === 'door' && (
+      {(opening.kind === 'door' || opening.kind === 'double') && (
         <div className="row">
           <button onClick={() => edit((o) => void (o.swing = o.swing === 1 ? -1 : 1))} data-testid="flip-swing">
             Flip swing
           </button>
-          <button onClick={() => edit((o) => void (o.hinge = o.hinge === 'a' ? 'b' : 'a'))} data-testid="flip-hinge">
-            Flip hinge
-          </button>
+          {opening.kind === 'door' && (
+            <button onClick={() => edit((o) => void (o.hinge = o.hinge === 'a' ? 'b' : 'a'))} data-testid="flip-hinge">
+              Flip hinge
+            </button>
+          )}
         </div>
       )}
     </>

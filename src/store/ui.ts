@@ -1,9 +1,10 @@
 import { create } from 'zustand';
-import type { Design, ItemRef, Point } from '../model';
+import type { Design, ItemRef, OpeningKind, Point } from '../model';
 
 /** A modal question or message. Rendered by components/Dialogs.tsx. */
 export type DialogState =
   | { type: 'share'; url: string; copied: boolean; long: boolean }
+  | { type: 'confirm'; title: string; message: string; confirmLabel: string; onConfirm: () => void }
   | { type: 'link-conflict'; incoming: Design; current: Design; sameDesign: boolean; choose: (useShared: boolean) => void };
 
 export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text';
@@ -25,6 +26,13 @@ interface UiStore {
 
   selection: ItemRef | null;
   select: (s: ItemRef | null) => void;
+
+  /** The floor being edited ('' until a design is loaded; see store/floor.ts for the validated value). */
+  activeFloor: string;
+  setActiveFloor: (id: string) => void;
+  /** Show the floor below as a faint underlay for alignment. */
+  showUnderlay: boolean;
+  setShowUnderlay: (v: boolean) => void;
 
   viewport: Viewport;
   setViewport: (v: Viewport) => void;
@@ -49,9 +57,12 @@ interface UiStore {
   roomMode: 'auto' | 'draw';
   setRoomMode: (m: 'auto' | 'draw') => void;
 
-  /** Width (meters) of newly placed doors and windows. */
-  openingWidth: { door: number; window: number };
-  setOpeningWidth: (kind: 'door' | 'window', w: number) => void;
+  /** Width (meters) of newly placed doors, windows and other openings, per kind. */
+  openingWidth: Record<OpeningKind, number>;
+  setOpeningWidth: (kind: OpeningKind, w: number) => void;
+  /** Which kind the Door tool places. */
+  doorKind: Exclude<OpeningKind, 'window'>;
+  setDoorKind: (k: Exclude<OpeningKind, 'window'>) => void;
 
   dialog: DialogState | null;
   setDialog: (d: DialogState | null) => void;
@@ -78,6 +89,11 @@ export const useUi = create<UiStore>((set) => ({
   selection: null,
   select: (selection) => set({ selection }),
 
+  activeFloor: '',
+  setActiveFloor: (activeFloor) => set({ activeFloor, selection: null }),
+  showUnderlay: true,
+  setShowUnderlay: (showUnderlay) => set({ showUnderlay }),
+
   viewport: { x: 160, y: 120, zoom: 60 },
   setViewport: (viewport) => set({ viewport }),
   canvasSize: { w: 1000, h: 700 },
@@ -97,8 +113,10 @@ export const useUi = create<UiStore>((set) => ({
   roomMode: 'auto',
   setRoomMode: (roomMode) => set({ roomMode }),
 
-  openingWidth: { door: 0.9, window: 1.2 },
+  openingWidth: { door: 0.9, double: 1.6, window: 1.2, garage: 2.5, gap: 1.0 },
   setOpeningWidth: (kind, w) => set((s) => ({ openingWidth: { ...s.openingWidth, [kind]: w } })),
+  doorKind: 'door',
+  setDoorKind: (doorKind) => set({ doorKind }),
 
   dialog: null,
   setDialog: (dialog) => set({ dialog }),

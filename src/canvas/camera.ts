@@ -1,4 +1,5 @@
 import type { Design, Point } from '../model';
+import { floorId } from '../store/floor';
 import { clampZoom, useUi, type Viewport } from '../store/ui';
 
 export const screenToWorld = (v: Viewport, sx: number, sy: number): Point => ({
@@ -27,16 +28,19 @@ export interface Bounds {
 }
 
 /** Bounding box of everything in the design, or null when it is empty. */
-export function contentBounds(d: Design): Bounds | null {
+export function contentBounds(d: Design, floor?: string): Bounds | null {
+  const on = <T extends { floor: string }>(items: T[]) => (floor ? items.filter((i) => i.floor === floor) : items);
   const pts: Point[] = [];
-  for (const w of d.walls) pts.push(w.a, w.b);
-  for (const r of d.rooms) pts.push(...r.points);
-  for (const dim of d.dimensions) pts.push(dim.a, dim.b);
-  for (const f of d.furniture) {
+  for (const w of on(d.walls)) pts.push(w.a, w.b);
+  for (const r of on(d.rooms)) pts.push(...r.points);
+  for (const z of on(d.zones)) pts.push(...z.points);
+  for (const s of on(d.strips)) pts.push(...s.points);
+  for (const dim of on(d.dimensions)) pts.push(dim.a, dim.b);
+  for (const f of on(d.furniture)) {
     const r = Math.hypot(f.w, f.d) / 2;
     pts.push({ x: f.x - r, y: f.y - r }, { x: f.x + r, y: f.y + r });
   }
-  for (const l of d.labels) {
+  for (const l of on(d.labels)) {
     const r = (l.text.length * l.size * 0.6) / 2;
     pts.push({ x: l.x - r, y: l.y - l.size }, { x: l.x + r, y: l.y + l.size });
   }
@@ -52,7 +56,7 @@ export function contentBounds(d: Design): Bounds | null {
 /** Frame the whole design (or reset to the default view when it is empty). */
 export function fitView(d: Design) {
   const { canvasSize, setViewport } = useUi.getState();
-  const b = contentBounds(d);
+  const b = contentBounds(d, floorId()) ?? contentBounds(d);
   if (!b) {
     setViewport({ x: 160, y: 120, zoom: 60 });
     return;

@@ -15,6 +15,7 @@ import { SelectionTransformer } from '../SelectionTransformer';
 /** Always on top: drag handles for the selection and the active drawing tool's preview. */
 export function OverlayLayer() {
   const tool = useUi((s) => s.tool);
+  const doorKind = useUi((s) => s.doorKind);
   const sel = useUi((s) => s.selection);
   const zoom = useUi((s) => s.viewport.zoom);
   const design = useDesign((s) => s.design);
@@ -66,7 +67,7 @@ export function OverlayLayer() {
     <Layer>
       {handles}
       {tool === 'wall' && <WallTool />}
-      {tool === 'door' && <OpeningTool kind="door" />}
+      {tool === 'door' && <OpeningTool kind={doorKind} />}
       {tool === 'window' && <OpeningTool kind="window" />}
       {tool === 'room' && <RoomTool />}
       {tool === 'furniture' && <FurnitureTool />}

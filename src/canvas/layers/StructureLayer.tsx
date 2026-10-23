@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { Group, Line, Rect } from 'react-konva';
 import type { Opening, Wall } from '../../model';
 import { doorGeometry, wallFrame, wallSolidSegments } from '../../geometry';
 import { useDesign } from '../../store/design';
+import { useOnFloor } from '../../store/floor';
 import { useUi } from '../../store/ui';
 import { input } from '../input';
 import { startOpeningDrag, startWallMove } from '../editing';
@@ -40,23 +42,43 @@ export function WallShape({ wall, openings, selected, ghost }: { wall: Wall; ope
   );
 }
 
-/** A door (leaf + swing arc) or window (glass pane) drawn in the gap of its wall. */
+/** Everything that can sit in a wall gap: doors (with swing arcs), windows, garage doors and open passages. */
 export function OpeningShape({ wall, opening, selected, ghost }: { wall: Wall; opening: Opening; selected: boolean; ghost?: boolean }) {
   const f = wallFrame(wall);
   const t = wall.thickness;
   const x0 = opening.pos - opening.width / 2;
-  const isDoor = opening.kind === 'door';
-  const g = isDoor ? doorGeometry(wall, opening) : null;
+  const x1 = opening.pos + opening.width / 2;
+  const kind = opening.kind;
   const stroke = selected ? SELECT_COLOR : '#1f2937';
+  const thin = { strokeScaleEnabled: false, listening: false } as const;
+
+  // Door leaves: one for a single door, two half-width leaves hinged on opposite jambs for a double door.
+  const leaves: Opening[] =
+    kind === 'door'
+      ? [opening]
+      : kind === 'double'
+        ? [
+            { ...opening, pos: opening.pos - opening.width / 4, width: opening.width / 2, hinge: 'a' },
+            { ...opening, pos: opening.pos + opening.width / 4, width: opening.width / 2, hinge: 'b' },
+          ]
+        : [];
+
   return (
     <Group opacity={ghost ? 0.75 : 1}>
-      {ghost && <Group x={wall.a.x} y={wall.a.y} rotation={f.angle}><Rect x={x0} y={-t / 2 - 0.005} width={opening.width} height={t + 0.01} fill="#ffffff" /></Group>}
-      {g && (
-        <>
-          <Line points={g.arc.flatMap((p) => [p.x, p.y])} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} dash={[4, 3]} listening={false} />
-          <Line points={[g.hinge.x, g.hinge.y, g.leafEnd.x, g.leafEnd.y]} stroke={stroke} strokeWidth={0.045} lineCap="butt" listening={false} />
-        </>
+      {ghost && (
+        <Group x={wall.a.x} y={wall.a.y} rotation={f.angle}>
+          <Rect x={x0} y={-t / 2 - 0.005} width={opening.width} height={t + 0.01} fill="#ffffff" />
+        </Group>
       )}
+      {leaves.map((leaf, i) => {
+        const g = doorGeometry(wall, leaf);
+        return (
+          <Group key={i} listening={false}>
+            <Line points={g.arc.flatMap((p) => [p.x, p.y])} stroke={stroke} strokeWidth={1} dash={[4, 3]} {...thin} />
+            <Line points={[g.hinge.x, g.hinge.y, g.leafEnd.x, g.leafEnd.y]} stroke={stroke} strokeWidth={0.045} lineCap="butt" listening={false} />
+          </Group>
+        );
+      })}
       <Group
         x={wall.a.x}
         y={wall.a.y}
@@ -68,17 +90,31 @@ export function OpeningShape({ wall, opening, selected, ghost }: { wall: Wall; o
           startOpeningDrag(e.evt, opening.id);
         }}
       >
-        {isDoor ? (
+        {kind === 'window' ? (
           <>
-            {/* jamb marks */}
-            <Line points={[x0, -t / 2, x0, t / 2]} stroke={stroke} strokeWidth={1.5} strokeScaleEnabled={false} listening={false} />
-            <Line points={[x0 + opening.width, -t / 2, x0 + opening.width, t / 2]} stroke={stroke} strokeWidth={1.5} strokeScaleEnabled={false} listening={false} />
-            <Rect x={x0} y={-t / 2} width={opening.width} height={t} fill="rgba(0,0,0,0)" stroke={selected ? SELECT_COLOR : 'rgba(0,0,0,0)'} strokeWidth={2} strokeScaleEnabled={false} />
+            <Rect x={x0} y={-t / 2} width={opening.width} height={t} fill="#e6f2ff" stroke={stroke} strokeWidth={selected ? 2 : 1.25} strokeScaleEnabled={false} />
+            <Line points={[x0, 0, x1, 0]} stroke={stroke} strokeWidth={1} {...thin} />
           </>
         ) : (
           <>
-            <Rect x={x0} y={-t / 2} width={opening.width} height={t} fill="#e6f2ff" stroke={stroke} strokeWidth={selected ? 2 : 1.25} strokeScaleEnabled={false} />
-            <Line points={[x0, 0, x0 + opening.width, 0]} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+            {kind === 'garage' && (
+              <>
+                <Rect x={x0} y={-t / 2} width={opening.width} height={t} fill="#e5e7eb" listening={false} />
+                <Line points={[x0, 0, x1, 0]} stroke={stroke} strokeWidth={2} dash={[10, 5]} {...thin} />
+              </>
+            )}
+            <Line points={[x0, -t / 2, x0, t / 2]} stroke={stroke} strokeWidth={1.5} {...thin} />
+            <Line points={[x1, -t / 2, x1, t / 2]} stroke={stroke} strokeWidth={1.5} {...thin} />
+            <Rect
+              x={x0}
+              y={-t / 2}
+              width={opening.width}
+              height={t}
+              fill="rgba(0,0,0,0.001)"
+              stroke={selected ? SELECT_COLOR : 'rgba(0,0,0,0)'}
+              strokeWidth={2}
+              strokeScaleEnabled={false}
+            />
           </>
         )}
       </Group>
@@ -87,8 +123,12 @@ export function OpeningShape({ wall, opening, selected, ghost }: { wall: Wall; o
 }
 
 export function StructureLayer() {
-  const walls = useDesign((s) => s.design.walls);
-  const openings = useDesign((s) => s.design.openings);
+  const walls = useOnFloor((d) => d.walls);
+  const allOpenings = useDesign((s) => s.design.openings);
+  const openings = useMemo(() => {
+    const ids = new Set(walls.map((w) => w.id));
+    return allOpenings.filter((o) => ids.has(o.wallId));
+  }, [walls, allOpenings]);
   const layer = useDesign((s) => s.design.layers.structure);
   const tool = useUi((s) => s.tool);
   const sel = useUi((s) => s.selection);

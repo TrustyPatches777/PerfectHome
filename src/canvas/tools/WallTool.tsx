@@ -5,6 +5,7 @@ import { layerBlocksEditing } from '../../actions';
 import { newId, type Point } from '../../model';
 import { constrainAngle, dist, formatLength, samePoint, snapValue } from '../../geometry';
 import { useDesign } from '../../store/design';
+import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
 import { isDoubleClick, isPrimary, snapWorld, useCaptureKeys, useStageEvents } from '../input';
 import { SELECT_COLOR } from '../style';
@@ -52,8 +53,9 @@ export function WallTool() {
         return;
       }
       if (dist(start, p) < 0.02) return; // second click of a double-click
+      const floor = floorId();
       useDesign.getState().update((d) => {
-        d.walls.push({ id: newId(), a: { ...start }, b: { ...p }, thickness });
+        d.walls.push({ id: newId(), floor, a: { ...start }, b: { ...p }, thickness });
       });
       if (first.current && samePoint(p, first.current, 0.01)) finish(); // closed a loop
       else setStart(p);

@@ -5,6 +5,7 @@ import { layerBlocksEditing } from '../../actions';
 import { newId, type Opening, type OpeningKind, type Wall } from '../../model';
 import { clampOpeningPos, nearestWall, openingOverlaps, wallFrame } from '../../geometry';
 import { useDesign } from '../../store/design';
+import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
 import { isPrimary, snapScalar, useStageEvents } from '../input';
 import { OpeningShape } from '../layers/StructureLayer';
@@ -22,7 +23,8 @@ export function OpeningTool({ kind }: { kind: OpeningKind }) {
 
   const locate = (world: { x: number; y: number }): Hover | null => {
     const { design } = useDesign.getState();
-    const hit = nearestWall(world, design.walls, 0.6);
+    const floor = floorId();
+    const hit = nearestWall(world, design.walls.filter((w) => w.floor === floor), 0.6);
     if (!hit) return null;
     const width = Math.min(useUi.getState().openingWidth[kind], wallFrame(hit.wall).length);
     const pos = clampOpeningPos(snapScalar(hit.s), width, wallFrame(hit.wall).length);

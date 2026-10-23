@@ -4,6 +4,7 @@ import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Point } from '../model';
 import { snapPoint, wallFrame } from '../geometry';
 import { useDesign } from '../store/design';
+import { floorBelow, floorId } from '../store/floor';
 import { useUi } from '../store/ui';
 import { getStage } from './stage';
 
@@ -24,8 +25,11 @@ export interface SnapResult {
 /** Corners other things can snap to: wall ends and room corners (and, for measuring, the wall faces). */
 export function snapTargets(faces = false): Point[] {
   const d = useDesign.getState().design;
+  const floor = floorId();
+  const below = floorBelow(d, floor);
   const pts: Point[] = [];
   for (const w of d.walls) {
+    if (w.floor !== floor && w.floor !== below) continue; // the floor below is snappable so walls line up
     pts.push(w.a, w.b);
     if (faces) {
       const f = wallFrame(w);
@@ -35,7 +39,7 @@ export function snapTargets(faces = false): Point[] {
       }
     }
   }
-  for (const r of d.rooms) pts.push(...r.points);
+  for (const r of d.rooms) if (r.floor === floor) pts.push(...r.points);
   return pts;
 }
 

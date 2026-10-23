@@ -1,7 +1,15 @@
 import { useDesign } from '../store/design';
 import { catalogItem } from '../catalog';
 import { useUi } from '../store/ui';
+import type { OpeningKind } from '../model';
 import { NumberField } from './fields';
+
+const DOOR_KINDS: { kind: Exclude<OpeningKind, 'window'>; label: string }[] = [
+  { kind: 'door', label: 'Door' },
+  { kind: 'double', label: 'Double door' },
+  { kind: 'garage', label: 'Garage door' },
+  { kind: 'gap', label: 'Open passage' },
+];
 
 /** Small options strip floating at the top of the canvas for the active tool. */
 export function ToolOptions() {
@@ -9,6 +17,7 @@ export function ToolOptions() {
   const roomMode = useUi((s) => s.roomMode);
   const width = useUi((s) => s.openingWidth);
   const placing = useUi((s) => s.placing);
+  const doorKind = useUi((s) => s.doorKind);
   const thickness = useDesign((s) => s.design.settings.wallThickness);
 
   let body = null;
@@ -25,23 +34,31 @@ export function ToolOptions() {
           testId="opt-thickness"
           onCommit={(v) => useDesign.getState().update((d) => void (d.settings.wallThickness = v))}
         />
-        <span className="muted">Click corners · double-click or Enter to finish · Shift = 45°</span>
       </>
     );
   } else if (tool === 'door' || tool === 'window') {
+    const kind: OpeningKind = tool === 'door' ? doorKind : 'window';
     body = (
       <>
+        {tool === 'door' && (
+          <div className="segmented" role="group" aria-label="Door type">
+            {DOOR_KINDS.map((k) => (
+              <button key={k.kind} className={doorKind === k.kind ? 'active' : ''} onClick={() => useUi.getState().setDoorKind(k.kind)} data-testid={`door-kind-${k.kind}`}>
+                {k.label}
+              </button>
+            ))}
+          </div>
+        )}
         <NumberField
-          label={tool === 'door' ? 'Door width' : 'Window width'}
-          value={width[tool]}
+          label="Width"
+          value={width[kind]}
           scale={100}
           unit="cm"
           min={30}
-          max={400}
+          max={800}
           testId="opt-opening-width"
-          onCommit={(v) => useUi.getState().setOpeningWidth(tool, v)}
+          onCommit={(v) => useUi.getState().setOpeningWidth(kind, v)}
         />
-        <span className="muted">Hover a wall and click to place · the door swings toward your cursor</span>
       </>
     );
   } else if (tool === 'room') {

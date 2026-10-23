@@ -5,6 +5,7 @@ import { layerBlocksEditing } from '../../actions';
 import { newId, type Point } from '../../model';
 import { detectRoom, dist, pointInPolygon, polygonsOverlap } from '../../geometry';
 import { useDesign } from '../../store/design';
+import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
 import { isDoubleClick, isPrimary, snapWorld, useCaptureKeys, useStageEvents } from '../input';
 import { FLOOR_COLORS, SELECT_COLOR } from '../style';
@@ -13,9 +14,10 @@ import { FLOOR_COLORS, SELECT_COLOR } from '../style';
 export function addRoom(points: Point[], seed?: Point) {
   const id = newId();
   useDesign.getState().update((d) => {
-    const used = d.rooms.map((r) => /^Room (\d+)$/.exec(r.name)).map((m) => (m ? Number(m[1]) : 0));
+    const floor = floorId();
+    const used = d.rooms.filter((r) => r.floor === floor).map((r) => /^Room (\d+)$/.exec(r.name)).map((m) => (m ? Number(m[1]) : 0));
     const n = Math.max(0, ...used) + 1;
-    d.rooms.push({ id, name: `Room ${n}`, color: FLOOR_COLORS[d.rooms.length % FLOOR_COLORS.length], points, seed });
+    d.rooms.push({ id, floor, name: `Room ${n}`, color: FLOOR_COLORS[d.rooms.length % FLOOR_COLORS.length], points, seed });
   });
   useUi.getState().select({ kind: 'room', id });
 }
@@ -25,7 +27,8 @@ export function addRoom(points: Point[], seed?: Point) {
  * and selects the room that is in the way.
  */
 function tryAddRoom(points: Point[], seed?: Point): boolean {
-  const rooms = useDesign.getState().design.rooms;
+  const floor = floorId();
+  const rooms = useDesign.getState().design.rooms.filter((r) => r.floor === floor);
   const clash = rooms.find((r) => polygonsOverlap(points, r.points));
   if (clash) {
     useUi.getState().select({ kind: 'room', id: clash.id });
@@ -63,13 +66,14 @@ export function RoomTool() {
         return;
       }
       if (mode === 'auto') {
-        const existing = useDesign.getState().design.rooms.find((r) => pointInPolygon(world, r.points));
+        const floor = floorId();
+        const existing = useDesign.getState().design.rooms.find((r) => r.floor === floor && pointInPolygon(world, r.points));
         if (existing) {
           useUi.getState().select({ kind: 'room', id: existing.id });
           useUi.getState().showToast(`“${existing.name}” is already a room. Switch to the Select tool (V) to edit it.`);
           return;
         }
-        const walls = useDesign.getState().design.walls;
+        const walls = useDesign.getState().design.walls.filter((w) => w.floor === floor);
         const poly = detectRoom(world, walls);
         if (!poly) {
           useUi

@@ -7,6 +7,7 @@ export function Dialogs() {
   const dialog = useUi((s) => s.dialog);
   if (!dialog) return null;
   if (dialog.type === 'share') return <ShareDialog url={dialog.url} copied={dialog.copied} long={dialog.long} />;
+  if (dialog.type === 'confirm') return <ConfirmDialog dialog={dialog} />;
   return <ConflictDialog dialog={dialog} />;
 }
 
@@ -73,6 +74,31 @@ function ConflictDialog({ dialog }: { dialog: Extract<DialogState, { type: 'link
           </button>
           <button className="primary" onClick={() => choose(true)} data-testid="open-shared">
             Open the shared design
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConfirmDialog({ dialog }: { dialog: Extract<DialogState, { type: 'confirm' }> }) {
+  const close = () => useUi.getState().setDialog(null);
+  return (
+    <div className="modal-backdrop" onMouseDown={close}>
+      <div className="modal" role="dialog" aria-label={dialog.title} onMouseDown={(e) => e.stopPropagation()} data-testid="confirm-dialog">
+        <h2>{dialog.title}</h2>
+        <p>{dialog.message}</p>
+        <div className="row end">
+          <button onClick={close}>Cancel</button>
+          <button
+            className="primary"
+            data-testid="confirm-ok"
+            onClick={() => {
+              close();
+              dialog.onConfirm();
+            }}
+          >
+            {dialog.confirmLabel}
           </button>
         </div>
       </div>

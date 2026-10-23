@@ -6,6 +6,7 @@ import { ToolBar } from './components/ToolBar';
 import { FurniturePalette } from './components/FurniturePalette';
 import { Properties } from './components/Properties';
 import { LayersPanel } from './components/LayersPanel';
+import { FloorsPanel } from './components/FloorsPanel';
 import { HelpDialog } from './components/HelpDialog';
 import { Dialogs } from './components/Dialogs';
 import { useShortcuts } from './hooks/useShortcuts';
@@ -31,6 +32,7 @@ export function App() {
           <StatusBar />
         </div>
         <aside className="sidebar right">
+          <FloorsPanel />
           <Properties />
           <LayersPanel />
         </aside>

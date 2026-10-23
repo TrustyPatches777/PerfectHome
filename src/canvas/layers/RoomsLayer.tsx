@@ -1,11 +1,12 @@
 import { Group, Line, Text } from 'react-konva';
 import { formatArea, labelPoint, polygonArea } from '../../geometry';
 import { useDesign } from '../../store/design';
+import { useOnFloor } from '../../store/floor';
 import { useUi } from '../../store/ui';
 import { SELECT_COLOR } from '../style';
 
 export function RoomsLayer() {
-  const rooms = useDesign((s) => s.design.rooms);
+  const rooms = useOnFloor((d) => d.rooms);
   const layer = useDesign((s) => s.design.layers.rooms);
   const tool = useUi((s) => s.tool);
   const zoom = useUi((s) => s.viewport.zoom);

@@ -2,6 +2,7 @@ import { Group, Line, Rect, Text } from 'react-konva';
 import type { Point, TextLabel } from '../../model';
 import { dist, formatLength, snapPoint } from '../../geometry';
 import { useDesign } from '../../store/design';
+import { useOnFloor } from '../../store/floor';
 import { useUi } from '../../store/ui';
 import { dragSession, input } from '../input';
 import { SELECT_COLOR } from '../style';
@@ -74,8 +75,8 @@ export function DimensionShape({ a, b, zoom, selected, id, interactive }: { a: P
 }
 
 export function NotesLayer() {
-  const labels = useDesign((s) => s.design.labels);
-  const dimensions = useDesign((s) => s.design.dimensions);
+  const labels = useOnFloor((d) => d.labels);
+  const dimensions = useOnFloor((d) => d.dimensions);
   const layer = useDesign((s) => s.design.layers.notes);
   const tool = useUi((s) => s.tool);
   const zoom = useUi((s) => s.viewport.zoom);

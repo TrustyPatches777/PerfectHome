@@ -21,6 +21,7 @@ import {
   writeSaved,
 } from './share';
 import { useDesign } from './store/design';
+import { floorId } from './store/floor';
 import { useUi } from './store/ui';
 
 const toast = (m: string) => useUi.getState().showToast(m);
@@ -29,7 +30,7 @@ const toast = (m: string) => useUi.getState().showToast(m);
 export function loadDesign(d: Design) {
   useDesign.getState().load(d);
   const ui = useUi.getState();
-  ui.select(null);
+  ui.setActiveFloor(d.floors[0].id);
   ui.setTool('select');
   fitView(d);
 }
@@ -199,8 +200,9 @@ export async function importJsonFile(file: File) {
 export function exportPng() {
   const stage = getStage();
   const d = useDesign.getState().design;
-  const b = contentBounds(d);
-  if (!stage || !b) return toast('Nothing to export yet.');
+  const floor = floorId();
+  const b = contentBounds(d, floor);
+  if (!stage || !b) return toast('Nothing to export on this floor yet.');
 
   const margin = 0.8;
   const x0 = b.minX - margin;
@@ -214,8 +216,11 @@ export function exportPng() {
   const layers = stage.getLayers();
   const hide = [layers[0], layers[layers.length - 1]];
   hide.forEach((l) => l.visible(false));
+  const underlay = stage.find('.underlay');
+  underlay.forEach((n) => n.visible(false));
   const plan = stage.toCanvas({ x: stage.x() + x0 * zoom, y: stage.y() + y0 * zoom, width: w * zoom, height: h * zoom, pixelRatio: pxPerM / zoom });
   hide.forEach((l) => l.visible(true));
+  underlay.forEach((n) => n.visible(true));
   stage.batchDraw();
 
   // White background, title and a scale bar.
@@ -230,7 +235,8 @@ export function exportPng() {
   ctx.fillStyle = '#1f2937';
   ctx.font = `600 ${Math.round(pxPerM * 0.28)}px system-ui, sans-serif`;
   ctx.textBaseline = 'top';
-  ctx.fillText(d.name, pad, pad);
+  const floorName = d.floors.find((f) => f.id === floor)?.name;
+  ctx.fillText(d.floors.length > 1 && floorName ? `${d.name} – ${floorName}` : d.name, pad, pad);
   const len = niceLength(pxPerM, pxPerM * 1.2);
   const barY = out.height - pad - Math.round(pxPerM * 0.3);
   ctx.strokeStyle = '#1f2937';

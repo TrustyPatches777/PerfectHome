@@ -10,6 +10,8 @@ import { RoomsLayer } from './layers/RoomsLayer';
 import { StructureLayer } from './layers/StructureLayer';
 import { FurnitureLayer } from './layers/FurnitureLayer';
 import { NotesLayer } from './layers/NotesLayer';
+import { Underlay } from './layers/Underlay';
+import { FloorSwitcher } from '../components/FloorSwitcher';
 import { OverlayLayer } from './layers/OverlayLayer';
 import { ScaleBar } from '../components/ScaleBar';
 import { ToolOptions } from '../components/ToolOptions';
@@ -126,6 +128,7 @@ export function CanvasView() {
       >
         <GridLayer />
         <Layer>
+          <Underlay />
           <RoomsLayer />
           <StructureLayer />
           <FurnitureLayer />
@@ -133,6 +136,7 @@ export function CanvasView() {
         </Layer>
         <OverlayLayer />
       </Stage>
+      <FloorSwitcher />
       <ToolOptions />
       <ScaleBar />
     </div>

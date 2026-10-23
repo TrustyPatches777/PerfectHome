@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { deleteSelection, duplicateSelection, nudgeSelection, rotateSelection } from '../actions';
 import { fitView, zoomByCenter } from '../canvas/camera';
+import { stepFloor } from '../floors';
 import { TOOL_KEYS } from '../shortcuts';
 import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
@@ -59,6 +60,12 @@ export function useShortcuts(toggleHelp: () => void) {
           break;
         case 'ArrowDown':
           nudgeSelection(0, step * big);
+          break;
+        case 'PageUp':
+          stepFloor(1);
+          break;
+        case 'PageDown':
+          stepFloor(-1);
           break;
         case '[':
           rotateSelection(-15);

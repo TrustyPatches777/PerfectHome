@@ -3,7 +3,7 @@ import { useUi } from '../store/ui';
 const HINTS: Record<string, string> = {
   select: 'Drag empty space to pan · scroll to zoom · click an item to select',
   wall: 'Click to start a wall, click again for each corner · double-click or Enter to finish · Esc to stop',
-  door: 'Hover a wall and click to place a door',
+  door: 'Hover a wall and click to place it (pick door, double door, garage door or open passage above)',
   window: 'Hover a wall and click to place a window',
   room: 'Click inside closed walls to create a room',
   furniture: 'Click to place · R rotates · Shift+click places several · Esc stops',

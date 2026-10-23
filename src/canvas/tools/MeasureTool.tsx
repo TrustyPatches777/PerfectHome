@@ -5,6 +5,7 @@ import { layerBlocksEditing } from '../../actions';
 import { newId, type Point } from '../../model';
 import { dist } from '../../geometry';
 import { useDesign } from '../../store/design';
+import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
 import { isPrimary, snapWorld, useCaptureKeys, useStageEvents } from '../input';
 import { DimensionShape } from '../layers/NotesLayer';
@@ -33,7 +34,7 @@ export function MeasureTool() {
       }
       if (dist(start, p) < 0.02) return;
       useDesign.getState().update((d) => {
-        d.dimensions.push({ id: newId(), a: { ...start }, b: { ...p } });
+        d.dimensions.push({ id: newId(), floor: floorId(), a: { ...start }, b: { ...p } });
       });
       setStart(null);
     },

@@ -1,0 +1,111 @@
+/** Commands that manage floors (levels). Items belong to a floor through their `floor` field. */
+import { newId, type Design, type Floor } from './model';
+import { useDesign } from './store/design';
+import { floorIdOf } from './store/floor';
+import { useUi } from './store/ui';
+
+const ORDINALS = ['Ground floor', '1st floor', '2nd floor', '3rd floor'];
+
+function nextName(count: number, basement: boolean): string {
+  if (basement) return count === 0 ? 'Basement' : `Basement ${count + 1}`;
+  return ORDINALS[count] ?? `${count}th floor`;
+}
+
+export const floorHasContent = (d: Design, id: string) =>
+  [d.walls, d.rooms, d.furniture, d.labels, d.dimensions, d.zones, d.strips].some((list) => (list as { floor: string }[]).some((i) => i.floor === id));
+
+export function activeFloor(): string {
+  return floorIdOf(useDesign.getState().design, useUi.getState().activeFloor);
+}
+
+/** Add an empty floor directly above the active one ('above') or below everything ('basement'). */
+export function addFloor(where: 'above' | 'basement') {
+  const id = newId();
+  useDesign.getState().update((draft) => {
+    if (where === 'basement') {
+      const basements = draft.floors.filter((f) => f.name.startsWith('Basement')).length;
+      draft.floors.unshift({ id, name: nextName(basements, true) });
+    } else {
+      const at = draft.floors.findIndex((f) => f.id === activeFloor());
+      const aboveGround = Math.max(0, draft.floors.length - draft.floors.filter((f) => f.name.startsWith('Basement')).length);
+      draft.floors.splice(at + 1, 0, { id, name: nextName(aboveGround, false) });
+    }
+  });
+  useUi.getState().setActiveFloor(id);
+}
+
+/** Copy everything on the active floor to a new floor above it (handy for stacking similar levels). */
+export function duplicateFloor() {
+  const source = activeFloor();
+  const id = newId();
+  useDesign.getState().update((d) => {
+    const at = d.floors.findIndex((f) => f.id === source);
+    d.floors.splice(at + 1, 0, { id, name: `${d.floors[at].name} copy` });
+    const wallMap = new Map<string, string>();
+    for (const w of d.walls.filter((x) => x.floor === source)) {
+      const nid = newId();
+      wallMap.set(w.id, nid);
+      d.walls.push({ ...w, id: nid, floor: id });
+    }
+    for (const o of d.openings.filter((x) => wallMap.has(x.wallId))) d.openings.push({ ...o, id: newId(), wallId: wallMap.get(o.wallId)! });
+    const copy = <T extends { id: string; floor: string }>(list: T[]) => {
+      for (const item of list.filter((x) => x.floor === source)) list.push({ ...item, id: newId(), floor: id });
+    };
+    copy(d.rooms);
+    copy(d.furniture);
+    copy(d.labels);
+    copy(d.dimensions);
+    copy(d.zones);
+    copy(d.strips);
+  });
+  useUi.getState().setActiveFloor(id);
+}
+
+export function renameFloor(id: string, name: string) {
+  useDesign.getState().update((d) => {
+    const f = d.floors.find((x) => x.id === id);
+    if (f) f.name = name;
+  });
+}
+
+function removeFloor(id: string) {
+  const d0 = useDesign.getState().design;
+  const index = d0.floors.findIndex((f) => f.id === id);
+  const neighbour = d0.floors[index > 0 ? index - 1 : 1].id;
+  useDesign.getState().update((d) => {
+    const wallIds = new Set(d.walls.filter((w) => w.floor === id).map((w) => w.id));
+    d.openings = d.openings.filter((o) => !wallIds.has(o.wallId));
+    d.walls = d.walls.filter((x) => x.floor !== id);
+    d.rooms = d.rooms.filter((x) => x.floor !== id);
+    d.furniture = d.furniture.filter((x) => x.floor !== id);
+    d.labels = d.labels.filter((x) => x.floor !== id);
+    d.dimensions = d.dimensions.filter((x) => x.floor !== id);
+    d.zones = d.zones.filter((x) => x.floor !== id);
+    d.strips = d.strips.filter((x) => x.floor !== id);
+    d.floors = d.floors.filter((f) => f.id !== id);
+  });
+  useUi.getState().setActiveFloor(neighbour);
+}
+
+/** Delete a floor and everything on it (undoable). Asks first when the floor is not empty. */
+export function deleteFloor(id: string) {
+  const d = useDesign.getState().design;
+  if (d.floors.length <= 1) return;
+  const name = d.floors.find((f) => f.id === id)?.name ?? 'this floor';
+  if (!floorHasContent(d, id)) return removeFloor(id);
+  useUi.getState().setDialog({
+    type: 'confirm',
+    title: `Delete “${name}”?`,
+    message: 'Everything on this floor is removed. You can bring it back with Undo.',
+    confirmLabel: 'Delete floor',
+    onConfirm: () => removeFloor(id),
+  });
+}
+
+/** Go one floor up (+1) or down (-1). */
+export function stepFloor(delta: 1 | -1) {
+  const d = useDesign.getState().design;
+  const i = d.floors.findIndex((f) => f.id === activeFloor());
+  const next: Floor | undefined = d.floors[i + delta];
+  if (next) useUi.getState().setActiveFloor(next.id);
+}

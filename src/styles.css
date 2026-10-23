@@ -351,6 +351,7 @@ kbd {
   padding: 6px 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   max-width: calc(100% - 28px);
+  white-space: nowrap;
 }
 .tool-options .field {
   flex-direction: row;
@@ -564,4 +565,48 @@ button.primary:hover:not(:disabled) {
 }
 .menu-list button:hover:not(:disabled) {
   background: #f1f4f9;
+}
+
+/* ---------- floors ---------- */
+.floor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.floor-item {
+  width: 100%;
+  text-align: left;
+}
+.floor-item.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.floor-switcher {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.floor-switcher button {
+  padding: 1px 7px;
+  font-size: 11px;
 }
