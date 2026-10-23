@@ -237,6 +237,26 @@ export function exportPng() {
   ctx.textBaseline = 'top';
   const floorName = d.floors.find((f) => f.id === floor)?.name;
   ctx.fillText(d.floors.length > 1 && floorName ? `${d.name} – ${floorName}` : d.name, pad, pad);
+  // north arrow in the top-right corner
+  const r = pxPerM * 0.42;
+  const cx = out.width - pad - r;
+  const cy = pad + r;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((d.site.north * Math.PI) / 180);
+  ctx.fillStyle = '#1f2937';
+  ctx.beginPath();
+  ctx.moveTo(0, -r);
+  ctx.lineTo(r * 0.3, r * 0.5);
+  ctx.lineTo(0, r * 0.2);
+  ctx.lineTo(-r * 0.3, r * 0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.font = `700 ${Math.round(r * 0.5)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText('N', 0, -r - r * 0.18 - r * 0.2);
+  ctx.restore();
+  ctx.textAlign = 'left';
   const len = niceLength(pxPerM, pxPerM * 1.2);
   const barY = out.height - pad - Math.round(pxPerM * 0.3);
   ctx.strokeStyle = '#1f2937';

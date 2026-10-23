@@ -3,10 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { useDesign } from './store/design';
 import { useUi } from './store/ui';
+import { getStage } from './canvas/stage';
 import './styles.css';
 
 // Handy for debugging and used by the Playwright tests.
-(window as unknown as { __ph: unknown }).__ph = { design: useDesign, ui: useUi };
+(window as unknown as { __ph: unknown }).__ph = { design: useDesign, ui: useUi, stage: getStage };
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

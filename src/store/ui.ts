@@ -82,6 +82,12 @@ interface UiStore {
   typed: string | null;
   setTyped: (t: string | null) => void;
 
+  /** Time of day shown by the sun layer (solar hours 0..24) and whether the day is playing. Not saved. */
+  timeOfDay: number;
+  setTimeOfDay: (h: number) => void;
+  sunPlaying: boolean;
+  setSunPlaying: (p: boolean) => void;
+
   /** Who is using this browser (signs sticky notes). */
   me: Identity | null;
   setMe: (me: Identity) => void;
@@ -190,6 +196,11 @@ export const useUi = create<UiStore>((set) => ({
 
   typed: null,
   setTyped: (typed) => set({ typed }),
+
+  timeOfDay: 15,
+  setTimeOfDay: (timeOfDay) => set({ timeOfDay }),
+  sunPlaying: false,
+  setSunPlaying: (sunPlaying) => set({ sunPlaying }),
 
   me: loadIdentity(),
   setMe: (me) => set({ me }),

@@ -318,7 +318,7 @@ export function createDesign(): Design {
       tech: { visible: true, locked: false },
       notes: { visible: true, locked: false },
       comments: { visible: true, locked: false },
-      shadows: { visible: true, locked: false },
+      shadows: { visible: false, locked: false },
     },
     floors: [{ id: newId(), name: 'Ground floor' }],
     walls: [],

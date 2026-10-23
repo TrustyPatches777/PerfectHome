@@ -8,6 +8,7 @@ import { Properties } from './components/Properties';
 import { LayersPanel } from './components/LayersPanel';
 import { FloorsPanel } from './components/FloorsPanel';
 import { NotesPanel } from './components/NotesPanel';
+import { SunPanel } from './components/SunPanel';
 import { HelpDialog } from './components/HelpDialog';
 import { Dialogs } from './components/Dialogs';
 import { useShortcuts } from './hooks/useShortcuts';
@@ -34,6 +35,7 @@ export function App() {
         </div>
         <aside className="sidebar right">
           <FloorsPanel />
+          <SunPanel />
           <Properties />
           <NotesPanel />
           <LayersPanel />

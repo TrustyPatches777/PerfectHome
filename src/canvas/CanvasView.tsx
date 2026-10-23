@@ -22,6 +22,8 @@ import { TypedBox } from '../components/TypedBox';
 import { Rulers } from '../components/Rulers';
 import { AutoDimensions } from './layers/AutoDimensions';
 import { StickyLayer } from './layers/StickyLayer';
+import { LightingLayer } from './layers/LightingLayer';
+import { NorthArrow } from '../components/NorthArrow';
 import { ToolOptions } from '../components/ToolOptions';
 
 /** The canvas: owns the Konva stage, the camera (pan/zoom) and pointer plumbing. */
@@ -163,6 +165,7 @@ export function CanvasView() {
           <AutoDimensions />
           <StickyLayer />
         </Layer>
+        <LightingLayer />
         <OverlayLayer />
       </Stage>
       {marquee && (
@@ -172,6 +175,7 @@ export function CanvasView() {
         />
       )}
       {showRulers && <Rulers />}
+      <NorthArrow />
       <TypedBox />
       <FloorSwitcher />
       <ToolOptions />
