@@ -8,10 +8,13 @@ import { STRIP_DEFAULT_WIDTH } from '../model';
 export type DialogState =
   | { type: 'share'; url: string; copied: boolean; long: boolean }
   | { type: 'areas' }
+  | { type: 'print' }
   | { type: 'identity'; then?: Point }
   | { type: 'custom-item'; editId: string | null; preset?: Partial<CustomItem> }
   | { type: 'confirm'; title: string; message: string; confirmLabel: string; onConfirm: () => void }
   | { type: 'link-conflict'; incoming: Design; current: Design; sameDesign: boolean; choose: (useShared: boolean) => void };
+
+import { DEFAULT_PRINT, type PrintOptions } from '../printLayout';
 
 export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'stairs' | 'note';
 
@@ -92,6 +95,10 @@ interface UiStore {
   /** Who is using this browser (signs sticky notes). */
   me: Identity | null;
   setMe: (me: Identity) => void;
+
+  /** Choices in the print dialog (not saved). */
+  printOptions: PrintOptions;
+  setPrintOptions: (patch: Partial<PrintOptions>) => void;
 
   /** Plan check: look for problems, the narrowest passage in meters, and boundary distances shown on the plan. */
   showChecks: boolean;
@@ -205,6 +212,9 @@ export const useUi = create<UiStore>((set) => ({
 
   typed: null,
   setTyped: (typed) => set({ typed }),
+
+  printOptions: DEFAULT_PRINT,
+  setPrintOptions: (patch) => set((s) => ({ printOptions: { ...s.printOptions, ...patch } })),
 
   showChecks: false,
   setShowChecks: (showChecks) => set({ showChecks }),

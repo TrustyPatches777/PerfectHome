@@ -8,6 +8,7 @@ import { useDesign } from '../store/design';
 import { ColorField, NumberField, TextField } from './fields';
 import { SymbolIcon } from './FurniturePalette';
 import { AreaDialog } from './AreaDialog';
+import { PrintDialog } from './PrintDialog';
 import { useUi, type DialogState } from '../store/ui';
 
 /** Renders whichever modal is open (ui.dialog). */
@@ -17,6 +18,7 @@ export function Dialogs() {
   if (dialog.type === 'share') return <ShareDialog url={dialog.url} copied={dialog.copied} long={dialog.long} />;
   if (dialog.type === 'confirm') return <ConfirmDialog dialog={dialog} />;
   if (dialog.type === 'areas') return <AreaDialog />;
+  if (dialog.type === 'print') return <PrintDialog />;
   if (dialog.type === 'identity') return <IdentityDialog then={dialog.then} />;
   if (dialog.type === 'custom-item') return <CustomItemDialog editId={dialog.editId} preset={dialog.preset} />;
   return <ConflictDialog dialog={dialog} />;

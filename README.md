@@ -5,11 +5,13 @@ area, then furnish them. Share the design as a link: everything is inside the li
 
 ## What it can do
 
-- **Rooms:** draw walls, add doors (single, double, garage door), windows and open passages, click inside walls to make a named room with its floor color and m² area. Rooms never overlap.
-- **Multiple floors:** add floors above or a basement, duplicate a floor, switch with Page Up / Page Down. The floor below shows faintly so walls line up.
-- **Outdoors:** lawn, terrace, driveway, flower bed, pond, plot boundary, plus a street, footpath, fence and hedge, all on their own lockable layer.
-- **~85 furniture symbols** in real sizes: rooms, kitchen, bathroom, utility, cars, bikes, trees, garden items and more.
-- **Labels, measurements, layers you can hide or lock, undo/redo, PNG and JSON export, share links, autosave.**
+- **Drawing:** walls (five types, straight or curved), doors (single, double, French, sliding, garage), windows and bay windows, open passages, stairs (straight, L, U, spiral), rooms that detect themselves from the walls, with floor materials and area. Type exact lengths while drawing.
+- **Furniture:** ~110 symbols in real sizes (rooms, kitchen, bathroom, utility, cars, garden, lamps, electrical and plumbing symbols that snap to walls) and your own custom pieces. Multi-select, copy/paste, align and distribute.
+- **Whole property:** several floors (the one below shows faintly), garden, driveway, street, fence, hedge, plot boundary.
+- **Light:** sun and shadows for any time of day and date, evening light with glowing lamps, a compass.
+- **Checks and numbers:** a plan check (doors that cannot open, furniture in walls, narrow passages), an area table with living area and plot coverage and distances to the boundary, rulers, guides, and "show all dimensions".
+- **Working together:** sticky notes with a color per person on their own layer, layers you can hide or lock, undo/redo, share links, autosave.
+- **Output:** PNG, SVG, JSON, and printing at true scale (or save as PDF) on A4/A3/A2/Letter.
 
 ## Using it
 

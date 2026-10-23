@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useUi } from '../store/ui';
-import { exportJson, exportPng, hasBackup, importJsonFile, newDesign, restoreBackup } from '../session';
+import { exportJson, exportPng, exportSvg, hasBackup, importJsonFile, newDesign, restoreBackup } from '../session';
 
 export function FileMenu() {
   const [open, setOpen] = useState(false);
@@ -45,6 +45,8 @@ export function FileMenu() {
           {item('Area table…', () => useUi.getState().setDialog({ type: 'areas' }), 'menu-areas')}
           {item('Export JSON', exportJson, 'menu-export-json')}
           {item('Export PNG', exportPng, 'menu-export-png')}
+          {item('Export SVG', exportSvg, 'menu-export-svg')}
+          {item('Print / save as PDF…', () => useUi.getState().setDialog({ type: 'print' }), 'menu-print')}
           {item('Restore previous design', restoreBackup, 'menu-restore', !hasBackup())}
         </div>
       )}

@@ -22,6 +22,7 @@ export const SHORTCUT_HELP: { keys: string; what: string }[] = [
   { keys: 'M', what: 'Measure a distance' },
   { keys: 'T', what: 'Add a text label' },
   { keys: 'C', what: 'Leave a sticky note on the plan' },
+  { keys: 'Type a number while drawing', what: 'Exact length: 3.5, 350 (cm), 2.4m, 3.5<45 (angle), or 5x3 for a rectangle; then Enter' },
   { keys: 'Space + drag, or right/middle drag', what: 'Pan' },
   { keys: 'Mouse wheel', what: 'Zoom at the cursor' },
   { keys: 'G', what: 'Toggle snap to grid' },

@@ -7,6 +7,8 @@ import { contentBounds, fitView } from './canvas/camera';
 import { getStage } from './canvas/stage';
 import { niceLength } from './geometry';
 import { createDesign, serializeDesign, type Design } from './model';
+import { buildPrintLayout, type PrintOptions } from './printLayout';
+import { buildSvg } from './svgExport';
 import {
   AUTOSAVE_KEY,
   BACKUP_KEY,
@@ -291,4 +293,43 @@ export function restoreBackup() {
   stashCurrent(current); // swap, so restoring twice gets you back
   loadDesign(backup.design);
   toast('Restored the previous design.');
+}
+
+// ---- SVG and printing -----------------------------------------------------------------
+
+/** Download the current floor as an SVG drawing (vector; 1 m = 100 px). */
+export function exportSvg() {
+  const d = useDesign.getState().design;
+  const floor = floorId();
+  const plan = buildSvg(d, floor, { decorations: true });
+  if (!plan) return toast('Nothing to export on this floor yet.');
+  const floorName = d.floors.find((f) => f.id === floor)?.name ?? '';
+  const slug = (t: string) => fileNameFor({ ...d, name: t }, 'x').slice(0, -2);
+  const name = `${slug(d.name)}${d.floors.length > 1 ? `-${slug(floorName)}` : ''}.svg`;
+  download(new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n${plan.svg}`], { type: 'image/svg+xml' }), name);
+}
+
+/**
+ * Print at true scale: the pages are built as HTML in a hidden frame and sent to the browser's print dialog,
+ * where "Save as PDF" makes a PDF. The frame is kept for a while so the dialog can finish.
+ */
+export function printPlan(opts: PrintOptions) {
+  const layout = buildPrintLayout(useDesign.getState().design, floorId(), opts);
+  if (!layout.html) return toast('Nothing to print on this floor yet.');
+  document.querySelectorAll('iframe.print-frame').forEach((f) => f.remove());
+  const frame = document.createElement('iframe');
+  frame.className = 'print-frame';
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+  frame.srcdoc = layout.html;
+  frame.onload = () => {
+    try {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+    } catch {
+      toast('Could not open the print window.');
+    }
+  };
+  document.body.appendChild(frame);
+  setTimeout(() => frame.remove(), 120_000);
 }

@@ -983,3 +983,39 @@ button.material.on {
 .area-table td.num {
   width: 20%;
 }
+
+/* ---------- print dialog ---------- */
+.print-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+.print-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.print-preview {
+  position: relative;
+  width: 100%;
+  max-height: 380px;
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 4.5%;
+}
+.print-plan {
+  flex: none;
+}
+.print-title {
+  position: absolute;
+  left: 4.5%;
+  right: 4.5%;
+  bottom: 4.5%;
+  height: 8%;
+  border-top: 1.5px solid #1f2937;
+}

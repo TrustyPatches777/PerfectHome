@@ -20,27 +20,40 @@ Node is in `C:\Program Files\nodejs`; shells opened before it was installed may 
 ## Architecture
 ```
 src/model.ts          THE data model: every type of the shared JSON, defaults, parseDesign (validation), serializeDesign
-src/geometry.ts       pure math: snapping, wall frames, door arcs, polygon area, room detection. No React/Konva.
-src/catalog.ts        furniture catalog (~85 items incl. cars, garden items): real-world sizes + each symbol as simple
-                      normalized shapes (also palette icons). Add an item here and it shows up in the palette.
-src/outdoor.ts        looks/defaults of outdoor zones (lawn, terrace, driveway...) and strips (street, path, fence, hedge)
-src/floors.ts         commands for floors: add, basement, duplicate, rename, delete, step up/down
-src/share.ts          pure: encode/decode links (lz-string), JSON parsing, localStorage read/write
-src/session.ts        effectful whole-design flows: bootstrap, link opening, autosave, export/import, new/restore backup
-src/actions.ts        commands on the selection (delete, duplicate, nudge, rotate) + layer lock/hide guards
-src/shortcuts.ts      key table (drives the handler in hooks/useShortcuts.ts AND the in-app help)
-src/store/design.ts   Zustand store: `design` + undo/redo history (immer). The ONLY place the design is mutated.
-src/store/ui.ts       Zustand store for non-shared UI state: tool, selection, active floor, viewport, snap, cursor, toast, dialog, save status
-src/store/floor.ts    the active floor, validated against the design (`floorId()`, `useFloorId()`, `useOnFloor(pick)`)
+src/geometry.ts       pure math: snapping, walls (straight AND arcs: wallArc/wallPointAt/projectOnWall), door arcs, polygons, rooms
+src/distance.ts       closest points/distances between segments and polygon outlines
+src/selection.ts      pure group operations: item bounds, move/rotate/align/distribute, copy/paste clipboard, remove, layer of an item
+src/catalog.ts        furniture catalog (~110 items incl. cars, garden, lamps, electrical, plumbing) + custom items registry,
+                      heights for shadows, which layer an item lives on, wall-mounted and lamp flags
+src/stairs.ts         stair drawings (straight/L/U/spiral) as pure instructions, walking length, comfort check
+src/patterns.ts       procedural tile images (wall hatch, floor materials) for the canvas; svgExport has vector twins
+src/walls.ts, outdoor.ts   look/defaults of wall types, outdoor zones and strips
+src/typed.ts          parse typed lengths ("350", "2.4m", "3.5<45", "5x3")
+src/mount.ts          snap wall-mounted symbols (sockets, taps) flat onto the wall face under the cursor
+src/dims.ts           automatic dimension labels ("All dimensions")
+src/sun.ts            solar position, sunrise/sunset, darkness; shadowOffset
+src/shadows.ts        shadow polygons for walls/furniture/trees/fences/the house (sweepPolygon), building cut-outs
+src/checks.ts         "Plan check": blocked doors, furniture in walls, narrow passages
+src/areas.ts          area table and plot figures (coverage, distance to boundary), text/CSV
+src/bounds.ts         bounding box of a floor's content
+src/svgExport.ts      SECOND RENDERER: a floor as SVG (export + print). Keep in sync with the canvas drawing code.
+src/printLayout.ts    print pages at true scale (HTML for a hidden frame), paper sizes, "fit" scale
+src/share.ts          pure: link encode/decode (lz-string), JSON parsing, localStorage read/write
+src/session.ts        whole-design flows: bootstrap, link opening, autosave, PNG/SVG/JSON export, print, new/restore backup
+src/actions.ts        commands on the selection (delete, copy/cut/paste, duplicate, nudge, rotate, align) + layer lock guards
+src/floors.ts         floors: add, basement, duplicate, rename, delete, step, jump to an item
+src/identity.ts       who you are (name + color for sticky notes), kept in localStorage only
+src/shortcuts.ts      key table (drives hooks/useShortcuts.ts AND the in-app help)
+src/store/design.ts   Zustand: `design` + undo/redo history (immer). The ONLY place the design is mutated.
+src/store/ui.ts       Zustand: tool, selection (selected[] + selection when exactly one), active floor, viewport, view switches, dialogs...
+src/store/floor.ts    the active floor, validated against the design (floorId(), useFloorId(), useOnFloor(pick))
 src/canvas/           react-konva scene
-  CanvasView.tsx        Stage, camera (wheel zoom, pan), mounts the layers
-  GridLayer.tsx         adaptive grid; layers/*  one component per design layer (+ Underlay = floor below, faint);
-                        tools/*  one component per drawing tool (wall, opening, room, zone, strip, furniture, measure, text)
-  input.ts              snapping (snapWorld), drag sessions, stage-event hook for tools, double-click detection
-  editing.ts            mouse edits of existing items (move wall, drag corner, slide door...)
-  SelectionTransformer  resize/rotate handles for furniture/labels (Konva Transformer)
-src/components/       HTML UI: TopBar, ToolBar, FurniturePalette, Properties, LayersPanel, Dialogs, FileMenu, StatusBar, ScaleBar
-e2e/                  Playwright specs + helpers (at(), clickAt(), dragWorld() take WORLD meters)
+  CanvasView.tsx        Stage, camera, marquee select; layers/* one component per design layer; tools/* one per drawing tool
+  press.ts              what happens when you press an item (select, shift-toggle, move one or many) - ONE path for every kind
+  editing.ts            mouse edits of existing things (move wall, corners, curve handle, sliding doors, guides)
+  input.ts              snapping (vertices, wall faces, guides, grid), drag sessions, tool event hooks, typed-length hook
+src/components/       HTML UI: panels (floors, sun, checks, notes, layers, properties), dialogs, menus, palette, rulers, compass
+e2e/                  Playwright specs (one per feature group) + helpers (at(), clickAt(), dragWorld() take WORLD meters)
 ```
 
 ## Rules of the road
@@ -77,6 +90,21 @@ e2e/                  Playwright specs + helpers (at(), clickAt(), dragWorld() t
 - **Tool options bar** (`.tool-options`) floats over the plan: keep it one short line, or it swallows clicks (it did once).
 - **Konva gotchas found the hard way**: Konva's `dblclick` ignores pointer distance (two quick clicks on different
   corners count) — use `isDoubleClick`. While dragging a corner, its own previous position must not be a snap target.
+- **Selection**: `ui.selected` is the full set, `ui.selection` is the item only when exactly ONE thing is selected (properties
+  panel, handles and the transformer work on that). Shift+click / Shift+drag add, Ctrl+A selects all editable items of the floor.
+  Every group command goes through `selection.ts`/`actions.ts` and skips items on locked layers (`layerOfRef`).
+- **Pressing items**: never add per-kind Konva dragging. Call `pressItem(evt, ref, 'move' | 'area')` (press.ts); moves use
+  `moveFromBase` from an untouched snapshot so long drags do not drift.
+- **Curved walls**: positions along a wall are ARC LENGTH. Use `wallLength`, `wallPointAt`, `projectOnWall` (never `b - a`) so doors,
+  windows, snapping and room detection work on curves.
+- **Layers**: `structure` (walls, openings, stairs), `rooms`, `outdoor`, `furniture`, `tech` (lamps, electrical, plumbing: chosen by the
+  catalog item, not by the item kind), `notes` (labels, measurements, guides), `comments` (sticky notes), `shadows` (draws only).
+- **Sun & shadows** live in one Konva layer (`LightingLayer`); heights come from `furnitureHeight`/`wall.height`; off by default.
+  Time of day is UI state; date, latitude and north are in the design (`design.site`).
+- **Two renderers**: the canvas (Konva) and `svgExport.ts`. When you change how something is drawn, change both.
+- **Typed lengths**: drawing tools call `useTypedInput(active, onSubmit)` BEFORE their own key handler.
+- **Windows file writes**: when scripting edits of source files from a shell, retry on `OSError` (rare transient EINVAL), and never
+  chain `npm test; git commit` with `;` - use `&&`.
 - **Rooms** are polygons. Auto mode flood-fills from the click on a raster of the walls (door gaps count as closed), so
   area is measured to the inner wall faces. Rooms do not follow walls when walls move; "Refit to walls" re-runs detection from the stored seed.
 - **Debug hook**: `window.__ph = { design, ui }` exposes both stores; Playwright tests read state through it.
@@ -85,3 +113,6 @@ e2e/                  Playwright specs + helpers (at(), clickAt(), dragWorld() t
 ## Milestones (one commit each)
 1 canvas · 2 walls/openings/rooms/undo · 3 furniture · 4 labels/measure/layers · 5 share/export/autosave · 6 GitHub Pages deploy
 then: room overlap fix · floors + garage/double door/open passage · outdoor areas & lines · bigger furniture catalog
+then: multi-select/copy/paste/align · typed lengths · wall types + curved walls · more openings · stairs · floor materials · custom
+furniture · electrical/plumbing/lamps · guides + rulers + all dimensions · sticky notes · sun/shadows/day-night · plan check ·
+area table · SVG export + print at scale
