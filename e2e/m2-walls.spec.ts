@@ -186,3 +186,38 @@ test('delete and deselect', async ({ page }) => {
   await page.mouse.click(p.x, p.y);
   expect((await ui(page)).selection).toBeNull();
 });
+
+test('rooms cannot overlap: clicking a room again selects it, and overlapping drawn rooms are refused', async ({ page }) => {
+  await drawBox(page, 1, 1, 5, 4);
+  await page.getByTestId('tool-room').click();
+  await clickAt(page, 3, 2.5);
+  expect((await design(page)).rooms).toHaveLength(1);
+  const id = (await design(page)).rooms[0].id;
+
+  // click the same room again with the room tool: no second room, the existing one is selected
+  await page.keyboard.press('Escape');
+  await page.getByTestId('tool-room').click();
+  await clickAt(page, 2, 3.5);
+  expect((await design(page)).rooms).toHaveLength(1);
+  await expect(page.locator('.statusbar')).toContainText('already a room');
+  expect((await ui(page)).selection).toEqual({ kind: 'room', id });
+
+  // a hand-drawn room overlapping it is refused
+  await page.getByTestId('tool-room').click();
+  await page.getByTestId('room-draw').click();
+  await clickAt(page, 4, 3);
+  await clickAt(page, 7, 3);
+  await clickAt(page, 7, 6);
+  await clickAt(page, 4, 6);
+  await page.keyboard.press('Enter');
+  expect((await design(page)).rooms).toHaveLength(1);
+  await expect(page.locator('.statusbar')).toContainText('overlap');
+
+  // ...but one next to it, outside the walls, is fine
+  await clickAt(page, 6, 1);
+  await clickAt(page, 9, 1);
+  await clickAt(page, 9, 4);
+  await clickAt(page, 6, 4);
+  await page.keyboard.press('Enter');
+  expect((await design(page)).rooms).toHaveLength(2);
+});

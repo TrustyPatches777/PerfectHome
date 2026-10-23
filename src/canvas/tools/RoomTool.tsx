@@ -3,7 +3,7 @@ import { Circle, Group, Line } from 'react-konva';
 import type Konva from 'konva';
 import { layerBlocksEditing } from '../../actions';
 import { newId, type Point } from '../../model';
-import { detectRoom, dist } from '../../geometry';
+import { detectRoom, dist, pointInPolygon, polygonsOverlap } from '../../geometry';
 import { useDesign } from '../../store/design';
 import { useUi } from '../../store/ui';
 import { isDoubleClick, isPrimary, snapWorld, useCaptureKeys, useStageEvents } from '../input';
@@ -21,6 +21,22 @@ export function addRoom(points: Point[], seed?: Point) {
 }
 
 /**
+ * Add a room unless it would overlap an existing one. Returns whether it was added; otherwise explains why
+ * and selects the room that is in the way.
+ */
+function tryAddRoom(points: Point[], seed?: Point): boolean {
+  const rooms = useDesign.getState().design.rooms;
+  const clash = rooms.find((r) => polygonsOverlap(points, r.points));
+  if (clash) {
+    useUi.getState().select({ kind: 'room', id: clash.id });
+    useUi.getState().showToast(`That would overlap “${clash.name}”. Rooms can't overlap, so it is selected instead.`);
+    return false;
+  }
+  addRoom(points, seed);
+  return true;
+}
+
+/**
  * Auto mode: click inside a closed set of walls to create the room (area measured to the inner wall faces).
  * Draw mode: click the corners yourself; click the first corner, double-click or press Enter to finish.
  */
@@ -32,7 +48,7 @@ export function RoomTool() {
   const [hover, setHover] = useState<Point | null>(null);
 
   const finish = () => {
-    if (points.length >= 3) addRoom(points);
+    if (points.length >= 3) tryAddRoom(points);
     setPoints([]);
   };
 
@@ -47,6 +63,12 @@ export function RoomTool() {
         return;
       }
       if (mode === 'auto') {
+        const existing = useDesign.getState().design.rooms.find((r) => pointInPolygon(world, r.points));
+        if (existing) {
+          useUi.getState().select({ kind: 'room', id: existing.id });
+          useUi.getState().showToast(`“${existing.name}” is already a room. Switch to the Select tool (V) to edit it.`);
+          return;
+        }
         const walls = useDesign.getState().design.walls;
         const poly = detectRoom(world, walls);
         if (!poly) {
@@ -55,7 +77,7 @@ export function RoomTool() {
             .showToast(walls.length ? 'No closed room here. Close the walls, or switch to "Draw" to click the corners.' : 'Draw some walls first.');
           return;
         }
-        addRoom(poly, { x: Math.round(world.x * 1000) / 1000, y: Math.round(world.y * 1000) / 1000 });
+        tryAddRoom(poly, { x: Math.round(world.x * 1000) / 1000, y: Math.round(world.y * 1000) / 1000 });
         return;
       }
       const p = snapWorld(world).p;

@@ -164,6 +164,26 @@ export function pointInPolygon(p: Point, pts: Point[]): boolean {
   return inside;
 }
 
+/** True when segments p1-p2 and p3-p4 cross at a single interior point (touching or collinear does not count). */
+function segmentsCross(p1: Point, p2: Point, p3: Point, p4: Point): boolean {
+  const d = (a: Point, b: Point, c: Point) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const eps = 1e-9;
+  const d1 = d(p3, p4, p1);
+  const d2 = d(p3, p4, p2);
+  const d3 = d(p1, p2, p3);
+  const d4 = d(p1, p2, p4);
+  return ((d1 > eps && d2 < -eps) || (d1 < -eps && d2 > eps)) && ((d3 > eps && d4 < -eps) || (d3 < -eps && d4 > eps));
+}
+
+/** Do two polygons share any area? Polygons that merely touch along an edge or at a corner do not overlap. */
+export function polygonsOverlap(a: Point[], b: Point[]): boolean {
+  for (let i = 0; i < a.length; i++)
+    for (let j = 0; j < b.length; j++)
+      if (segmentsCross(a[i], a[(i + 1) % a.length], b[j], b[(j + 1) % b.length])) return true;
+  // no crossing edges: one may lie completely inside the other (or they are identical)
+  return pointInPolygon(labelPoint(a), b) || pointInPolygon(labelPoint(b), a);
+}
+
 /** A good spot for a room's label: the centroid, or the nearest interior point for concave shapes. */
 export function labelPoint(pts: Point[]): Point {
   let a = 0;

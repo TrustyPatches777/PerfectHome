@@ -8,6 +8,7 @@ import {
   nearestWall,
   pointInPolygon,
   polygonArea,
+  polygonsOverlap,
   snapPoint,
   wallSolidSegments,
 } from './geometry';
@@ -148,5 +149,27 @@ describe('scale bar helpers', () => {
   it('formats lengths', () => {
     expect(formatLength(0.45)).toBe('45 cm');
     expect(formatLength(3.2)).toBe('3.20 m');
+  });
+});
+
+describe('polygonsOverlap', () => {
+  const rect = (x0: number, y0: number, x1: number, y1: number) => [
+    { x: x0, y: y0 },
+    { x: x1, y: y0 },
+    { x: x1, y: y1 },
+    { x: x0, y: y1 },
+  ];
+  it('detects partial overlap, containment and identical shapes', () => {
+    expect(polygonsOverlap(rect(0, 0, 4, 3), rect(3, 2, 6, 5))).toBe(true);
+    expect(polygonsOverlap(rect(0, 0, 10, 10), rect(2, 2, 4, 4))).toBe(true);
+    expect(polygonsOverlap(rect(2, 2, 4, 4), rect(0, 0, 10, 10))).toBe(true);
+    expect(polygonsOverlap(rect(0, 0, 4, 3), rect(0, 0, 4, 3))).toBe(true);
+    // cross-shaped: no vertex of either lies inside the other
+    expect(polygonsOverlap(rect(0, 1, 6, 2), rect(2, 0, 3, 4))).toBe(true);
+  });
+  it('allows rooms that only touch or are apart', () => {
+    expect(polygonsOverlap(rect(0, 0, 4, 3), rect(4, 0, 8, 3))).toBe(false); // shared edge
+    expect(polygonsOverlap(rect(0, 0, 4, 3), rect(4, 3, 8, 6))).toBe(false); // shared corner
+    expect(polygonsOverlap(rect(0, 0, 4, 3), rect(5, 0, 8, 3))).toBe(false);
   });
 });
