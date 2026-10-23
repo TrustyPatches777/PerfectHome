@@ -10,6 +10,10 @@ import { useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
 import { pressItem } from '../press';
 import { SELECT_COLOR } from '../style';
+import { stairShapes } from '../../stairs';
+import { StairShapes } from './StairShapes';
+import { useFloorId } from '../../store/floor';
+import { useIsMulti } from '../../store/ui';
 
 /** A wall: straight (a row of rectangles with gaps for doors) or curved (arc bands). */
 export function WallShape({ wall, openings, selected, ghost }: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean }) {
@@ -185,6 +189,12 @@ export function StructureLayer() {
   }, [walls, allOpenings]);
   const layer = useDesign((s) => s.design.layers.structure);
   const tool = useUi((s) => s.tool);
+  const stairs = useOnFloor((d) => d.stairs);
+  const allStairs = useDesign((s) => s.design.stairs);
+  const floors = useDesign((s) => s.design.floors);
+  const floor = useFloorId();
+  const stairIds = useSelectedIds('stair');
+  const multi = useIsMulti();
   const wallIds = useSelectedIds('wall');
   const openingIds = useSelectedIds('opening');
   if (!layer.visible) return null;
@@ -200,6 +210,38 @@ export function StructureLayer() {
         const wall = walls.find((w) => w.id === o.wallId);
         return wall && <OpeningShape key={o.id} wall={wall} opening={o} selected={openingIds.has(o.id)} />;
       })}
+      {/* the stairs coming up from the floor below show as a dashed outline (the stairwell) */}
+      {(() => {
+        const at = floors.findIndex((f) => f.id === floor);
+        const below = at > 0 ? floors[at - 1].id : null;
+        return allStairs
+          .filter((s) => s.floor === below)
+          .map((s) => (
+            <Group key={`well-${s.id}`} x={s.x} y={s.y} offsetX={s.w / 2} offsetY={s.d / 2} rotation={s.rotation} listening={false}>
+              <StairShapes shapes={stairShapes(s)} ghost />
+            </Group>
+          ));
+      })()}
+      {stairs.map((s) => (
+        <Group
+          key={s.id}
+          id={s.id}
+          x={s.x}
+          y={s.y}
+          offsetX={s.w / 2}
+          offsetY={s.d / 2}
+          rotation={s.rotation}
+          onMouseDown={(e) => {
+            if (e.evt.button !== 0 || input.space) return;
+            e.cancelBubble = true;
+            pressItem(e.evt, { kind: 'stair', id: s.id }, 'move');
+          }}
+        >
+          <Rect width={s.w} height={s.d} fill="rgba(0,0,0,0.001)" />
+          <StairShapes shapes={stairShapes(s)} />
+          {multi && stairIds.has(s.id) && <Rect width={s.w} height={s.d} stroke={SELECT_COLOR} strokeWidth={2.5} strokeScaleEnabled={false} listening={false} />}
+        </Group>
+      ))}
     </Group>
   );
 }

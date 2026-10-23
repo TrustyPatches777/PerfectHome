@@ -1,15 +1,16 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
-import type { Design, ItemKind, ItemRef, OpeningKind, Point, StripKind, WallType, ZoneKind } from '../model';
+import type { CustomItem, Design, ItemKind, ItemRef, OpeningKind, Point, StairKind, StripKind, WallType, ZoneKind } from '../model';
 import { STRIP_DEFAULT_WIDTH } from '../model';
 
 /** A modal question or message. Rendered by components/Dialogs.tsx. */
 export type DialogState =
   | { type: 'share'; url: string; copied: boolean; long: boolean }
+  | { type: 'custom-item'; editId: string | null; preset?: Partial<CustomItem> }
   | { type: 'confirm'; title: string; message: string; confirmLabel: string; onConfirm: () => void }
   | { type: 'link-conflict'; incoming: Design; current: Design; sameDesign: boolean; choose: (useShared: boolean) => void };
 
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip';
+export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'stairs';
 
 /** Camera: screen = world * zoom + (x, y). `zoom` is pixels per meter. */
 export interface Viewport {
@@ -91,6 +92,9 @@ interface UiStore {
   setDoorKind: (k: Exclude<OpeningKind, 'window' | 'bay'>) => void;
   windowKind: 'window' | 'bay';
   setWindowKind: (k: 'window' | 'bay') => void;
+  /** Which kind of staircase the Stairs tool places. */
+  stairKind: StairKind;
+  setStairKind: (k: StairKind) => void;
   /** Type of the walls being drawn (their thickness is a separate, editable setting). */
   wallType: WallType;
   setWallType: (t: WallType) => void;
@@ -173,6 +177,8 @@ export const useUi = create<UiStore>((set) => ({
   setDoorKind: (doorKind) => set({ doorKind }),
   windowKind: 'window',
   setWindowKind: (windowKind) => set({ windowKind }),
+  stairKind: 'straight',
+  setStairKind: (stairKind) => set({ stairKind }),
   wallType: 'interior',
   setWallType: (wallType) => set({ wallType }),
 

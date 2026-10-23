@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { CATALOG, CATEGORIES, fillColor, type CatalogItem } from '../catalog';
+import { CATEGORIES, allCatalog, fillColor, type CatalogItem } from '../catalog';
+import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
 
 /** SVG thumbnail of a catalog item, drawn from the same shapes the canvas uses. */
@@ -25,10 +26,13 @@ export function SymbolIcon({ item, size = 44 }: { item: CatalogItem; size?: numb
 
 export function FurniturePalette() {
   const placing = useUi((s) => s.placing);
+  const custom = useDesign((s) => s.design.custom); // re-render when custom items change
+  const catalog = allCatalog();
   const tool = useUi((s) => s.tool);
   const [query, setQuery] = useState('');
-  const [open, setOpen] = useState<Set<string>>(new Set(['Bedroom', 'Living']));
+  const [open, setOpen] = useState<Set<string>>(new Set(['My items', 'Bedroom', 'Living']));
   const q = query.trim().toLowerCase();
+  void custom;
 
   const pick = (type: string) => {
     const ui = useUi.getState();
@@ -38,9 +42,14 @@ export function FurniturePalette() {
 
   return (
     <div className="palette" data-testid="palette">
-      <input type="text" placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search furniture" />
+      <div className="row">
+        <input type="text" placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search furniture" style={{ flex: 1, minWidth: 0 }} />
+        <button onClick={() => useUi.getState().setDialog({ type: 'custom-item', editId: null })} title="Create your own piece of furniture" data-testid="new-custom">
+          + New
+        </button>
+      </div>
       {CATEGORIES.map((cat) => {
-        const items = CATALOG.filter((c) => c.category === cat && (!q || c.label.toLowerCase().includes(q)));
+        const items = catalog.filter((c) => c.category === cat && (!q || c.label.toLowerCase().includes(q)));
         if (!items.length) return null;
         return (
           <section key={cat}>
@@ -65,6 +74,21 @@ export function FurniturePalette() {
                     <SymbolIcon item={c} />
                   </span>
                   <span className="tile-label">{c.label}</span>
+                  {c.category === 'My items' && (
+                    <span
+                      className="tile-edit"
+                      role="button"
+                      aria-label={`Edit ${c.label}`}
+                      title="Edit this item"
+                      data-testid={`edit-${c.type}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        useUi.getState().setDialog({ type: 'custom-item', editId: c.type.slice(7) });
+                      }}
+                    >
+                      ✎
+                    </span>
+                  )}
                 </button>
               ))}
             </div>}

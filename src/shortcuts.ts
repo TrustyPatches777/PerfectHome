@@ -7,6 +7,7 @@ export const TOOL_KEYS: Record<string, Tool> = {
   d: 'door',
   n: 'window',
   a: 'room',
+  s: 'stairs',
   m: 'measure',
   t: 'text',
 };
@@ -16,6 +17,7 @@ export const SHORTCUT_HELP: { keys: string; what: string }[] = [
   { keys: 'W', what: 'Draw walls (click corners; double-click, Enter or Esc to finish; Shift = 45° angles)' },
   { keys: 'D / N', what: 'Place a door / window on a wall' },
   { keys: 'A', what: 'Add a room (click inside closed walls)' },
+  { keys: 'S', what: 'Place a staircase (R rotates it before placing)' },
   { keys: 'M', what: 'Measure a distance' },
   { keys: 'T', what: 'Add a text label' },
   { keys: 'Space + drag, or right/middle drag', what: 'Pan' },

@@ -3,6 +3,8 @@ import { catalogItem } from '../catalog';
 import { useUi } from '../store/ui';
 import { WALL_TYPES, WALL_TYPE_THICKNESS, type OpeningKind } from '../model';
 import { WALL_STYLE } from '../walls';
+import { STAIR_DEFAULTS } from '../stairs';
+import { STAIR_KINDS } from '../model';
 import { STRIP_STYLES, ZONE_STYLES } from '../outdoor';
 import { NumberField } from './fields';
 
@@ -24,6 +26,7 @@ export function ToolOptions() {
   const doorKind = useUi((s) => s.doorKind);
   const windowKind = useUi((s) => s.windowKind);
   const wallType = useUi((s) => s.wallType);
+  const stairKind = useUi((s) => s.stairKind);
   const zoneKind = useUi((s) => s.zoneKind);
   const zoneShape = useUi((s) => s.zoneShape);
   const stripKind = useUi((s) => s.stripKind);
@@ -110,7 +113,17 @@ export function ToolOptions() {
       </>
     );
   }
-  else if (tool === 'zone') {
+  else if (tool === 'stairs') {
+    body = (
+      <div className="segmented" role="group" aria-label="Stair type">
+        {STAIR_KINDS.map((k) => (
+          <button key={k} className={stairKind === k ? 'active' : ''} onClick={() => useUi.getState().setStairKind(k)} data-testid={`stair-kind-${k}`}>
+            {STAIR_DEFAULTS[k].label}
+          </button>
+        ))}
+      </div>
+    );
+  } else if (tool === 'zone') {
     body = (
       <>
         <strong>{ZONE_STYLES[zoneKind].label}</strong>

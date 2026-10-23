@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { produce, type Draft } from 'immer';
+import { syncCustomItems } from '../catalog';
 import { createDesign, type Design } from '../model';
 
 const HISTORY_LIMIT = 100;
@@ -60,3 +61,9 @@ export const useDesign = create<DesignStore>((set, get) => ({
 
   load: (design) => set({ design, past: [], future: [], txBase: null }),
 }));
+
+// Custom furniture lives in the design; the catalog needs to know about it before anything is drawn.
+syncCustomItems(useDesign.getState().design.custom);
+useDesign.subscribe((s, prev) => {
+  if (s.design.custom !== prev.design.custom) syncCustomItems(s.design.custom);
+});

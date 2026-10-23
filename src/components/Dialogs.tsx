@@ -1,5 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { copyShareLink } from '../session';
+import { CUSTOM_PREFIX, FURNITURE_COLORS, customCatalogItem } from '../catalog';
+import { newId, type CustomItem } from '../model';
+import { useDesign } from '../store/design';
+import { ColorField, NumberField, TextField } from './fields';
+import { SymbolIcon } from './FurniturePalette';
 import { useUi, type DialogState } from '../store/ui';
 
 /** Renders whichever modal is open (ui.dialog). */
@@ -8,6 +13,7 @@ export function Dialogs() {
   if (!dialog) return null;
   if (dialog.type === 'share') return <ShareDialog url={dialog.url} copied={dialog.copied} long={dialog.long} />;
   if (dialog.type === 'confirm') return <ConfirmDialog dialog={dialog} />;
+  if (dialog.type === 'custom-item') return <CustomItemDialog editId={dialog.editId} preset={dialog.preset} />;
   return <ConflictDialog dialog={dialog} />;
 }
 
@@ -100,6 +106,89 @@ function ConfirmDialog({ dialog }: { dialog: Extract<DialogState, { type: 'confi
           >
             {dialog.confirmLabel}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const SHAPES: { value: CustomItem['shape']; label: string }[] = [
+  { value: 'rect', label: 'Rectangle' },
+  { value: 'round', label: 'Rounded' },
+  { value: 'ellipse', label: 'Oval / round' },
+];
+
+/** Create or edit a piece of furniture of your own. */
+function CustomItemDialog({ editId, preset }: { editId: string | null; preset?: Partial<CustomItem> }) {
+  const existing = useDesign((s) => s.design.custom.find((c) => c.id === editId));
+  const [item, setItem] = useState<CustomItem>(
+    () => existing ?? { id: newId(), label: 'My item', w: 1, d: 0.6, height: 0.8, color: '#cbd5e1', shape: 'rect', ...preset },
+  );
+  const close = () => useUi.getState().setDialog(null);
+  const set = (patch: Partial<CustomItem>) => setItem((c) => ({ ...c, ...patch }));
+  const usedBy = useDesign((s) => s.design.furniture.filter((f) => f.type === CUSTOM_PREFIX + item.id).length);
+
+  const save = (place: boolean) => {
+    const label = item.label.trim() || 'My item';
+    useDesign.getState().update((d) => {
+      const i = d.custom.findIndex((c) => c.id === item.id);
+      if (i >= 0) d.custom[i] = { ...item, label };
+      else d.custom.push({ ...item, label });
+    });
+    close();
+    if (place) {
+      const ui = useUi.getState();
+      ui.setTool('furniture');
+      ui.setPlacing(CUSTOM_PREFIX + item.id);
+    }
+  };
+
+  const remove = () => {
+    if (usedBy) return useUi.getState().showToast(`“${item.label}” is used ${usedBy} time${usedBy > 1 ? 's' : ''} in the plan. Delete those first.`);
+    useDesign.getState().update((d) => void (d.custom = d.custom.filter((c) => c.id !== item.id)));
+    close();
+  };
+
+  return (
+    <div className="modal-backdrop" onMouseDown={close}>
+      <div className="modal" role="dialog" aria-label="Custom furniture" onMouseDown={(e) => e.stopPropagation()} data-testid="custom-dialog">
+        <h2>{existing ? 'Edit your item' : 'New piece of furniture'}</h2>
+        <div className="custom-preview">
+          <SymbolIcon item={customCatalogItem(item)} size={90} />
+        </div>
+        <TextField label="Name" value={item.label} testId="custom-name" onChange={(v) => set({ label: v })} />
+        {item.shape === 'symbol' ? (
+          <p className="muted">Looks like the “{item.base}” symbol.</p>
+        ) : (
+          <div className="segmented" role="group" aria-label="Shape">
+            {SHAPES.map((s) => (
+              <button key={s.value} className={item.shape === s.value ? 'active' : ''} onClick={() => set({ shape: s.value })} data-testid={`custom-shape-${s.value}`}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="row three">
+          <NumberField label="Width" value={item.w} scale={100} unit="cm" min={5} max={5000} testId="custom-w" onCommit={(v) => set({ w: v })} />
+          <NumberField label="Depth" value={item.d} scale={100} unit="cm" min={5} max={5000} testId="custom-d" onCommit={(v) => set({ d: v })} />
+          <NumberField label="Height" value={item.height} scale={100} unit="cm" min={1} max={3000} testId="custom-h" onCommit={(v) => set({ height: v })} />
+        </div>
+        <ColorField label="Color" value={item.color} swatches={FURNITURE_COLORS} onChange={(c) => set({ color: c })} />
+        <div className="row end">
+          {existing && (
+            <button className="danger" onClick={remove} data-testid="custom-delete" style={{ marginRight: 'auto' }}>
+              Delete item
+            </button>
+          )}
+          <button onClick={close}>Cancel</button>
+          <button onClick={() => save(false)} data-testid="custom-save">
+            Save
+          </button>
+          {!existing && (
+            <button className="primary" onClick={() => save(true)} data-testid="custom-save-place">
+              Save and place
+            </button>
+          )}
         </div>
       </div>
     </div>

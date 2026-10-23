@@ -1,16 +1,21 @@
-import { catalogItem, FURNITURE_COLORS } from '../catalog';
+import { CUSTOM_PREFIX, catalogItem, FURNITURE_COLORS, furnitureHeight } from '../catalog';
 import { deleteSelection, duplicateSelection, isLayerLocked } from '../actions';
 import { setWallLength } from '../canvas/editing';
 import { FLOOR_COLORS } from '../canvas/style';
 import { clampOpeningPos, detectRoom, dist, formatArea, formatLength, openingOverlaps, polygonArea, wallLength } from '../geometry';
 import { WALL_STYLE } from '../walls';
-import { STRIP_KINDS, WALL_TYPES, WALL_TYPE_HEIGHT, WALL_TYPE_THICKNESS, ZONE_KINDS, type Wall, type WallType, type Furniture, type ItemRef, type Opening, type OpeningKind, type Room, type Strip, type StripKind, type TextLabel, type Zone, type ZoneKind } from '../model';
+import { newId, STRIP_KINDS, WALL_TYPES, WALL_TYPE_HEIGHT, WALL_TYPE_THICKNESS, ZONE_KINDS, type Wall, type WallType, type Furniture, type ItemRef, type Opening, type OpeningKind, type Room, type Strip, type StripKind, type TextLabel, type Zone, type ZoneKind } from '../model';
 import { STRIP_STYLES, ZONE_STYLES, polylineLength } from '../outdoor';
+import { STAIR_DEFAULTS, checkStair } from '../stairs';
+import { STAIR_KINDS, type Stair, type StairKind } from '../model';
 import { useDesign } from '../store/design';
 import { useOnFloor } from '../store/floor';
 import { useUi } from '../store/ui';
 import { ColorField, NumberField, TextField } from './fields';
 import { GroupPanel } from './GroupPanel';
+import { MATERIAL_COLORS, MaterialPicker } from './MaterialPicker';
+
+const MATERIAL_SWATCHES = Object.values(MATERIAL_COLORS).concat(['#e8dcc8', '#8d6e4f', '#6b7280']);
 
 const TITLES: Record<ItemRef['kind'], string> = {
   wall: 'Wall',
@@ -56,6 +61,7 @@ export function Properties() {
         {sel.kind === 'room' && <RoomProps id={sel.id} />}
         {sel.kind === 'furniture' && <FurnitureProps id={sel.id} />}
         {sel.kind === 'zone' && <ZoneProps id={sel.id} />}
+        {sel.kind === 'stair' && <StairProps id={sel.id} />}
         {sel.kind === 'strip' && <StripProps id={sel.id} />}
         {sel.kind === 'label' && <LabelProps id={sel.id} />}
         {sel.kind === 'dimension' && <DimensionProps id={sel.id} />}
@@ -242,7 +248,22 @@ function RoomProps({ id }: { id: string }) {
   return (
     <>
       <TextField label="Name" value={room.name} testId="room-name" onChange={(v) => edit((r) => void (r.name = v))} />
-      <ColorField label="Floor color" value={room.color} swatches={FLOOR_COLORS} onChange={(c) => edit((r) => void (r.color = c))} />
+      <MaterialPicker
+        value={room.material}
+        color={room.color}
+        onChange={(m) =>
+          edit((r) => {
+            r.material = m;
+            // a fresh material starts in a fitting color, unless the room has a color of its own
+            if (m !== 'plain' && FLOOR_COLORS.includes(r.color)) r.color = MATERIAL_COLORS[m];
+          })
+        }
+      />
+      <ColorField label={room.material === 'plain' ? 'Floor color' : 'Tint'} value={room.color} swatches={room.material === 'plain' ? FLOOR_COLORS : MATERIAL_SWATCHES} onChange={(c) => edit((r) => void (r.color = c))} />
+      <label className="check">
+        <input type="checkbox" checked={room.living} data-testid="room-living" onChange={(e) => edit((r) => void (r.living = e.target.checked))} />
+        Counts as living area
+      </label>
       <p className="stat" data-testid="room-area">
         Area <strong>{formatArea(polygonArea(room.points))}</strong>
       </p>
@@ -289,6 +310,27 @@ function FurnitureProps({ id }: { id: string }) {
         >
           Reset size
         </button>
+      </div>
+      <NumberField
+        label="Height (for shadows)"
+        value={furnitureHeight(item)}
+        scale={100}
+        unit="cm"
+        min={1}
+        max={3000}
+        testId="furn-height"
+        onCommit={(v) => edit((f) => void (f.height = v))}
+      />
+      <div className="row">
+        {item.type.startsWith(CUSTOM_PREFIX) ? (
+          <button onClick={() => useUi.getState().setDialog({ type: 'custom-item', editId: item.type.slice(CUSTOM_PREFIX.length) })} data-testid="edit-custom">
+            Edit this custom item…
+          </button>
+        ) : (
+          <button onClick={() => saveAsCustom(item)} title="Keep this size, color and look in the palette under My items" data-testid="save-as-custom">
+            Save as my item
+          </button>
+        )}
       </div>
     </>
   );
@@ -382,4 +424,62 @@ function StripProps({ id }: { id: string }) {
       </p>
     </>
   );
+}
+
+function StairProps({ id }: { id: string }) {
+  const stair = useDesign((s) => s.design.stairs.find((x) => x.id === id));
+  const storey = useDesign((s) => s.design.settings.storeyHeight);
+  if (!stair) return null;
+  const edit = (fn: (s: Stair) => void) =>
+    useDesign.getState().update((d) => {
+      const x = d.stairs.find((i) => i.id === id);
+      if (x) fn(x);
+    });
+  const check = checkStair(stair);
+  return (
+    <>
+      <label className="field">
+        <span>Type</span>
+        <select value={stair.kind} data-testid="stair-kind" onChange={(e) => edit((s) => void (s.kind = e.target.value as StairKind))}>
+          {STAIR_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {STAIR_DEFAULTS[k].label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="row two">
+        <NumberField label="Width" value={stair.w} scale={100} unit="cm" min={40} max={2000} testId="stair-w" onCommit={(v) => edit((s) => void (s.w = v))} />
+        <NumberField label="Length" value={stair.d} scale={100} unit="cm" min={40} max={3000} testId="stair-d" onCommit={(v) => edit((s) => void (s.d = v))} />
+      </div>
+      <div className="row two">
+        <NumberField label="Steps" value={stair.steps} min={2} max={60} testId="stair-steps" onCommit={(v) => edit((s) => void (s.steps = Math.round(v)))} />
+        <NumberField label="Total rise" value={stair.rise} scale={100} unit="cm" min={20} max={1000} testId="stair-rise" onCommit={(v) => edit((s) => void (s.rise = v))} />
+      </div>
+      <NumberField label="Rotation" value={stair.rotation} unit="°" testId="stair-rotation" onCommit={(v) => edit((s) => void (s.rotation = ((v % 360) + 360) % 360))} />
+      <p className={check.ok ? 'ok' : 'notice'} data-testid="stair-check">
+        Step height {(check.riser * 100).toFixed(1)} cm · tread {(check.going * 100).toFixed(0)} cm. {check.message}
+      </p>
+      <div className="row">
+        {(stair.kind === 'l' || stair.kind === 'u') && (
+          <button onClick={() => edit((s) => void (s.flip = !s.flip))} data-testid="stair-flip">
+            Flip direction
+          </button>
+        )}
+        <button onClick={() => edit((s) => void (s.rise = storey))} title="Use the storey height from the design" data-testid="stair-match">
+          Rise = floor height ({Math.round(storey * 100)} cm)
+        </button>
+      </div>
+    </>
+  );
+}
+
+/** Keep a placed (and maybe resized or recolored) piece as a reusable item in the palette. */
+function saveAsCustom(f: Furniture) {
+  const base = catalogItem(f.type);
+  const id = newId();
+  useDesign.getState().update((d) => {
+    d.custom.push({ id, label: f.label || base.label, w: f.w, d: f.d, height: furnitureHeight(f), color: f.color, shape: 'symbol', base: f.type.startsWith(CUSTOM_PREFIX) ? undefined : f.type });
+  });
+  useUi.getState().showToast(`Saved “${f.label || base.label}” under My items in the Furniture tab.`);
 }

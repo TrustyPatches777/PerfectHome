@@ -9,6 +9,7 @@ const HINTS: Record<string, string> = {
   furniture: 'Click to place · R rotates · Shift+click places several · Esc stops',
   measure: 'Click two points to measure · or click one and type a length · Esc cancels',
   text: 'Click where the label should go',
+  stairs: 'Click to place the stairs · R rotates · choose straight, L, U or spiral above · Esc cancels',
   zone: 'Drag a box (or click two corners, then type 5x3 + Enter) · Polygon mode: click corners, double-click to finish · Esc cancels',
   strip: 'Click the points along the line · double-click or Enter to finish · Shift = 45° · Esc cancels',
 };

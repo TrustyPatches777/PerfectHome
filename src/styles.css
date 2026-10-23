@@ -712,3 +712,49 @@ button.primary:hover:not(:disabled) {
   color: #9ca3af;
   font-size: 11px;
 }
+
+/* ---------- floor materials ---------- */
+.materials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+button.material {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px var(--border);
+  background-repeat: repeat;
+}
+button.material.on {
+  border-color: var(--accent);
+}
+
+.tile {
+  position: relative;
+}
+.tile-edit {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+}
+.tile:hover .tile-edit {
+  opacity: 1;
+}
+.custom-preview {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+.row.three > .field {
+  flex: 1;
+  min-width: 0;
+}

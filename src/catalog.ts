@@ -12,9 +12,9 @@ export type Prim =
   /** Open polyline. */
   | { t: 'line'; pts: number[] };
 
-export type Category = 'Bedroom' | 'Living' | 'Kitchen & dining' | 'Office' | 'Bathroom' | 'Utility' | 'Garage & cars' | 'Outdoor' | 'Other';
+export type Category = 'My items' | 'Bedroom' | 'Living' | 'Kitchen & dining' | 'Office' | 'Bathroom' | 'Utility' | 'Garage & cars' | 'Outdoor' | 'Other';
 
-import type { LayerId } from './model';
+import type { CustomItem, LayerId } from './model';
 
 export interface CatalogItem {
   type: string;
@@ -406,15 +406,69 @@ export const CATALOG: CatalogItem[] = [
   },
 ];
 
-export const CATEGORIES: Category[] = ['Bedroom', 'Living', 'Kitchen & dining', 'Office', 'Bathroom', 'Utility', 'Garage & cars', 'Outdoor', 'Other'];
+export const CATEGORIES: Category[] = ['My items', 'Bedroom', 'Living', 'Kitchen & dining', 'Office', 'Bathroom', 'Utility', 'Garage & cars', 'Outdoor', 'Other'];
 
 const byType = new Map(CATALOG.map((c) => [c.type, c]));
 const GENERIC = byType.get('box')!;
 
+const CATEGORY_HEIGHT: Record<Category, number> = {
+  'My items': 0.8,
+  Bedroom: 0.6,
+  Living: 0.8,
+  'Kitchen & dining': 0.9,
+  Office: 0.75,
+  Bathroom: 0.5,
+  Utility: 0.9,
+  'Garage & cars': 1.5,
+  Outdoor: 1.0,
+  Other: 0.5,
+};
+const HEIGHT: Record<string, number> = {
+  wardrobe: 2.1, bookshelf: 1.9, 'utility-shelf': 1.8, fridge: 1.8, 'floor-lamp': 1.6, piano: 1.2, fireplace: 1.1, shower: 2.2,
+  rug: 0.01, parking: 0.01, stairs: 1.5, bed: 0.5, 'bed-double': 0.55, 'bed-single': 0.5, 'bed-king': 0.55, 'bunk-bed': 1.6, chair: 0.9,
+  'office-chair': 1.0, 'bar-stool': 0.75, 'coffee-table': 0.45, 'table-round': 0.75, 'dining-table': 0.75, 'dining-set-4': 0.75, 'dining-set-6': 0.75,
+  radiator: 0.6, aquarium: 1.2, pouf: 0.4, 'side-table': 0.5, bathtub: 0.6, toilet: 0.8, 'bath-sink': 0.85, washer: 0.85, dryer: 0.85, 'water-heater': 1.5,
+  car: 1.5, 'car-small': 1.45, suv: 1.8, van: 2.1, motorbike: 1.1, bicycle: 1.0, bins: 1.1, 'ev-charger': 1.4,
+  tree: 6, 'tree-small': 3, 'tree-large': 10, bush: 0.9, 'flower-pot': 0.4, 'raised-bed': 0.5, shed: 2.4, greenhouse: 2.5, bbq: 1.0, 'patio-set': 0.75,
+  lounger: 0.4, parasol: 2.4, trampoline: 0.9, sandbox: 0.3, pool: 0, 'hot-tub': 0.8, 'fire-pit': 0.4, 'garden-bench': 0.8, 'rain-barrel': 1.0,
+};
+
+/** Height in meters of a piece of furniture, for shadows: its own override, else the catalog value. */
+export function furnitureHeight(f: { type: string; height?: number }): number {
+  if (typeof f.height === 'number') return f.height;
+  const item = catalogItem(f.type);
+  return item.height ?? HEIGHT[f.type] ?? CATEGORY_HEIGHT[item.category];
+}
+
 export const catalogLayer = (type: string): LayerId => catalogItem(type).layer ?? 'furniture';
 
+// ---- custom items: defined by the user inside the design, so they must look like catalog items everywhere
+
+const customMap = new Map<string, CatalogItem>();
+
+export const CUSTOM_PREFIX = 'custom:';
+
+/** What a custom item looks like as a catalog entry. */
+export function customCatalogItem(c: CustomItem): CatalogItem {
+  let shapes: Prim[];
+  if (c.shape === 'symbol' && c.base && byType.has(c.base)) shapes = byType.get(c.base)!.shapes;
+  else if (c.shape === 'ellipse') shapes = [E(0, 0, 1, 1, 'body'), E(0.15, 0.15, 0.7, 0.7, 'light')];
+  else if (c.shape === 'round') shapes = [R(0, 0, 1, 1, 'body', 0.22), R(0.1, 0.1, 0.8, 0.8, 'light', 0.16)];
+  else shapes = [R(0, 0, 1, 1, 'body'), R(0.08, 0.08, 0.84, 0.84, 'light')];
+  return { type: CUSTOM_PREFIX + c.id, label: c.label, category: 'My items', w: c.w, d: c.d, color: c.color, shapes, height: c.height };
+}
+
+/** Called whenever the design's custom items change (and when a design is loaded). */
+export function syncCustomItems(list: CustomItem[]) {
+  customMap.clear();
+  for (const c of list) customMap.set(CUSTOM_PREFIX + c.id, customCatalogItem(c));
+}
+
+/** The built-in catalog followed by this design's custom items. */
+export const allCatalog = (): CatalogItem[] => [...CATALOG, ...customMap.values()];
+
 /** Look up a catalog entry; unknown types (e.g. from a newer app version) render as a plain box. */
-export const catalogItem = (type: string): CatalogItem => byType.get(type) ?? GENERIC;
+export const catalogItem = (type: string): CatalogItem => byType.get(type) ?? customMap.get(type) ?? GENERIC;
 
 // ---------------------------------------------------------------------------
 // Colors

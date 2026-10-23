@@ -6,6 +6,7 @@ const TOOLS: { tool: Tool; label: string; key: string; icon: string }[] = [
   { tool: 'door', label: 'Door', key: 'D', icon: 'M4 17V4h5M4 17h12M9 4a8 8 0 0 1 7 13' },
   { tool: 'window', label: 'Window', key: 'N', icon: 'M3 8h14v4H3zM10 8v4M3 10h14' },
   { tool: 'room', label: 'Room', key: 'A', icon: 'M4 4h12v12H4zM8 8h4v4H8z' },
+  { tool: 'stairs', label: 'Stairs', key: 'S', icon: 'M3 16h4v-4h4V8h4V4h2M3 16v-2M7 12v-2M11 8V6' },
   { tool: 'measure', label: 'Measure', key: 'M', icon: 'M3 13l10-10 4 4L7 17zM6 10l2 2M9 7l2 2M12 4l2 2' },
   { tool: 'text', label: 'Text', key: 'T', icon: 'M5 5h10M10 5v11M8 16h4' },
 ];

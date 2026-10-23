@@ -40,6 +40,7 @@ function labelFont(f: Furniture, zoom: number) {
 
 export function FurnitureLayer() {
   const furniture = useOnFloor((d) => d.furniture);
+  useDesign((s) => s.design.custom); // redraw when a custom item is edited
   const layer = useDesign((s) => s.design.layers.furniture);
   const tool = useUi((s) => s.tool);
   const zoom = useUi((s) => s.viewport.zoom);

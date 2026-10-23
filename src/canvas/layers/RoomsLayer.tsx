@@ -1,11 +1,19 @@
 import { Group, Line, Text } from 'react-konva';
 import { formatArea, labelPoint, polygonArea } from '../../geometry';
+import { patternFillProps, patternFor, type PatternKind } from '../../patterns';
 import { useDesign } from '../../store/design';
 import { useOnFloor } from '../../store/floor';
 import { useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
 import { pressItem } from '../press';
 import { SELECT_COLOR } from '../style';
+
+/** Pattern fill props for a room with a floor material (null for a plain color). */
+function pattern(r: { material: string; color: string }) {
+  if (r.material === 'plain') return null;
+  const p = patternFor(r.material as PatternKind, r.color);
+  return p && patternFillProps(p);
+}
 
 export function RoomsLayer() {
   const rooms = useOnFloor((d) => d.rooms);
@@ -25,7 +33,7 @@ export function RoomsLayer() {
             key={r.id}
             points={r.points.flatMap((p) => [p.x, p.y])}
             closed
-            fill={r.color}
+            {...(pattern(r) ?? { fill: r.color })}
             opacity={0.92}
             stroke={selIds.has(r.id) ? SELECT_COLOR : undefined}
             strokeWidth={2}
