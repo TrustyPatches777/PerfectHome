@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CATALOG, CATEGORIES, catalogItem, fillColor, shade } from './catalog';
+import { CATALOG, CATEGORIES, allCatalog, catalogItem, catalogLayer, customCatalogItem, fillColor, furnitureHeight, shade, syncCustomItems } from './catalog';
 
 describe('furniture catalog', () => {
   it('has unique ids, known categories, real-world sizes and a symbol for every item', () => {
@@ -30,7 +30,8 @@ describe('furniture catalog', () => {
   });
 
   it('has every category filled, including cars and garden items', () => {
-    for (const cat of CATEGORIES) expect(CATALOG.some((c) => c.category === cat), cat).toBe(true);
+    // 'My items' is filled by the user's own custom items, so it starts empty
+    for (const cat of CATEGORIES.filter((c) => c !== 'My items')) expect(CATALOG.some((c) => c.category === cat), cat).toBe(true);
     expect(catalogItem('car').w).toBeGreaterThan(4);
     expect(catalogItem('tree').category).toBe('Outdoor');
     expect(catalogItem('does-not-exist').type).toBe('box');
@@ -41,5 +42,34 @@ describe('furniture catalog', () => {
     expect(shade('#808080', -1)).toBe('#000000');
     expect(fillColor('white', '#123456')).toBe('#ffffff');
     expect(fillColor('body', '#123456')).toBe('#123456');
+  });
+});
+
+describe('custom items and heights', () => {
+  const shelf = { id: 'abc', label: 'Shelf', w: 0.8, d: 0.3, height: 1.9, color: '#b7c9a8', shape: 'round' as const };
+
+  it('turns a custom definition into a catalog entry that can be looked up like any other', () => {
+    syncCustomItems([shelf, { ...shelf, id: 'sym', label: 'My bed', shape: 'symbol', base: 'bed-double' }]);
+    try {
+      expect(catalogItem('custom:abc')).toMatchObject({ label: 'Shelf', w: 0.8, d: 0.3, category: 'My items', height: 1.9 });
+      expect(catalogItem('custom:sym').shapes).toEqual(catalogItem('bed-double').shapes);
+      expect(allCatalog().filter((c) => c.category === 'My items')).toHaveLength(2);
+      expect(catalogLayer('custom:abc')).toBe('furniture');
+      // a definition that was removed falls back to a plain box instead of crashing
+      syncCustomItems([]);
+      expect(catalogItem('custom:abc').type).toBe('box');
+    } finally {
+      syncCustomItems([]);
+    }
+    expect(customCatalogItem(shelf).shapes.length).toBeGreaterThan(0);
+  });
+
+  it('knows how tall things are, with overrides', () => {
+    expect(furnitureHeight({ type: 'tree' })).toBe(6);
+    expect(furnitureHeight({ type: 'wardrobe' })).toBeGreaterThan(2);
+    expect(furnitureHeight({ type: 'rug' })).toBeLessThan(0.05);
+    expect(furnitureHeight({ type: 'sofa' })).toBeGreaterThan(0.5); // from its category
+    expect(furnitureHeight({ type: 'tree', height: 2 })).toBe(2);
+    for (const c of CATALOG) expect(furnitureHeight({ type: c.type }), c.type).toBeGreaterThanOrEqual(0);
   });
 });
