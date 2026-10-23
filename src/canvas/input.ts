@@ -1,0 +1,154 @@
+import { useEffect, useRef, type RefObject } from 'react';
+import type Konva from 'konva';
+import type { KonvaEventObject } from 'konva/lib/Node';
+import type { Point } from '../model';
+import { snapPoint } from '../geometry';
+import { useDesign } from '../store/design';
+import { useUi } from '../store/ui';
+import { getStage } from './stage';
+
+/** Shared, non-reactive input state. */
+export const input = { space: false };
+
+/** Pixels of pointer movement before a press turns into a drag. */
+const DRAG_THRESHOLD = 3;
+/** Distance in screen pixels within which points snap to existing corners. */
+const VERTEX_SNAP_PX = 9;
+
+export interface SnapResult {
+  p: Point;
+  /** What it snapped to, for drawing an indicator. */
+  kind: 'vertex' | 'grid' | 'none';
+}
+
+/** Corners other things can snap to: wall ends and room corners. */
+export function snapTargets(): Point[] {
+  const d = useDesign.getState().design;
+  const pts: Point[] = [];
+  for (const w of d.walls) pts.push(w.a, w.b);
+  for (const r of d.rooms) pts.push(...r.points);
+  return pts;
+}
+
+/**
+ * Snap a world point to nearby corners first, then to the grid. Does nothing when snapping is off.
+ * `ignore` lets a drag skip the very points it is moving.
+ */
+export function snapWorld(p: Point, opts: { ignore?: (q: Point) => boolean; grid?: boolean } = {}): SnapResult {
+  const ui = useUi.getState();
+  if (!ui.snap) return { p, kind: 'none' };
+  const tol = VERTEX_SNAP_PX / ui.viewport.zoom;
+  let best: Point | null = null;
+  let bestD = tol;
+  for (const q of snapTargets()) {
+    if (opts.ignore?.(q)) continue;
+    const dd = Math.hypot(q.x - p.x, q.y - p.y);
+    if (dd < bestD) {
+      best = q;
+      bestD = dd;
+    }
+  }
+  if (best) return { p: { ...best }, kind: 'vertex' };
+  if (opts.grid === false) return { p, kind: 'none' };
+  return { p: snapPoint(p, useDesign.getState().design.settings.gridStep), kind: 'grid' };
+}
+
+/** Snap a single length/offset to the grid step (used for sliding things along walls). */
+export function snapScalar(v: number): number {
+  if (!useUi.getState().snap) return v;
+  const step = useDesign.getState().design.settings.gridStep;
+  return Math.round(v / step) * step;
+}
+
+export function clientToWorld(clientX: number, clientY: number): Point {
+  const rect = getStage()!.container().getBoundingClientRect();
+  const v = useUi.getState().viewport;
+  return { x: (clientX - rect.left - v.x) / v.zoom, y: (clientY - rect.top - v.y) / v.zoom };
+}
+
+/**
+ * Run a mouse drag that started at `startEvt`. The whole drag is one undo step, and nothing happens
+ * until the pointer has moved a few pixels (so a plain click never edits anything).
+ */
+export function dragSession(
+  startEvt: MouseEvent,
+  onMove: (world: Point, start: Point, e: MouseEvent) => void,
+  onEnd?: (moved: boolean) => void,
+) {
+  const start = clientToWorld(startEvt.clientX, startEvt.clientY);
+  let started = false;
+  const move = (e: MouseEvent) => {
+    if (!started) {
+      if (Math.hypot(e.clientX - startEvt.clientX, e.clientY - startEvt.clientY) < DRAG_THRESHOLD) return;
+      started = true;
+      useDesign.getState().beginTx();
+    }
+    onMove(clientToWorld(e.clientX, e.clientY), start, e);
+  };
+  const up = () => {
+    window.removeEventListener('mousemove', move);
+    window.removeEventListener('mouseup', up);
+    if (started) useDesign.getState().endTx();
+    onEnd?.(started);
+  };
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
+}
+
+type StageHandler = (e: KonvaEventObject<MouseEvent>, world: Point) => void;
+type StageHandlers = Partial<Record<'mousedown' | 'mousemove' | 'mouseup', StageHandler>>;
+
+/**
+ * Subscribe a tool to the stage's pointer events while it is mounted. `node` is any Konva node inside the
+ * stage (used to find the stage); handlers always see the latest props/state.
+ */
+export function useStageEvents(node: RefObject<Konva.Node | null>, handlers: StageHandlers) {
+  const latest = useRef(handlers);
+  latest.current = handlers;
+  useEffect(() => {
+    const stage = node.current?.getStage();
+    if (!stage) return;
+    const ns = `.tool${Math.random().toString(36).slice(2)}`;
+    for (const name of ['mousedown', 'mousemove', 'mouseup'] as const) {
+      stage.on(`${name}${ns}`, (e: KonvaEventObject<MouseEvent>) => {
+        const world = stage.getRelativePointerPosition();
+        if (world) latest.current[name]?.(e, world);
+      });
+    }
+    return () => void stage.off(ns);
+  }, [node]);
+}
+
+/**
+ * Keyboard handling that runs BEFORE the global shortcuts (capture phase). Return true to consume the key.
+ */
+export function useCaptureKeys(handler: (e: KeyboardEvent) => boolean) {
+  const latest = useRef(handler);
+  latest.current = handler;
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (latest.current(e)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+    };
+    window.addEventListener('keydown', fn, true);
+    return () => window.removeEventListener('keydown', fn, true);
+  }, []);
+}
+
+/** True when a left-button press should be treated as a tool click (not a pan). */
+export const isPrimary = (e: KonvaEventObject<MouseEvent>) => e.evt.button === 0 && !input.space;
+
+let lastPress = { t: 0, x: 0, y: 0 };
+
+/**
+ * Call once per mouse press. True when this press is the second of a double-click: close in time AND
+ * position (Konva's own dblclick ignores position, so two quick clicks on different corners would count).
+ */
+export function isDoubleClick(e: MouseEvent): boolean {
+  const dbl = e.timeStamp - lastPress.t < 400 && Math.hypot(e.clientX - lastPress.x, e.clientY - lastPress.y) < 6;
+  lastPress = dbl ? { t: 0, x: 0, y: 0 } : { t: e.timeStamp, x: e.clientX, y: e.clientY };
+  return dbl;
+}

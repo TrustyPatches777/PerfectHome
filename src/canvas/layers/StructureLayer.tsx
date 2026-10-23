@@ -1,0 +1,110 @@
+import { Group, Layer, Line, Rect } from 'react-konva';
+import type { Opening, Wall } from '../../model';
+import { doorGeometry, wallFrame, wallSolidSegments } from '../../geometry';
+import { useDesign } from '../../store/design';
+import { useUi } from '../../store/ui';
+import { input } from '../input';
+import { startOpeningDrag, startWallMove } from '../editing';
+import { SELECT_COLOR, WALL_COLOR } from '../style';
+
+export function WallShape({ wall, openings, selected, ghost }: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean }) {
+  const f = wallFrame(wall);
+  const segs = wallSolidSegments(wall, openings);
+  return (
+    <Group
+      x={wall.a.x}
+      y={wall.a.y}
+      rotation={f.angle}
+      opacity={ghost ? 0.5 : 1}
+      onMouseDown={(e) => {
+        if (e.evt.button !== 0 || input.space) return;
+        e.cancelBubble = true;
+        useUi.getState().select({ kind: 'wall', id: wall.id });
+        startWallMove(e.evt, wall.id);
+      }}
+    >
+      {segs.map(([s0, s1], i) => (
+        <Rect
+          key={i}
+          x={s0}
+          y={-wall.thickness / 2}
+          width={s1 - s0}
+          height={wall.thickness}
+          fill={WALL_COLOR}
+          stroke={selected ? SELECT_COLOR : 'rgba(0,0,0,0)'}
+          strokeWidth={selected ? 2.5 : 8}
+          strokeScaleEnabled={false}
+        />
+      ))}
+    </Group>
+  );
+}
+
+/** A door (leaf + swing arc) or window (glass pane) drawn in the gap of its wall. */
+export function OpeningShape({ wall, opening, selected, ghost }: { wall: Wall; opening: Opening; selected: boolean; ghost?: boolean }) {
+  const f = wallFrame(wall);
+  const t = wall.thickness;
+  const x0 = opening.pos - opening.width / 2;
+  const isDoor = opening.kind === 'door';
+  const g = isDoor ? doorGeometry(wall, opening) : null;
+  const stroke = selected ? SELECT_COLOR : '#1f2937';
+  return (
+    <Group opacity={ghost ? 0.75 : 1}>
+      {ghost && <Group x={wall.a.x} y={wall.a.y} rotation={f.angle}><Rect x={x0} y={-t / 2 - 0.005} width={opening.width} height={t + 0.01} fill="#ffffff" /></Group>}
+      {g && (
+        <>
+          <Line points={g.arc.flatMap((p) => [p.x, p.y])} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} dash={[4, 3]} listening={false} />
+          <Line points={[g.hinge.x, g.hinge.y, g.leafEnd.x, g.leafEnd.y]} stroke={stroke} strokeWidth={0.045} lineCap="butt" listening={false} />
+        </>
+      )}
+      <Group
+        x={wall.a.x}
+        y={wall.a.y}
+        rotation={f.angle}
+        onMouseDown={(e) => {
+          if (ghost || e.evt.button !== 0 || input.space) return;
+          e.cancelBubble = true;
+          useUi.getState().select({ kind: 'opening', id: opening.id });
+          startOpeningDrag(e.evt, opening.id);
+        }}
+      >
+        {isDoor ? (
+          <>
+            {/* jamb marks */}
+            <Line points={[x0, -t / 2, x0, t / 2]} stroke={stroke} strokeWidth={1.5} strokeScaleEnabled={false} listening={false} />
+            <Line points={[x0 + opening.width, -t / 2, x0 + opening.width, t / 2]} stroke={stroke} strokeWidth={1.5} strokeScaleEnabled={false} listening={false} />
+            <Rect x={x0} y={-t / 2} width={opening.width} height={t} fill="rgba(0,0,0,0)" stroke={selected ? SELECT_COLOR : 'rgba(0,0,0,0)'} strokeWidth={2} strokeScaleEnabled={false} />
+          </>
+        ) : (
+          <>
+            <Rect x={x0} y={-t / 2} width={opening.width} height={t} fill="#e6f2ff" stroke={stroke} strokeWidth={selected ? 2 : 1.25} strokeScaleEnabled={false} />
+            <Line points={[x0, 0, x0 + opening.width, 0]} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+          </>
+        )}
+      </Group>
+    </Group>
+  );
+}
+
+export function StructureLayer() {
+  const walls = useDesign((s) => s.design.walls);
+  const openings = useDesign((s) => s.design.openings);
+  const layer = useDesign((s) => s.design.layers.structure);
+  const tool = useUi((s) => s.tool);
+  const sel = useUi((s) => s.selection);
+  if (!layer.visible) return null;
+  const byWall = new Map<string, Opening[]>();
+  for (const o of openings) byWall.set(o.wallId, [...(byWall.get(o.wallId) ?? []), o]);
+
+  return (
+    <Layer listening={tool === 'select' && !layer.locked}>
+      {walls.map((w) => (
+        <WallShape key={w.id} wall={w} openings={byWall.get(w.id) ?? []} selected={sel?.kind === 'wall' && sel.id === w.id} />
+      ))}
+      {openings.map((o) => {
+        const wall = walls.find((w) => w.id === o.wallId);
+        return wall && <OpeningShape key={o.id} wall={wall} opening={o} selected={sel?.kind === 'opening' && sel.id === o.id} />;
+      })}
+    </Layer>
+  );
+}

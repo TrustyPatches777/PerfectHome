@@ -3,7 +3,7 @@ import { useUi } from '../store/ui';
 import { fitView, zoomByCenter } from '../canvas/camera';
 import { GRID_STEPS } from '../model';
 
-export function TopBar() {
+export function TopBar({ onHelp }: { onHelp: () => void }) {
   const name = useDesign((s) => s.design.name);
   const gridStep = useDesign((s) => s.design.settings.gridStep);
   const canUndo = useDesign((s) => s.past.length > 0);
@@ -70,6 +70,9 @@ export function TopBar() {
         </button>
         <button onClick={() => fitView(useDesign.getState().design)} title="Fit design in view (F)">
           Fit
+        </button>
+        <button onClick={onHelp} title="Help & shortcuts (?)" aria-label="Help">
+          ?
         </button>
       </div>
     </header>

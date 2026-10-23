@@ -4,8 +4,13 @@ import type Konva from 'konva';
 import { useUi } from '../store/ui';
 import { zoomAt } from './camera';
 import { setStage } from './stage';
+import { input } from './input';
 import { GridLayer } from './GridLayer';
+import { RoomsLayer } from './layers/RoomsLayer';
+import { StructureLayer } from './layers/StructureLayer';
+import { OverlayLayer } from './layers/OverlayLayer';
 import { ScaleBar } from '../components/ScaleBar';
+import { ToolOptions } from '../components/ToolOptions';
 
 /** The canvas: owns the Konva stage, the camera (pan/zoom) and pointer plumbing. */
 export function CanvasView() {
@@ -15,7 +20,7 @@ export function CanvasView() {
   const { w, h } = useUi((s) => s.canvasSize);
   const tool = useUi((s) => s.tool);
   const [panning, setPanning] = useState(false);
-  const spaceDown = useRef(false);
+  const [spaceHeld, setSpaceHeld] = useState(false);
 
   // Track the size of the canvas area.
   useLayoutEffect(() => {
@@ -34,16 +39,20 @@ export function CanvasView() {
 
   // Space bar = temporary hand tool.
   useEffect(() => {
-    const isTyping = (t: EventTarget | null) =>
-      t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT');
+    const typing = (t: EventTarget | null) =>
+      t instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName);
     const down = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !isTyping(e.target)) {
-        spaceDown.current = true;
+      if (e.code === 'Space' && !typing(e.target)) {
+        input.space = true;
+        setSpaceHeld(true);
         e.preventDefault();
       }
     };
     const up = (e: KeyboardEvent) => {
-      if (e.code === 'Space') spaceDown.current = false;
+      if (e.code === 'Space') {
+        input.space = false;
+        setSpaceHeld(false);
+      }
     };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
@@ -64,16 +73,19 @@ export function CanvasView() {
     ui.setViewport(zoomAt(ui.viewport, factor, p.x, p.y));
   }, []);
 
-  const startPan = useCallback((startX: number, startY: number) => {
+  const startPan = useCallback((startX: number, startY: number, clearOnClick: boolean) => {
     const origin = useUi.getState().viewport;
+    let moved = false;
     setPanning(true);
     const move = (e: MouseEvent) => {
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) > 3) moved = true;
       useUi.getState().setViewport({ ...origin, x: origin.x + e.clientX - startX, y: origin.y + e.clientY - startY });
     };
     const up = () => {
       setPanning(false);
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
+      if (clearOnClick && !moved) useUi.getState().select(null); // a plain click on empty space deselects
     };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
@@ -81,30 +93,22 @@ export function CanvasView() {
 
   const onMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
     const onBackground = e.target === e.target.getStage();
-    const wantsPan =
-      e.evt.button === 1 ||
-      e.evt.button === 2 ||
-      (e.evt.button === 0 && (spaceDown.current || (tool === 'select' && onBackground)));
-    if (wantsPan) {
+    const button = e.evt.button;
+    const selectBg = button === 0 && tool === 'select' && onBackground;
+    if (button === 1 || button === 2 || (button === 0 && input.space) || selectBg) {
       e.evt.preventDefault();
-      startPan(e.evt.clientX, e.evt.clientY);
+      startPan(e.evt.clientX, e.evt.clientY, selectBg);
     }
   };
 
   const onMouseMove = () => {
-    const p = stageRef.current!.getRelativePointerPosition();
-    useUi.getState().setCursor(p);
+    useUi.getState().setCursor(stageRef.current!.getRelativePointerPosition());
   };
 
-  const cursor = panning ? 'grabbing' : spaceDown.current ? 'grab' : tool === 'select' ? 'default' : 'crosshair';
+  const cursor = panning ? 'grabbing' : spaceHeld ? 'grab' : tool === 'select' ? 'default' : 'crosshair';
 
   return (
-    <div
-      ref={wrapRef}
-      className="canvas-wrap"
-      style={{ cursor }}
-      onContextMenu={(e) => e.preventDefault()}
-    >
+    <div ref={wrapRef} className="canvas-wrap" style={{ cursor }} onContextMenu={(e) => e.preventDefault()}>
       <Stage
         ref={stageRef}
         width={w}
@@ -119,7 +123,11 @@ export function CanvasView() {
         onMouseLeave={() => useUi.getState().setCursor(null)}
       >
         <GridLayer />
+        <RoomsLayer />
+        <StructureLayer />
+        <OverlayLayer />
       </Stage>
+      <ToolOptions />
       <ScaleBar />
     </div>
   );

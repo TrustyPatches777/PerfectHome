@@ -41,6 +41,10 @@ interface UiStore {
   roomMode: 'auto' | 'draw';
   setRoomMode: (m: 'auto' | 'draw') => void;
 
+  /** Width (meters) of newly placed doors and windows. */
+  openingWidth: { door: number; window: number };
+  setOpeningWidth: (kind: 'door' | 'window', w: number) => void;
+
   /** Transient one-line message (errors, hints). */
   toast: string | null;
   showToast: (msg: string) => void;
@@ -71,6 +75,9 @@ export const useUi = create<UiStore>((set) => ({
 
   roomMode: 'auto',
   setRoomMode: (roomMode) => set({ roomMode }),
+
+  openingWidth: { door: 0.9, window: 1.2 },
+  setOpeningWidth: (kind, w) => set((s) => ({ openingWidth: { ...s.openingWidth, [kind]: w } })),
 
   toast: null,
   showToast: (toast) => {
