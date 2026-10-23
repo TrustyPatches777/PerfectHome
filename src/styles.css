@@ -758,3 +758,54 @@ button.material.on {
   flex: 1;
   min-width: 0;
 }
+
+/* ---------- rulers ---------- */
+.ruler {
+  position: absolute;
+  z-index: 2;
+  background: #f8fafc;
+}
+.ruler-top {
+  top: 0;
+  left: 22px;
+  border-bottom: 1px solid var(--border);
+  cursor: s-resize;
+}
+.ruler-left {
+  top: 22px;
+  left: 0;
+  border-right: 1px solid var(--border);
+  cursor: e-resize;
+}
+.ruler-corner {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 22px;
+  background: #f1f5f9;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.canvas-wrap.rulers .tool-options {
+  top: 32px;
+}
+.canvas-wrap.rulers .floor-switcher {
+  top: 32px;
+  left: 32px;
+}
+.canvas-wrap.rulers .scale-bar {
+  left: 32px;
+}
+.menu-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.menu-check:hover {
+  background: #f1f4f9;
+}

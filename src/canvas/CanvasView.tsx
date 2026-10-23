@@ -19,6 +19,8 @@ import { FloorSwitcher } from '../components/FloorSwitcher';
 import { OverlayLayer } from './layers/OverlayLayer';
 import { ScaleBar } from '../components/ScaleBar';
 import { TypedBox } from '../components/TypedBox';
+import { Rulers } from '../components/Rulers';
+import { AutoDimensions } from './layers/AutoDimensions';
 import { ToolOptions } from '../components/ToolOptions';
 
 /** The canvas: owns the Konva stage, the camera (pan/zoom) and pointer plumbing. */
@@ -28,6 +30,7 @@ export function CanvasView() {
   const viewport = useUi((s) => s.viewport);
   const { w, h } = useUi((s) => s.canvasSize);
   const tool = useUi((s) => s.tool);
+  const showRulers = useUi((s) => s.showRulers);
   const panning = useUi((s) => s.panning);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
@@ -134,7 +137,7 @@ export function CanvasView() {
   const cursor = panning ? 'grabbing' : spaceHeld ? 'grab' : tool === 'select' ? 'default' : 'crosshair';
 
   return (
-    <div ref={wrapRef} className="canvas-wrap" style={{ cursor }} onContextMenu={(e) => e.preventDefault()}>
+    <div ref={wrapRef} className={`canvas-wrap ${showRulers ? 'rulers' : ''}`} style={{ cursor }} onContextMenu={(e) => e.preventDefault()}>
       <Stage
         ref={stageRef}
         width={w}
@@ -156,6 +159,7 @@ export function CanvasView() {
           <StructureLayer />
           <FurnitureLayer />
           <NotesLayer />
+          <AutoDimensions />
         </Layer>
         <OverlayLayer />
       </Stage>
@@ -165,6 +169,7 @@ export function CanvasView() {
           style={{ left: Math.min(marquee.x0, marquee.x1), top: Math.min(marquee.y0, marquee.y1), width: Math.abs(marquee.x1 - marquee.x0), height: Math.abs(marquee.y1 - marquee.y0) }}
         />
       )}
+      {showRulers && <Rulers />}
       <TypedBox />
       <FloorSwitcher />
       <ToolOptions />

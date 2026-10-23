@@ -80,6 +80,14 @@ interface UiStore {
   typed: string | null;
   setTyped: (t: string | null) => void;
 
+  /** What is shown on the plan (remembered between visits). */
+  showRulers: boolean;
+  showGuides: boolean;
+  showAllDims: boolean;
+  setShowRulers: (v: boolean) => void;
+  setShowGuides: (v: boolean) => void;
+  setShowAllDims: (v: boolean) => void;
+
   /** True while the plan is being panned (for the cursor). */
   panning: boolean;
   setPanning: (p: boolean) => void;
@@ -116,6 +124,15 @@ interface UiStore {
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
+
+const PREFS_KEY = 'perfect-home:prefs';
+const prefs: Record<string, unknown> = (() => {
+  try {
+    return JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
+})();
 
 export const useUi = create<UiStore>((set) => ({
   tool: 'select',
@@ -168,6 +185,13 @@ export const useUi = create<UiStore>((set) => ({
   typed: null,
   setTyped: (typed) => set({ typed }),
 
+  showRulers: prefs.showRulers !== false,
+  showGuides: prefs.showGuides !== false,
+  showAllDims: prefs.showAllDims === true,
+  setShowRulers: (showRulers) => set({ showRulers }),
+  setShowGuides: (showGuides) => set({ showGuides }),
+  setShowAllDims: (showAllDims) => set({ showAllDims }),
+
   panning: false,
   setPanning: (panning) => set({ panning }),
 
@@ -207,3 +231,13 @@ export function useSelectedIds(kind: ItemKind): Set<string> {
 
 /** True while more than one thing is selected (single items get handles/transformers; groups get outlines). */
 export const useIsMulti = () => useUi((s) => s.selected.length > 1);
+
+// Remember the view switches between visits.
+useUi.subscribe((s, prev) => {
+  if (s.showRulers === prev.showRulers && s.showGuides === prev.showGuides && s.showAllDims === prev.showAllDims) return;
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ showRulers: s.showRulers, showGuides: s.showGuides, showAllDims: s.showAllDims }));
+  } catch {
+    /* storage unavailable: the switches just reset next time */
+  }
+});

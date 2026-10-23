@@ -62,11 +62,12 @@ export function Properties() {
         {sel.kind === 'furniture' && <FurnitureProps id={sel.id} />}
         {sel.kind === 'zone' && <ZoneProps id={sel.id} />}
         {sel.kind === 'stair' && <StairProps id={sel.id} />}
+        {sel.kind === 'guide' && <GuideProps id={sel.id} />}
         {sel.kind === 'strip' && <StripProps id={sel.id} />}
         {sel.kind === 'label' && <LabelProps id={sel.id} />}
         {sel.kind === 'dimension' && <DimensionProps id={sel.id} />}
         <div className="row actions">
-          {sel.kind !== 'opening' && (
+          {sel.kind !== 'opening' && sel.kind !== 'guide' && (
             <button onClick={duplicateSelection} title="Ctrl+D" data-testid="duplicate">
               Duplicate
             </button>
@@ -488,4 +489,22 @@ function saveAsCustom(f: Furniture) {
     d.custom.push({ id, label: f.label || base.label, w: f.w, d: f.d, height: furnitureHeight(f), color: f.color, shape: 'symbol', base: f.type.startsWith(CUSTOM_PREFIX) ? undefined : f.type });
   });
   useUi.getState().showToast(`Saved “${f.label || base.label}” under My items in the Furniture tab.`);
+}
+
+function GuideProps({ id }: { id: string }) {
+  const guide = useDesign((s) => s.design.guides.find((g) => g.id === id));
+  if (!guide) return null;
+  return (
+    <>
+      <NumberField
+        label={guide.axis === 'x' ? 'Position from the left (x)' : 'Position from the top (y)'}
+        value={guide.pos}
+        scale={100}
+        unit="cm"
+        testId="guide-pos"
+        onCommit={(v) => useDesign.getState().update((d) => void (d.guides.find((g) => g.id === id)!.pos = v))}
+      />
+      <p className="muted">Things you drag snap to guides. Drag a guide back onto the ruler to remove it.</p>
+    </>
+  );
 }

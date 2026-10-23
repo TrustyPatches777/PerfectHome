@@ -3,7 +3,10 @@ import type { Draft } from 'immer';
 import type { Design, Point } from '../model';
 import { clampOpeningPos, openingOverlaps, projectOnWall, samePoint, wallFrame, wallLength } from '../geometry';
 import { useDesign } from '../store/design';
-import { dragSession, snapScalar, snapWorld } from './input';
+import { newId } from '../model';
+import { useUi } from '../store/ui';
+import { RULER_SIZE, clientToWorld, dragSession, snapScalar, snapWorld } from './input';
+import { getStage } from './stage';
 
 type End = 'a' | 'b';
 
@@ -185,3 +188,64 @@ export function startCurveDrag(evt: MouseEvent, wallId: string) {
     });
   });
 }
+
+/**
+ * Move (or create) a guide line with the mouse. Dropping it back onto the ruler it came from removes it.
+ * The whole drag is one undo step.
+ */
+function guideSession(startEvt: MouseEvent, existingId: string | null, newAxis?: 'x' | 'y') {
+  const store = useDesign.getState();
+  let id = existingId;
+  let axis = newAxis;
+  if (id) {
+    const g = store.design.guides.find((x) => x.id === id);
+    if (!g) return;
+    axis = g.axis;
+  }
+  const wrap = getStage()!.container().getBoundingClientRect();
+  const edge = useUi.getState().showRulers ? RULER_SIZE : 0;
+  const overRuler = (e: MouseEvent) => (axis === 'y' ? e.clientY < wrap.top + edge : e.clientX < wrap.left + edge);
+  const posAt = (e: MouseEvent) => {
+    const w = clientToWorld(e.clientX, e.clientY);
+    return Math.round(snapScalar(axis === 'x' ? w.x : w.y) * 1000) / 1000;
+  };
+  let started = false;
+  const begin = () => {
+    started = true;
+    useDesign.getState().beginTx();
+  };
+  if (!id) {
+    id = newId();
+    const created = id;
+    begin();
+    useDesign.getState().update((d) => void d.guides.push({ id: created, axis: axis!, pos: posAt(startEvt) }));
+    useUi.getState().select({ kind: 'guide', id });
+  }
+  const guideId = id;
+  const move = (e: MouseEvent) => {
+    if (!started) {
+      if (Math.hypot(e.clientX - startEvt.clientX, e.clientY - startEvt.clientY) < 3) return;
+      begin();
+    }
+    const pos = posAt(e);
+    useDesign.getState().update((d) => {
+      const g = d.guides.find((x) => x.id === guideId);
+      if (g) g.pos = pos;
+    });
+  };
+  const up = (e: MouseEvent) => {
+    window.removeEventListener('mousemove', move);
+    window.removeEventListener('mouseup', up);
+    if (!started) return;
+    if (overRuler(e)) {
+      useDesign.getState().update((d) => void (d.guides = d.guides.filter((x) => x.id !== guideId)));
+      useUi.getState().select(null);
+    }
+    useDesign.getState().endTx();
+  };
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
+}
+
+export const startGuideDrag = (evt: MouseEvent, id: string) => guideSession(evt, id);
+export const startGuideFromRuler = (evt: MouseEvent, axis: 'x' | 'y') => guideSession(evt, null, axis);

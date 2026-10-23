@@ -11,6 +11,9 @@ import { getStage } from './stage';
 /** Shared, non-reactive input state. */
 export const input = { space: false };
 
+/** Thickness in pixels of the rulers along the canvas edges. */
+export const RULER_SIZE = 22;
+
 /** Pixels of pointer movement before a press turns into a drag. */
 const DRAG_THRESHOLD = 3;
 /** Distance in screen pixels within which points snap to existing corners. */
@@ -19,7 +22,7 @@ const VERTEX_SNAP_PX = 9;
 export interface SnapResult {
   p: Point;
   /** What it snapped to, for drawing an indicator. */
-  kind: 'vertex' | 'grid' | 'none';
+  kind: 'vertex' | 'guide' | 'grid' | 'none';
 }
 
 /** Corners other things can snap to: wall ends and room corners (and, for measuring, the wall faces). */
@@ -60,8 +63,22 @@ export function snapWorld(p: Point, opts: { ignore?: (q: Point) => boolean; grid
     }
   }
   if (best) return { p: { ...best }, kind: 'vertex' };
+  // guide lines: each axis snaps to the nearest guide, the rest to the grid
+  let gx: number | null = null;
+  let gy: number | null = null;
+  if (ui.showGuides) {
+    let bx = tol;
+    let by = tol;
+    for (const g of useDesign.getState().design.guides) {
+      const dd = Math.abs((g.axis === 'x' ? p.x : p.y) - g.pos);
+      if (g.axis === 'x' && dd < bx) [gx, bx] = [g.pos, dd];
+      if (g.axis === 'y' && dd < by) [gy, by] = [g.pos, dd];
+    }
+  }
+  const grid = opts.grid === false ? p : snapPoint(p, useDesign.getState().design.settings.gridStep);
+  if (gx !== null || gy !== null) return { p: { x: gx ?? grid.x, y: gy ?? grid.y }, kind: 'guide' };
   if (opts.grid === false) return { p, kind: 'none' };
-  return { p: snapPoint(p, useDesign.getState().design.settings.gridStep), kind: 'grid' };
+  return { p: grid, kind: 'grid' };
 }
 
 /** Snap a single length/offset to the grid step (used for sliding things along walls). */

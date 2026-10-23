@@ -4,6 +4,7 @@ import { fitView, zoomByCenter } from '../canvas/camera';
 import { GRID_STEPS } from '../model';
 import { shareLink } from '../session';
 import { FileMenu } from './FileMenu';
+import { ViewMenu } from './ViewMenu';
 
 export function TopBar({ onHelp }: { onHelp: () => void }) {
   const name = useDesign((s) => s.design.name);
@@ -70,6 +71,7 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
       </span>
 
       <div className="group">
+        <ViewMenu />
         <FileMenu />
         <button className="primary" onClick={() => void shareLink()} title="Copy a link that opens this design" data-testid="share">
           Share

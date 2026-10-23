@@ -6,6 +6,7 @@ import { useOnFloor } from '../../store/floor';
 import { useIsMulti, useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
 import { pressItem } from '../press';
+import { startGuideDrag } from '../editing';
 import { SELECT_COLOR } from '../style';
 
 const DIM_COLOR = '#0f766e';
@@ -61,12 +62,42 @@ export function NotesLayer() {
   const zoom = useUi((s) => s.viewport.zoom);
   const dimIds = useSelectedIds('dimension');
   const labelIds = useSelectedIds('label');
+  const guides = useDesign((s) => s.design.guides);
+  const guideIds = useSelectedIds('guide');
+  const showGuides = useUi((s) => s.showGuides);
+  const view = useUi((s) => s.viewport);
+  const size = useUi((s) => s.canvasSize);
   const multi = useIsMulti();
   if (!layer.visible) return null;
   const interactive = tool === 'select' && !layer.locked;
 
   return (
     <Group listening={interactive}>
+      {showGuides &&
+        guides.map((g) => {
+          const x0 = -view.x / view.zoom;
+          const y0 = -view.y / view.zoom;
+          const x1 = (size.w - view.x) / view.zoom;
+          const y1 = (size.h - view.y) / view.zoom;
+          const pts = g.axis === 'x' ? [g.pos, y0, g.pos, y1] : [x0, g.pos, x1, g.pos];
+          const selected = guideIds.has(g.id);
+          return (
+            <Group
+              key={g.id}
+              onMouseDown={(e) => {
+                if (e.evt.button !== 0 || input.space) return;
+                e.cancelBubble = true;
+                useUi.getState().select({ kind: 'guide', id: g.id });
+                startGuideDrag(e.evt, g.id);
+              }}
+              onMouseEnter={(e) => (e.target.getStage()!.container().style.cursor = g.axis === 'x' ? 'ew-resize' : 'ns-resize')}
+              onMouseLeave={(e) => (e.target.getStage()!.container().style.cursor = '')}
+            >
+              <Line points={pts} stroke="rgba(0,0,0,0.001)" strokeWidth={10} strokeScaleEnabled={false} />
+              <Line points={pts} stroke={selected ? SELECT_COLOR : '#06b6d4'} strokeWidth={selected ? 2 : 1} dash={selected ? undefined : [8, 5]} strokeScaleEnabled={false} listening={false} />
+            </Group>
+          );
+        })}
       {dimensions.map((m) => (
         <DimensionShape key={m.id} id={m.id} a={m.a} b={m.b} zoom={zoom} selected={dimIds.has(m.id)} interactive={interactive} />
       ))}
