@@ -48,6 +48,13 @@ src/shortcuts.ts      key table (drives hooks/useShortcuts.ts AND the in-app hel
 src/store/design.ts   Zustand: `design` + undo/redo history (immer). The ONLY place the design is mutated.
 src/store/ui.ts       Zustand: tool, selection (selected[] + selection when exactly one), active floor, viewport, view switches, dialogs...
 src/store/floor.ts    the active floor, validated against the design (floorId(), useFloorId(), useOnFloor(pick))
+src/view3d/             the house in 3D (three.js, loaded only when the 3D view opens; view only, editing stays in 2D)
+  parts.ts              the scene as plain data: boxes/cylinders/balls/rings/prisms/lights, `place()` (plan rotation -> three rotation)
+  furniture3d.ts        a recipe per catalog type (item-local coords, back at -z); no recipe = plain block. A unit test keeps every
+                        model inside its footprint, so a new recipe cannot wander off
+  build.ts              design -> chunks (one per wall/room/item) with `deps`; walls get cut for doors/windows, floors stack by storey
+  scene.ts              Three.js: meshes from parts, sun + shadows + lamps, orbit and walk cameras, only rebuilds changed chunks
+  View3D.tsx            the 3D view with its controls (orbit/walk, cut-away, shadows, time of day, save image)
 src/live/              working together live (see the "Live sessions" rule below)
   crdt.ts               PURE: design <-> Yjs document (writeChange / readDesign / reuse), field-level merge, list order keys
   transport.ts          Yjs updates + presence over BroadcastChannel (same browser) and Trystero/WebRTC (other computers)
@@ -107,7 +114,9 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
   catalog item, not by the item kind), `notes` (labels, measurements, guides), `comments` (sticky notes), `shadows` (draws only).
 - **Sun & shadows** live in one Konva layer (`LightingLayer`); heights come from `furnitureHeight`/`wall.height`; off by default.
   Time of day is UI state; date, latitude and north are in the design (`design.site`).
-- **Two renderers**: the canvas (Konva) and `svgExport.ts`. When you change how something is drawn, change both.
+- **Three renderers**: the canvas (Konva), `svgExport.ts` and the 3D view (`view3d/`). When you change how something is drawn, check all
+  three. 3D coordinates: plan x -> x, plan y -> z, up -> y; a plan rotation of +θ° (clockwise) is `ry = -θ` in three.js. Anything new on
+  the plan that has a size and height (a new item kind, not just a catalog entry) needs a chunk in `view3d/build.ts`.
 - **Typed lengths**: drawing tools call `useTypedInput(active, onSubmit)` BEFORE their own key handler.
 - **Windows file writes**: when scripting edits of source files from a shell, retry on `OSError` (rare transient EINVAL), and never
   chain `npm test; git commit` with `;` - use `&&`.
@@ -129,4 +138,4 @@ then: room overlap fix · floors + garage/double door/open passage · outdoor ar
 then: multi-select/copy/paste/align · typed lengths · wall types + curved walls · more openings · stairs · floor materials · custom
 furniture · electrical/plumbing/lamps · guides + rulers + all dimensions · sticky notes · sun/shadows/day-night · plan check ·
 area table · SVG export + print at scale
-then: live co-editing (Yjs, peer-to-peer)
+then: live co-editing (Yjs, peer-to-peer) · 3D view (orbit, walk, sun, furniture models)

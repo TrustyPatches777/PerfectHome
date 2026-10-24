@@ -93,6 +93,19 @@ interface UiStore {
   sunPlaying: boolean;
   setSunPlaying: (p: boolean) => void;
 
+  /** Plan (2D) or the house in 3D. The 3D view only shows; all editing happens in 2D. Not saved. */
+  view: '2d' | '3d';
+  setView: (v: '2d' | '3d') => void;
+  /** 3D: hide the floors above the one being edited (a cut-away). */
+  cutaway: boolean;
+  setCutaway: (v: boolean) => void;
+  /** 3D: walk through the house instead of orbiting around it. */
+  walking: boolean;
+  setWalking: (v: boolean) => void;
+  /** 3D: cast shadows. */
+  shadows3d: boolean;
+  setShadows3d: (v: boolean) => void;
+
   /** Who is using this browser (signs sticky notes). */
   me: Identity | null;
   setMe: (me: Identity) => void;
@@ -228,6 +241,15 @@ export const useUi = create<UiStore>((set) => ({
   setTimeOfDay: (timeOfDay) => set({ timeOfDay }),
   sunPlaying: false,
   setSunPlaying: (sunPlaying) => set({ sunPlaying }),
+
+  view: '2d',
+  setView: (view) => set({ view, walking: false }),
+  cutaway: false,
+  setCutaway: (cutaway) => set({ cutaway }),
+  walking: false,
+  setWalking: (walking) => set({ walking }),
+  shadows3d: true,
+  setShadows3d: (shadows3d) => set({ shadows3d }),
 
   me: loadIdentity(),
   setMe: (me) => set({ me }),

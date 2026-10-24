@@ -18,6 +18,7 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
   const saveState = useUi((s) => s.saveState);
   const me = useUi((s) => s.me);
   const live = useLive();
+  const view = useUi((s) => s.view);
   const { update, undo, redo } = useDesign.getState();
 
   return (
@@ -29,6 +30,15 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
         value={name}
         onChange={(e) => update((d) => void (d.name = e.target.value))}
       />
+
+      <div className="segmented view-switch" role="group" aria-label="View">
+        <button className={view === '2d' ? 'active' : ''} onClick={() => useUi.getState().setView('2d')} title="Floor plan (2)" data-testid="view-2d">
+          2D
+        </button>
+        <button className={view === '3d' ? 'active' : ''} onClick={() => useUi.getState().setView('3d')} title="The house in 3D (3)" data-testid="view-3d">
+          3D
+        </button>
+      </div>
 
       <div className="group">
         <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" data-testid="undo">

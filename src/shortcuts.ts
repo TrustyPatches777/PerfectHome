@@ -27,6 +27,7 @@ export const SHORTCUT_HELP: { keys: string; what: string }[] = [
   { keys: 'Mouse wheel', what: 'Zoom at the cursor' },
   { keys: 'G', what: 'Toggle snap to grid' },
   { keys: 'F', what: 'Fit the whole design in view' },
+  { keys: '3 / 2', what: 'Show the house in 3D / back to the plan' },
   { keys: 'Ctrl+Z / Ctrl+Y', what: 'Undo / redo' },
   { keys: 'Delete', what: 'Delete the selection' },
   { keys: 'Shift+click', what: 'Add or remove an item in the selection' },

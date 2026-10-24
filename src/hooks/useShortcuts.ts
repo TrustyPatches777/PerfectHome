@@ -23,6 +23,18 @@ export function useShortcuts(toggleHelp: () => void) {
       const key = e.key.toLowerCase();
       const mod = e.ctrlKey || e.metaKey;
 
+      // 3D view: look around only; the editing keys do nothing there
+      if (ui.view === '3d' && !mod) {
+        if (e.key === '?') toggleHelp();
+        else if (key === '2') ui.setView('2d');
+        else if (e.key === 'Escape' && ui.walking) ui.setWalking(false);
+        else if (e.key === 'PageUp') stepFloor(1);
+        else if (e.key === 'PageDown') stepFloor(-1);
+        else return;
+        e.preventDefault();
+        return;
+      }
+
       if (mod) {
         if (key === 'z') {
           e.shiftKey ? design.redo() : design.undo();
@@ -95,6 +107,7 @@ export function useShortcuts(toggleHelp: () => void) {
           if (key === 'r') rotateSelection(e.shiftKey ? -90 : 90);
           else if (key === 'g') ui.toggleSnap();
           else if (key === 'f') fitView(design.design);
+          else if (key === '3') ui.setView('3d');
           else if (TOOL_KEYS[key]) ui.setTool(TOOL_KEYS[key]);
           else return;
       }

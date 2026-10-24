@@ -1064,3 +1064,57 @@ button.live.on {
   font-weight: 600;
   white-space: nowrap;
 }
+
+/* ---------- 3D view ---------- */
+.view3d {
+  background: #cfe3f3;
+}
+.view3d-host {
+  position: absolute;
+  inset: 0;
+}
+.view3d-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted, #6b7280);
+}
+.view3d-bar,
+.view3d-time {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--border, #d6dbe3);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.view3d-bar {
+  top: 10px;
+  left: 10px;
+  flex-wrap: wrap;
+}
+.view3d-time {
+  bottom: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.view3d-time input[type='range'] {
+  width: 220px;
+}
+.view3d-hint {
+  position: absolute;
+  left: 12px;
+  bottom: 8px;
+  z-index: 3;
+  font-size: 12px;
+  color: #334155;
+  text-shadow: 0 0 3px #fff;
+  pointer-events: none;
+}
+.view-switch button {
+  min-width: 36px;
+}
