@@ -9,6 +9,7 @@ export type DialogState =
   | { type: 'share'; url: string; copied: boolean; long: boolean }
   | { type: 'areas' }
   | { type: 'print' }
+  | { type: 'live' }
   | { type: 'identity'; then?: Point }
   | { type: 'custom-item'; editId: string | null; preset?: Partial<CustomItem> }
   | { type: 'confirm'; title: string; message: string; confirmLabel: string; onConfirm: () => void }

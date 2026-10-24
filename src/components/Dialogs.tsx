@@ -9,6 +9,7 @@ import { ColorField, NumberField, TextField } from './fields';
 import { SymbolIcon } from './FurniturePalette';
 import { AreaDialog } from './AreaDialog';
 import { PrintDialog } from './PrintDialog';
+import { LiveDialog } from './LiveDialog';
 import { useUi, type DialogState } from '../store/ui';
 
 /** Renders whichever modal is open (ui.dialog). */
@@ -19,6 +20,7 @@ export function Dialogs() {
   if (dialog.type === 'confirm') return <ConfirmDialog dialog={dialog} />;
   if (dialog.type === 'areas') return <AreaDialog />;
   if (dialog.type === 'print') return <PrintDialog />;
+  if (dialog.type === 'live') return <LiveDialog />;
   if (dialog.type === 'identity') return <IdentityDialog then={dialog.then} />;
   if (dialog.type === 'custom-item') return <CustomItemDialog editId={dialog.editId} preset={dialog.preset} />;
   return <ConflictDialog dialog={dialog} />;

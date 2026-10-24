@@ -6,6 +6,7 @@
 import { contentBounds, fitView } from './canvas/camera';
 import { getStage } from './canvas/stage';
 import { niceLength } from './geometry';
+import { isLive, joinLive, parseLiveHash, restoreLiveHash } from './live/live';
 import { createDesign, serializeDesign, type Design } from './model';
 import { buildPrintLayout, type PrintOptions } from './printLayout';
 import { buildSvg } from './svgExport';
@@ -27,6 +28,14 @@ import { floorId } from './store/floor';
 import { useUi } from './store/ui';
 
 const toast = (m: string) => useUi.getState().showToast(m);
+
+/** True (with a hint) while a live session is open: whole-design replacements would change it for everybody. */
+function blockedByLive(): boolean {
+  if (!isLive()) return false;
+  toast('You are in a live session. Leave it first (Live button), then open or replace a design.');
+  restoreLiveHash();
+  return true;
+}
 
 /** Replace the whole design (history is cleared) and show it. */
 export function loadDesign(d: Design) {
@@ -83,6 +92,7 @@ function startAutosave() {
  * `done` runs once the question is settled (immediately when no question was needed).
  */
 function receiveLink(incoming: Design, current: Design | null, done: () => void) {
+  if (blockedByLive()) return done();
   if (!current || isEmptyDesign(current)) {
     loadDesign(incoming);
     toast('Opened the shared design.');
@@ -119,6 +129,14 @@ export function bootstrap() {
   const saved = readSaved(AUTOSAVE_KEY)?.design ?? null;
   if (saved) loadDesign(saved);
 
+  // a live-session link: join it (asks first when it would replace work)
+  const liveId = parseLiveHash(location.hash);
+  if (liveId) {
+    startAutosave();
+    void joinLive(liveId);
+    return watchHash();
+  }
+
   let incoming: Design | null = null;
   try {
     incoming = designFromHash(location.hash);
@@ -134,9 +152,14 @@ export function bootstrap() {
   };
   if (incoming) receiveLink(incoming, saved, finish);
   else startAutosave();
+  watchHash();
+}
 
-  // Pasting another link into the same tab only changes the hash.
+/** Pasting another link into the same tab only changes the hash. */
+function watchHash() {
   window.addEventListener('hashchange', () => {
+    const liveId = parseLiveHash(location.hash);
+    if (liveId) return void joinLive(liveId);
     try {
       const next = designFromHash(location.hash);
       if (next) receiveLink(next, useDesign.getState().design, clearHash);
@@ -189,6 +212,7 @@ export function exportJson() {
 }
 
 export async function importJsonFile(file: File) {
+  if (blockedByLive()) return;
   try {
     const incoming = parseDesignJson(await file.text());
     stashCurrent(useDesign.getState().design);
@@ -278,6 +302,7 @@ export function exportPng() {
 // ---- new / restore -----------------------------------------------------------------
 
 export function newDesign() {
+  if (blockedByLive()) return;
   const current = useDesign.getState().design;
   stashCurrent(current);
   loadDesign(createDesign());
@@ -287,6 +312,7 @@ export function newDesign() {
 export const hasBackup = () => readSaved(BACKUP_KEY) !== null;
 
 export function restoreBackup() {
+  if (blockedByLive()) return;
   const backup = readSaved(BACKUP_KEY);
   if (!backup) return toast('There is no previous design to restore.');
   const current = useDesign.getState().design;

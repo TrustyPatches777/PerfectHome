@@ -6,16 +6,18 @@ import { shareLink } from '../session';
 import { FileMenu } from './FileMenu';
 import { ViewMenu } from './ViewMenu';
 import { readableOn } from '../identity';
+import { useLive } from '../store/live';
 
 export function TopBar({ onHelp }: { onHelp: () => void }) {
   const name = useDesign((s) => s.design.name);
   const gridStep = useDesign((s) => s.design.settings.gridStep);
-  const canUndo = useDesign((s) => s.past.length > 0);
-  const canRedo = useDesign((s) => s.future.length > 0);
+  const canUndo = useDesign((s) => s.past.length + s.liveUndo > 0);
+  const canRedo = useDesign((s) => s.future.length + s.liveRedo > 0);
   const snap = useUi((s) => s.snap);
   const zoom = useUi((s) => s.viewport.zoom);
   const saveState = useUi((s) => s.saveState);
   const me = useUi((s) => s.me);
+  const live = useLive();
   const { update, undo, redo } = useDesign.getState();
 
   return (
@@ -93,6 +95,14 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
       <div className="group">
         <ViewMenu />
         <FileMenu />
+        <button
+          className={live.active ? 'live on' : 'live'}
+          onClick={() => useUi.getState().setDialog({ type: 'live' })}
+          title="Work on this design together, at the same time"
+          data-testid="live"
+        >
+          {live.active ? `● Live${live.peers.length ? ` · ${live.peers.length + 1}` : ''}` : 'Live'}
+        </button>
         <button className="primary" onClick={() => void shareLink()} title="Copy a link that opens this design" data-testid="share">
           Share
         </button>

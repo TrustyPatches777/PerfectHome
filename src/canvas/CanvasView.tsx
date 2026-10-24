@@ -25,6 +25,7 @@ import { StickyLayer } from './layers/StickyLayer';
 import { LightingLayer } from './layers/LightingLayer';
 import { ChecksLayer } from './layers/ChecksLayer';
 import { NorthArrow } from '../components/NorthArrow';
+import { RemoteCursors } from '../components/RemoteCursors';
 import { ToolOptions } from '../components/ToolOptions';
 
 /** The canvas: owns the Konva stage, the camera (pan/zoom) and pointer plumbing. */
@@ -177,6 +178,7 @@ export function CanvasView() {
         />
       )}
       {showRulers && <Rulers />}
+      <RemoteCursors />
       <NorthArrow />
       <TypedBox />
       <FloorSwitcher />

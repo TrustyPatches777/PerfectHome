@@ -3,7 +3,8 @@
 Desktop-browser top-down floor-plan designer for two people. No backend, no 3D, no touch/mobile support.
 A design is shared as a link: the whole design is one JSON object, lz-string-compressed into the URL hash.
 
-Stack: Vite + React + TypeScript (strict), react-konva (canvas), Zustand (state), immer (edits), lz-string (links).
+Stack: Vite + React + TypeScript (strict), react-konva (canvas), Zustand (state), immer (edits), lz-string (links),
+Yjs + Trystero (live co-editing, no server of ours).
 
 ## Commands
 Node is in `C:\Program Files\nodejs`; shells opened before it was installed may not have it on PATH
@@ -47,6 +48,11 @@ src/shortcuts.ts      key table (drives hooks/useShortcuts.ts AND the in-app hel
 src/store/design.ts   Zustand: `design` + undo/redo history (immer). The ONLY place the design is mutated.
 src/store/ui.ts       Zustand: tool, selection (selected[] + selection when exactly one), active floor, viewport, view switches, dialogs...
 src/store/floor.ts    the active floor, validated against the design (floorId(), useFloorId(), useOnFloor(pick))
+src/live/              working together live (see the "Live sessions" rule below)
+  crdt.ts               PURE: design <-> Yjs document (writeChange / readDesign / reuse), field-level merge, list order keys
+  transport.ts          Yjs updates + presence over BroadcastChannel (same browser) and Trystero/WebRTC (other computers)
+  live.ts               start/join/leave a session, undo manager, presence, bridge into store/design.ts
+src/store/live.ts     Zustand: is a session active, are we synced, who else is here
 src/canvas/           react-konva scene
   CanvasView.tsx        Stage, camera, marquee select; layers/* one component per design layer; tools/* one per drawing tool
   press.ts              what happens when you press an item (select, shift-toggle, move one or many) - ONE path for every kind
@@ -105,6 +111,13 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
 - **Typed lengths**: drawing tools call `useTypedInput(active, onSubmit)` BEFORE their own key handler.
 - **Windows file writes**: when scripting edits of source files from a shell, retry on `OSError` (rare transient EINVAL), and never
   chain `npm test; git commit` with `;` - use `&&`.
+- **Live sessions** (`#live=room.key` in the URL): the Yjs document is the truth while a session is open. Local edits still go through
+  `useDesign.update`, which also calls `bridge.push(prev, next)` (live.ts -> `writeChange`); anything from outside (other people, undo)
+  comes back through `readDesign` (= `parseDesign`, so junk is repaired) and replaces `design`, reusing unchanged objects. History is
+  `Y.UndoManager` (your own origin only; `boundary()` closes a step at gesture start/end). New code that mutates the design needs no
+  change, but anything that REPLACES the whole design must refuse while `isLive()` (see `blockedByLive` in session.ts). Items are Y.Maps of
+  fields; add a field to a type and it syncs (no list of keys to maintain). Rooms are keyed by random names; relays only see a hash.
+  `localStorage['perfect-home:p2p'] = 'off'` limits transport to same-browser tabs (the e2e tests do; m21b tests the real network).
 - **Rooms** are polygons. Auto mode flood-fills from the click on a raster of the walls (door gaps count as closed), so
   area is measured to the inner wall faces. Rooms do not follow walls when walls move; "Refit to walls" re-runs detection from the stored seed.
 - **Debug hook**: `window.__ph = { design, ui }` exposes both stores; Playwright tests read state through it.
@@ -116,3 +129,4 @@ then: room overlap fix · floors + garage/double door/open passage · outdoor ar
 then: multi-select/copy/paste/align · typed lengths · wall types + curved walls · more openings · stairs · floor materials · custom
 furniture · electrical/plumbing/lamps · guides + rulers + all dimensions · sticky notes · sun/shadows/day-night · plan check ·
 area table · SVG export + print at scale
+then: live co-editing (Yjs, peer-to-peer)

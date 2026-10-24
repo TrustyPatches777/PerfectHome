@@ -10,7 +10,7 @@ area, then furnish them. Share the design as a link: everything is inside the li
 - **Whole property:** several floors (the one below shows faintly), garden, driveway, street, fence, hedge, plot boundary.
 - **Light:** sun and shadows for any time of day and date, evening light with glowing lamps, a compass.
 - **Checks and numbers:** a plan check (doors that cannot open, furniture in walls, narrow passages), an area table with living area and plot coverage and distances to the boundary, rulers, guides, and "show all dimensions".
-- **Working together:** sticky notes with a color per person on their own layer, layers you can hide or lock, undo/redo, share links, autosave.
+- **Working together:** a **live session** (Live button): send the link and you both edit the same design at the same time, seeing each other's mouse pointer, with undo that only takes back your own changes. No server: the browsers connect directly. Also sticky notes with a color per person on their own layer, layers you can hide or lock, share links (a snapshot), autosave.
 - **Output:** PNG, SVG, JSON, and printing at true scale (or save as PDF) on A4/A3/A2/Letter.
 
 ## Using it
