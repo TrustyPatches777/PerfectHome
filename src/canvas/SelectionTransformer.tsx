@@ -4,6 +4,7 @@ import type Konva from 'konva';
 import { layerOfRef } from '../selection';
 import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
+import { snapScalar } from './input';
 import { SELECT_COLOR } from './style';
 
 const norm = (deg: number) => (((Math.round(deg * 10) / 10) % 360) + 360) % 360;
@@ -63,8 +64,9 @@ export function SelectionTransformer() {
       } else if (sel.kind === 'roof') {
         const r = d.roofs.find((i) => i.id === sel.id);
         if (!r) return;
-        r.w = cm(Math.max(0.5, r.w * sx));
-        r.d = cm(Math.max(0.5, r.d * sy));
+        // the size follows the grid (when snapping is on), like everything else drawn on the plan
+        r.w = cm(Math.max(0.5, snapScalar(r.w * sx)));
+        r.d = cm(Math.max(0.5, snapScalar(r.d * sy)));
         r.x = x;
         r.y = y;
         r.rotation = rotation;
