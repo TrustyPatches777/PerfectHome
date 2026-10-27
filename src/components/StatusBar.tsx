@@ -15,6 +15,7 @@ const HINTS: Record<string, string> = {
   skylight: 'Click on a roof to put a skylight there · Shift+click places several · choose the size above · Esc stops',
   paint: 'Click the face of a wall to cover it · Shift+click covers both faces · choose the covering and color above · Esc stops',
   zone: 'Drag a box (or click two corners, then type 5x3 + Enter) · Polygon mode: click corners, double-click to finish · Esc cancels',
+  gate: 'Hover a fence or hedge and click to put a gate in it · choose the kind above · click a gate in 3D to open it · Esc stops',
   strip: 'Click the points along the line · double-click or Enter to finish · Shift = 45° · Esc cancels',
 };
 

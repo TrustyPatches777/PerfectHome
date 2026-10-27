@@ -7,17 +7,16 @@ import { clampOpeningPos, detectRoom, dist, formatArea, formatLength, openingOve
 import { FINISH_STYLES, PAINT_COLORS, WALL_STYLE } from '../walls';
 import { WALL_FINISHES, type WallFinish } from '../model';
 import { newId, STRIP_KINDS, type Note, WALL_TYPES, WALL_TYPE_HEIGHT, WALL_TYPE_THICKNESS, ZONE_KINDS, type Wall, type WallType, type Furniture, type ItemRef, type Opening, type OpeningKind, type Room, type Strip, type StripKind, type TextLabel, type Zone, type ZoneKind } from '../model';
-import { STRIP_STYLES, ZONE_STYLES, polylineLength } from '../outdoor';
-import { STAIR_DEFAULTS, checkStair } from '../stairs';
+import { PATH_SURFACES, STRIP_STYLES, ZONE_STYLES, gateSpans, polylineLength } from '../outdoor';
+import { GATE_KINDS, PATH_SURFACE_KINDS, type GateKind, type PathSurface } from '../model';
+import { RAIL_HEIGHT_DEFAULT, RAIL_LOOKS, STAIR_BUILD_LABEL, STAIR_DEFAULTS, STAIR_LOOKS, checkStair, stairColors } from '../stairs';
 import { ROOF_KINDS, ROOF_MATERIALS, type Roof, type RoofKind, type RoofMaterial } from '../model';
 import { ROOF_MATERIAL_STYLES, ROOF_STYLES } from '../roofs';
 import { moveRoofToFloor, refitRoof, setRoofKind, setRoofMaterial, turnRoof } from '../roofActions';
 import { SKYLIGHT_SIZES } from '../roofActions';
 import { skylightPlacement } from '../roofs';
 import type { Skylight } from '../model';
-import { RAIL_STYLES, STAIR_KINDS, type RailStyle, type Stair, type StairKind } from '../model';
-
-const RAIL_LABELS: Record<RailStyle, string> = { none: 'None', wood: 'Wooden balusters', metal: 'Metal bars', glass: 'Glass panels', cable: 'Steel cables' };
+import { RAIL_STYLES, STAIR_BUILDS, STAIR_KINDS, STAIR_MATERIALS, type RailStyle, type Stair, type StairBuild, type StairKind, type StairMaterial } from '../model';
 import { useDesign } from '../store/design';
 import { useOnFloor } from '../store/floor';
 import { useUi } from '../store/ui';
@@ -53,7 +52,12 @@ const OPENING_TYPES: [OpeningKind, string][] = [
   ['french', 'French door'],
   ['sliding', 'Sliding door'],
   ['window', 'Window'],
+  ['casement', 'Casement window'],
+  ['sash', 'Sash window'],
+  ['picture', 'Picture window'],
   ['bay', 'Bay window'],
+  ['highwin', 'High window'],
+  ['floorwin', 'Floor-to-ceiling window'],
   ['garage', 'Garage door'],
   ['gap', 'Open passage'],
 ];
@@ -456,6 +460,8 @@ function ZoneProps({ id }: { id: string }) {
   );
 }
 
+const GATE_TYPE_LABEL: Record<GateKind, string> = { single: 'Single gate', double: 'Double gate', sliding: 'Sliding gate' };
+
 function StripProps({ id }: { id: string }) {
   const strip = useDesign((s) => s.design.strips.find((x) => x.id === id));
   if (!strip) return null;
@@ -464,11 +470,30 @@ function StripProps({ id }: { id: string }) {
       const x = d.strips.find((i) => i.id === id);
       if (x) fn(x);
     });
+  const L = polylineLength(strip.points);
+  const hasGates = strip.kind === 'fence' || strip.kind === 'hedge';
+  // the first stretch of the line that is free for a new gate
+  const freePos = (width: number): number | null => {
+    const taken = gateSpans(strip);
+    for (let pos = Math.min(L / 2, L - width / 2); pos >= width / 2 - 1e-6; pos -= 0.25) if (!taken.some((t) => pos - width / 2 < t.s1 && pos + width / 2 > t.s0)) return pos;
+    for (let pos = L / 2; pos <= L - width / 2; pos += 0.25) if (!taken.some((t) => pos - width / 2 < t.s1 && pos + width / 2 > t.s0)) return pos;
+    return null;
+  };
   return (
     <>
       <label className="field">
         <span>Type</span>
-        <select value={strip.kind} data-testid="strip-kind" onChange={(e) => edit((x) => void (x.kind = e.target.value as StripKind))}>
+        <select
+          value={strip.kind}
+          data-testid="strip-kind"
+          onChange={(e) =>
+            edit((x) => {
+              x.kind = e.target.value as StripKind;
+              if (x.kind !== 'path') delete x.surface;
+              if (x.kind === 'road' || x.kind === 'path') delete x.gates;
+            })
+          }
+        >
           {STRIP_KINDS.map((k) => (
             <option key={k} value={k}>
               {STRIP_STYLES[k].label}
@@ -476,10 +501,77 @@ function StripProps({ id }: { id: string }) {
           ))}
         </select>
       </label>
+      {strip.kind === 'path' && (
+        <label className="field">
+          <span>Made of</span>
+          <select
+            value={strip.surface ?? 'plain'}
+            data-testid="strip-surface"
+            onChange={(e) =>
+              edit((x) => {
+                if (e.target.value === 'plain') delete x.surface;
+                else x.surface = e.target.value as PathSurface;
+              })
+            }
+          >
+            {PATH_SURFACE_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {PATH_SURFACES[k].label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <NumberField label="Width" value={strip.width} scale={100} unit="cm" min={2} max={5000} testId="strip-width" onCommit={(v) => edit((x) => void (x.width = v))} />
       <p className="stat" data-testid="strip-length">
-        Length <strong>{formatLength(polylineLength(strip.points))}</strong>
+        Length <strong>{formatLength(L)}</strong>
       </p>
+      {hasGates && (
+        <>
+          {(strip.gates ?? []).map((g, i) => (
+            <fieldset key={g.id} className="gate-box" data-testid={`gate-${i}`}>
+              <label className="field">
+                <span>Gate {i + 1}</span>
+                <select value={g.kind} data-testid={`gate-kind-${i}`} onChange={(e) => edit((x) => void (x.gates && (x.gates[i].kind = e.target.value as GateKind)))}>
+                  {GATE_KINDS.map((k) => (
+                    <option key={k} value={k}>
+                      {GATE_TYPE_LABEL[k]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="row two">
+                <NumberField label="Width" value={g.width} scale={100} unit="cm" min={50} max={800} testId={`gate-width-${i}`} onCommit={(v) => edit((x) => void (x.gates && (x.gates[i].width = v)))} />
+                <NumberField label="At" value={g.pos} scale={100} unit="cm" min={0} max={Math.round(L * 100)} testId={`gate-pos-${i}`} onCommit={(v) => edit((x) => void (x.gates && (x.gates[i].pos = v)))} />
+              </div>
+              <div className="row">
+                <button onClick={() => edit((x) => void (x.gates && (x.gates[i].swing = x.gates[i].swing === 1 ? -1 : 1)))} data-testid={`gate-swing-${i}`} title="Open to the other side of the fence">
+                  Opens the other way
+                </button>
+                {g.kind !== 'double' && (
+                  <button onClick={() => edit((x) => void (x.gates && (x.gates[i].hinge = x.gates[i].hinge === 'a' ? 'b' : 'a')))} data-testid={`gate-hinge-${i}`} title="Hinge on the other post">
+                    Other hinge
+                  </button>
+                )}
+                <button onClick={() => edit((x) => void (x.gates && x.gates.splice(i, 1)))} data-testid={`gate-delete-${i}`}>
+                  Remove
+                </button>
+              </div>
+            </fieldset>
+          ))}
+          <button
+            onClick={() => {
+              const width = useUi.getState().gateWidth;
+              const pos = freePos(width);
+              if (pos === null) return useUi.getState().showToast('There is no room for a gate on this line.');
+              edit((x) => void (x.gates ??= []).push({ id: newId(), pos, width, kind: useUi.getState().gateKind, swing: 1, hinge: 'a' }));
+            }}
+            data-testid="add-gate"
+          >
+            + Add a gate
+          </button>
+        </>
+      )}
     </>
   );
 }
@@ -594,6 +686,9 @@ function SkylightProps({ id }: { id: string }) {
   );
 }
 
+const RAIL_SWATCHES = ['#a5835a', '#6b4a2f', '#374151', '#9ca3af', '#e5e7eb', '#ffffff', '#1f2937', '#b45309'];
+const STAIR_SWATCHES = ['#e5e7eb', '#c19a6b', '#6b4a2f', '#a8a29e', '#7b8794', '#bfe3f5', '#9a3b3b', '#f3f0ea', '#3b2f27'];
+
 function StairProps({ id }: { id: string }) {
   const stair = useDesign((s) => s.design.stairs.find((x) => x.id === id));
   const storey = useDesign((s) => s.design.settings.storeyHeight);
@@ -604,6 +699,8 @@ function StairProps({ id }: { id: string }) {
       if (x) fn(x);
     });
   const check = checkStair(stair);
+  const colors = stairColors(stair);
+  const railing = stair.railing;
   return (
     <>
       <label className="field">
@@ -616,6 +713,63 @@ function StairProps({ id }: { id: string }) {
           ))}
         </select>
       </label>
+      {stair.kind !== 'spiral' && (
+        <label className="field">
+          <span>Construction</span>
+          <select
+            value={stair.build ?? 'closed'}
+            data-testid="stair-build"
+            onChange={(e) =>
+              edit((s) => {
+                if (e.target.value === 'closed') delete s.build;
+                else s.build = e.target.value as StairBuild;
+              })
+            }
+          >
+            {STAIR_BUILDS.map((b) => (
+              <option key={b} value={b}>
+                {STAIR_BUILD_LABEL[b]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label className="field">
+        <span>Material</span>
+        <select
+          value={stair.material ?? 'concrete'}
+          data-testid="stair-material"
+          onChange={(e) =>
+            edit((s) => {
+              if (e.target.value === 'concrete') delete s.material;
+              else s.material = e.target.value as StairMaterial;
+              delete s.color; // a new material brings its own colors
+              delete s.bodyColor;
+            })
+          }
+        >
+          {STAIR_MATERIALS.map((m) => (
+            <option key={m} value={m}>
+              {STAIR_LOOKS[m].label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <ColorField label="Tread color" value={colors.tread} swatches={STAIR_SWATCHES} onChange={(c) => edit((s) => void (s.color = c))} />
+      <ColorField label={stair.kind === 'spiral' ? 'Pole color' : 'Risers and beams'} value={colors.body} swatches={STAIR_SWATCHES} onChange={(c) => edit((s) => void (s.bodyColor = c))} />
+      {(stair.color || stair.bodyColor) && (
+        <button
+          onClick={() =>
+            edit((s) => {
+              delete s.color;
+              delete s.bodyColor;
+            })
+          }
+          data-testid="stair-colors-reset"
+        >
+          Use the material colors
+        </button>
+      )}
       <div className="row two">
         <NumberField label="Width" value={stair.w} scale={100} unit="cm" min={40} max={2000} testId="stair-w" onCommit={(v) => edit((s) => void (s.w = v))} />
         <NumberField label="Length" value={stair.d} scale={100} unit="cm" min={40} max={3000} testId="stair-d" onCommit={(v) => edit((s) => void (s.d = v))} />
@@ -628,36 +782,76 @@ function StairProps({ id }: { id: string }) {
       <label className="field">
         <span>Railing</span>
         <select
-          value={stair.railing?.style ?? 'none'}
+          value={railing?.style ?? 'none'}
           data-testid="stair-railing"
           onChange={(e) =>
             edit((s) => {
               const style = e.target.value as RailStyle;
               if (style === 'none') delete s.railing;
-              else s.railing = { style, a: s.railing?.a ?? true, b: s.railing?.b ?? true };
+              else s.railing = { ...(s.railing ?? { a: true, b: true }), style };
             })
           }
         >
           {RAIL_STYLES.map((r) => (
             <option key={r} value={r}>
-              {RAIL_LABELS[r]}
+              {r === 'none' ? 'None' : RAIL_LOOKS[r].label}
             </option>
           ))}
         </select>
       </label>
-      {stair.railing && (
-        <div className="row">
-          <label className="check">
-            <input type="checkbox" checked={stair.railing.a} data-testid="stair-rail-a" onChange={(e) => edit((s) => void (s.railing && (s.railing.a = e.target.checked)))} />
-            {stair.kind === 'straight' ? 'Left rail' : 'Outer rail'}
-          </label>
-          {stair.kind !== 'spiral' && (
+      {railing && (
+        <>
+          <div className="row">
             <label className="check">
-              <input type="checkbox" checked={stair.railing.b} data-testid="stair-rail-b" onChange={(e) => edit((s) => void (s.railing && (s.railing.b = e.target.checked)))} />
-              {stair.kind === 'straight' ? 'Right rail' : 'Inner rail'}
+              <input type="checkbox" checked={railing.a} data-testid="stair-rail-a" onChange={(e) => edit((s) => void (s.railing && (s.railing.a = e.target.checked)))} />
+              {stair.kind === 'straight' ? 'Left rail' : 'Outer rail'}
             </label>
+            {stair.kind !== 'spiral' && (
+              <label className="check">
+                <input type="checkbox" checked={railing.b} data-testid="stair-rail-b" onChange={(e) => edit((s) => void (s.railing && (s.railing.b = e.target.checked)))} />
+                {stair.kind === 'straight' ? 'Right rail' : 'Inner rail'}
+              </label>
+            )}
+          </div>
+          <label className="check" title="The rail round the opening of the stair in the floor above">
+            <input
+              type="checkbox"
+              checked={railing.guard !== false}
+              data-testid="stair-rail-guard"
+              onChange={(e) =>
+                edit((s) => {
+                  if (!s.railing) return;
+                  if (e.target.checked) delete s.railing.guard;
+                  else s.railing.guard = false;
+                })
+              }
+            />
+            Rail round the stairwell upstairs
+          </label>
+          <NumberField
+            label="Rail height"
+            value={railing.height ?? RAIL_HEIGHT_DEFAULT}
+            scale={100}
+            unit="cm"
+            min={40}
+            max={160}
+            testId="stair-rail-height"
+            onCommit={(v) => edit((s) => void (s.railing && (s.railing.height = v)))}
+          />
+          <ColorField label="Rail color" value={railing.color ?? RAIL_LOOKS[railing.style as Exclude<RailStyle, 'none'>].color} swatches={RAIL_SWATCHES} onChange={(c) => edit((s) => void (s.railing && (s.railing.color = c)))} />
+          {railing.color && (
+            <button
+              onClick={() =>
+                edit((s) => {
+                  if (s.railing) delete s.railing.color;
+                })
+              }
+              data-testid="stair-rail-color-reset"
+            >
+              Use the style color
+            </button>
           )}
-        </div>
+        </>
       )}
       <p className={check.ok ? 'ok' : 'notice'} data-testid="stair-check">
         Step height {(check.riser * 100).toFixed(1)} cm · tread {(check.going * 100).toFixed(0)} cm. {check.message}

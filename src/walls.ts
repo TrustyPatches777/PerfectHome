@@ -1,5 +1,7 @@
 /** How each wall type looks. (Default thicknesses and heights live in model.ts, next to the data.) */
 import { wallPointAt } from './geometry';
+
+export { faceSpan } from './geometry';
 import type { Point, Wall, WallFinish, WallType } from './model';
 
 export const WALL_STYLE: Record<WallType, { label: string; fill: string; hint: string; hatch?: boolean }> = {

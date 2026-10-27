@@ -7,12 +7,13 @@ import { isSingleDoor } from './model';
 import { catalogItem, catalogLayer, fillColor, shade } from './catalog';
 import { contentBounds } from './bounds';
 import { autoDimensions } from './dims';
-import { doorGeometry, formatArea, labelPoint, niceLength, polygonArea, wallArc, wallPointAt, wallSolidSegments } from './geometry';
-import type { Design, FloorMaterial, Furniture, Opening, Point, Wall } from './model';
-import { samplePolyline, STRIP_STYLES } from './outdoor';
+import { doorGeometry, formatArea, labelPoint, niceLength, polygonArea, wallArc, wallCorners, wallPointAt, wallSegmentOutline, type WallCorners, faceSpan, wallSolidSegments } from './geometry';
+import type { Design, FloorMaterial, Furniture, Gate, Opening, Point, Strip, Wall } from './model';
+import { gateGeometry, gateSpans, pathMarks, samplePolyline, solidSpans, stripColor } from './outdoor';
 import { roofPlan } from './roofs';
-import { railPaths, stairShapes } from './stairs';
+import { guardRuns, railPaths, railPlanColor, stairOutline, stairPlanFill, stairShapes } from './stairs';
 import { WALL_STYLE, wallFaceLine } from './walls';
+import { isWindowKind, windowMarks } from './windows';
 
 export interface SvgOptions {
   /** Draw the title, scale bar and north arrow inside the picture (for the exported file). */
@@ -72,8 +73,9 @@ function materialPattern(material: Exclude<FloorMaterial, 'plain'>, color: strin
   return { id, def: `<pattern id="${id}" width="${size}" height="${size}" patternUnits="userSpaceOnUse"><rect width="${size}" height="${size}" fill="${color}"/>${body}</pattern>` };
 }
 
-function wallSegmentPolygon(w: Wall, s0: number, s1: number): Point[] {
+function wallSegmentPolygon(w: Wall, s0: number, s1: number, corners: WallCorners = {}): Point[] {
   const arc = wallArc(w);
+  if (!arc) return wallSegmentOutline(w, s0, s1, corners);
   const steps = arc ? Math.max(3, Math.ceil(((s1 - s0) / arc.length) * Math.abs(arc.sweep) / (Math.PI / 24))) : 1;
   const h = w.thickness / 2;
   const outer: Point[] = [];
@@ -105,7 +107,10 @@ function openingSvg(wall: Wall, o: Opening): string {
     world += `<line x1="${n(g.hinge.x)}" y1="${n(g.hinge.y)}" x2="${n(g.leafEnd.x)}" y2="${n(g.leafEnd.y)}" stroke="${stroke}" stroke-width="${o.kind === 'french' ? 0.07 : 0.045}"/>`;
   }
   const jambs = line(x0, -t / 2, x0, t / 2) + line(x1, -t / 2, x1, t / 2);
-  if (o.kind === 'window') local = `<rect x="${n(x0)}" y="${n(-t / 2)}" width="${n(w)}" height="${n(t)}" fill="${GLASS}" stroke="${stroke}" stroke-width="1.25" ${hairline}/>${line(x0, 0, x1, 0)}`;
+  if (isWindowKind(o.kind) && o.kind !== 'bay') {
+    const m = windowMarks(o.kind, w, t);
+    local = `<rect x="${n(x0)}" y="${n(-t / 2)}" width="${n(w)}" height="${n(t)}" fill="${m.fill}" stroke="${stroke}" stroke-width="1.25" ${m.dash ? 'stroke-dasharray="6 4"' : ''} ${hairline}/>${m.lines.map((l) => line(l[0], l[1], l[2], l[3])).join('')}`;
+  }
   else if (o.kind === 'bay') {
     const bay = Math.min(0.6, w * 0.35);
     const inset = bay * 0.7;
@@ -121,6 +126,27 @@ function openingSvg(wall: Wall, o: Opening): string {
     local = `<rect x="${n(x0)}" y="${n(-t / 2)}" width="${n(w)}" height="${n(t)}" fill="#e5e7eb"/>${line(x0, 0, x1, 0, 'stroke-dasharray="10 5"')}${jambs}`;
   } else local = jambs;
   return `${world}<g transform="translate(${n(wp.p.x)} ${n(wp.p.y)}) rotate(${n(wp.angle)})">${local}</g>`;
+}
+
+/** A gate in a fence or hedge: two posts, the leaf shut and where it goes when it is open. */
+function gateSvg(strip: Pick<Strip, 'points' | 'width' | 'kind'>, gate: Gate, col: string): string {
+  const g = gateGeometry(strip, gate);
+  const post = Math.max(strip.width * 1.6, 0.16);
+  let out = [g.a, g.b].map((p) => `<rect x="${n(p.x - post / 2)}" y="${n(p.y - post / 2)}" width="${n(post)}" height="${n(post)}" fill="${shade(col, -0.35)}"/>`).join('');
+  for (const l of g.leaves) {
+    if (gate.kind === 'sliding') out += `<polyline points="${pts([l.shut, l.open])}" fill="none" stroke="#1f2937" stroke-width="1" stroke-dasharray="4 3" ${hairline}/>`;
+    else {
+      const a0 = Math.atan2(l.shut.y - l.hinge.y, l.shut.x - l.hinge.x);
+      let sweep = Math.atan2(l.open.y - l.hinge.y, l.open.x - l.hinge.x) - a0;
+      while (sweep > Math.PI) sweep -= 2 * Math.PI;
+      while (sweep <= -Math.PI) sweep += 2 * Math.PI;
+      const r = Math.hypot(l.shut.x - l.hinge.x, l.shut.y - l.hinge.y);
+      const arc = Array.from({ length: 13 }, (_, k) => ({ x: l.hinge.x + Math.cos(a0 + (sweep * k) / 12) * r, y: l.hinge.y + Math.sin(a0 + (sweep * k) / 12) * r }));
+      out += `<polyline points="${pts(arc)}" fill="none" stroke="#1f2937" stroke-width="1" stroke-dasharray="4 3" ${hairline}/>`;
+    }
+    out += `<line x1="${n(l.hinge.x)}" y1="${n(l.hinge.y)}" x2="${n(l.shut.x)}" y2="${n(l.shut.y)}" stroke="#1f2937" stroke-width="${n(Math.max(strip.width * 0.6, 0.05))}"/>`;
+  }
+  return out;
 }
 
 function furnitureSvg(f: Furniture): string {
@@ -166,13 +192,25 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
     const order = (k: string) => (k === 'road' ? 0 : k === 'path' ? 1 : 2);
     for (const s of [...onFloor(d.strips)].sort((a, c) => order(a.kind) - order(c.kind))) {
       const line = `points="${pts(s.points)}" fill="none" stroke-linejoin="round" stroke-linecap="round"`;
-      const col = STRIP_STYLES[s.kind].color;
+      const col = stripColor(s);
+      const joint = shade(col, -0.25);
       if (s.kind === 'road') body.push(`<polyline ${line} stroke="${col}" stroke-width="${n(s.width)}" stroke-linecap="butt"/><polyline points="${pts(s.points)}" fill="none" stroke="#fff" stroke-width="${n(Math.min(0.15, s.width * 0.03))}" stroke-dasharray="0.9 0.7"/>`);
-      else if (s.kind === 'path') body.push(`<polyline ${line} stroke="${col}" stroke-width="${n(s.width)}" stroke-linecap="butt"/>`);
-      else if (s.kind === 'hedge') body.push(`<polyline ${line} stroke="${shade(col, -0.3)}" stroke-width="${n(s.width + 0.04)}"/><polyline ${line} stroke="${col}" stroke-width="${n(s.width)}"/>`);
-      else {
-        body.push(`<polyline ${line} stroke="${col}" stroke-width="${n(Math.max(s.width * 0.5, 0.04))}" stroke-linecap="butt"/>`);
-        for (const p of samplePolyline(s.points, 1.5)) body.push(`<rect x="${n(p.x - s.width)}" y="${n(p.y - s.width)}" width="${n(s.width * 2)}" height="${n(s.width * 2)}" fill="${shade(col, -0.25)}"/>`);
+      else if (s.kind === 'path') {
+        if (s.surface !== 'stepping') body.push(`<polyline ${line} stroke="${col}" stroke-width="${n(s.width)}" stroke-linecap="butt"/>`);
+        for (const m of pathMarks(s)) {
+          if (m.t === 'line') body.push(`<polyline points="${pts(m.pts)}" fill="none" stroke="${joint}" stroke-width="1" ${hairline}/>`);
+          else body.push(`<ellipse cx="${n(m.x)}" cy="${n(m.y)}" rx="${n(m.rx)}" ry="${n(m.ry)}" transform="rotate(${n(m.rot)} ${n(m.x)} ${n(m.y)})" fill="${s.surface === 'stepping' ? col : joint}" ${s.surface === 'stepping' ? `stroke="${shade(col, -0.3)}" stroke-width="1" ${hairline}` : ''}/>`);
+        }
+      } else {
+        for (const run of solidSpans(s)) {
+          const rl = `points="${pts(run)}" fill="none" stroke-linejoin="round" stroke-linecap="round"`;
+          if (s.kind === 'hedge') body.push(`<polyline ${rl} stroke="${shade(col, -0.3)}" stroke-width="${n(s.width + 0.04)}"/><polyline ${rl} stroke="${col}" stroke-width="${n(s.width)}"/>`);
+          else {
+            body.push(`<polyline ${rl} stroke="${col}" stroke-width="${n(Math.max(s.width * 0.5, 0.04))}" stroke-linecap="butt"/>`);
+            for (const p of samplePolyline(run, 1.5)) body.push(`<rect x="${n(p.x - s.width)}" y="${n(p.y - s.width)}" width="${n(s.width * 2)}" height="${n(s.width * 2)}" fill="${shade(col, -0.25)}"/>`);
+          }
+        }
+        for (const { gate } of gateSpans(s)) body.push(gateSvg(s, gate, col));
       }
     }
   }
@@ -194,12 +232,14 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
     for (const w of wallsHere) {
       const style = WALL_STYLE[w.type] ?? WALL_STYLE.interior;
       const gaps = d.openings.filter((x) => x.wallId === w.id);
+      const corners = wallCorners(w, wallsHere);
       for (const [s0, s1] of wallSolidSegments(w, gaps)) {
-        body.push(`<polygon points="${pts(wallSegmentPolygon(w, s0, s1))}" fill="${style.hatch ? 'url(#hatch)' : style.fill}"/>`);
+        body.push(`<polygon points="${pts(wallSegmentPolygon(w, s0, s1, corners))}" fill="${style.hatch ? 'url(#hatch)' : style.fill}"/>`);
         const stripe = Math.min(0.05, w.thickness * 0.22);
         for (const side of ['l', 'r'] as const) {
           const skin = w.paint?.[side];
-          if (skin) body.push(`<polyline points="${pts(wallFaceLine(w, s0, s1, side, stripe / 2))}" fill="none" stroke="${skin.color}" stroke-width="${n(stripe)}"/>`);
+          const [t0, t1] = faceSpan(w, side, s0, s1, corners);
+          if (skin) body.push(`<polyline points="${pts(wallFaceLine(w, t0, t1, side, stripe / 2))}" fill="none" stroke="${skin.color}" stroke-width="${n(stripe)}"/>`);
         }
       }
     }
@@ -210,13 +250,20 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
     for (const s of onFloor(d.stairs)) {
       const inner = stairShapes(s)
         .map((sh) => {
-          if (sh.t === 'poly') return `<polygon points="${flat(sh.pts)}" fill="#f8fafc" stroke="#475569" stroke-width="1.5" ${hairline}/>`;
-          if (sh.t === 'ellipse') return `<ellipse cx="${n(sh.cx)}" cy="${n(sh.cy)}" rx="${n(sh.rx)}" ry="${n(sh.ry)}" fill="${sh.fill ? '#f8fafc' : 'none'}" stroke="#475569" stroke-width="1.5" ${hairline}/>`;
+          if (sh.t === 'poly') return `<polygon points="${flat(sh.pts)}" fill="${stairPlanFill(s)}" stroke="#475569" stroke-width="1.5" ${hairline}/>`;
+          if (sh.t === 'ellipse') return `<ellipse cx="${n(sh.cx)}" cy="${n(sh.cy)}" rx="${n(sh.rx)}" ry="${n(sh.ry)}" fill="${sh.fill ? stairPlanFill(s) : 'none'}" stroke="#475569" stroke-width="1.5" ${hairline}/>`;
           return `<polyline points="${flat(sh.pts)}" fill="none" stroke="#475569" stroke-width="1" stroke-linejoin="round" ${hairline}/>`;
         })
         .join('');
-      const rails = s.railing ? (['a', 'b'] as const).filter((k) => s.railing![k]).map((k) => `<polyline points="${railPaths(s)[k].map((p) => `${n(p.x)},${n(p.y)}`).join(' ')}" fill="none" stroke="${{ none: '#000', wood: '#a5835a', metal: '#4b5563', glass: '#38bdf8', cable: '#9ca3af' }[s.railing!.style]}" stroke-width="0.05" stroke-linecap="round"/>`).join('') : '';
+      const rails = s.railing ? (['a', 'b'] as const).filter((k) => s.railing![k]).map((k) => `<polyline points="${railPaths(s)[k].map((p) => `${n(p.x)},${n(p.y)}`).join(' ')}" fill="none" stroke="${railPlanColor(s.railing!)}" stroke-width="0.05" stroke-linecap="round"/>`).join('') : '';
       body.push(`<g transform="translate(${n(s.x)} ${n(s.y)}) rotate(${n(s.rotation)}) translate(${n(-s.w / 2)} ${n(-s.d / 2)})">${inner}${rails}</g>`);
+    }
+    // the stairwell of the stair coming up from the floor below, with its guard rail
+    const at = d.floors.findIndex((f) => f.id === floor);
+    for (const s of at > 0 ? d.stairs.filter((x) => x.floor === d.floors[at - 1].id) : []) {
+      const hole = stairOutline(s).map((p) => `${n(p.x)},${n(p.y)}`).join(' ');
+      const guard = s.railing && s.railing.guard !== false ? guardRuns(s).map((run) => `<polyline points="${run.map((p) => `${n(p.x)},${n(p.y)}`).join(' ')}" fill="none" stroke="${railPlanColor(s.railing!)}" stroke-width="0.06" stroke-linecap="round" stroke-linejoin="round"/>`).join('') : '';
+      body.push(`<g transform="translate(${n(s.x)} ${n(s.y)}) rotate(${n(s.rotation)}) translate(${n(-s.w / 2)} ${n(-s.d / 2)})"><polygon points="${hole}" fill="rgba(71,85,105,0.16)" stroke="#475569" stroke-width="1.5" stroke-dasharray="6 4" ${hairline}/>${guard}</g>`);
     }
   }
   // room names after the walls so they stay readable

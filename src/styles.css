@@ -414,6 +414,40 @@ kbd {
 .tools {
   flex: none;
 }
+.tools-box {
+  flex: none;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 2px;
+}
+.hsplitter {
+  flex: none;
+  height: 9px;
+  margin: 2px 0 -3px;
+  cursor: row-resize;
+  position: relative;
+  z-index: 5;
+}
+.hsplitter::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 4px;
+  height: 1px;
+  background: var(--border);
+  transition: background 0.12s, height 0.12s;
+}
+.hsplitter:hover::after,
+body.resizing-v .hsplitter::after {
+  height: 3px;
+  top: 3px;
+  background: var(--accent, #2f6fed);
+}
+body.resizing-v {
+  cursor: row-resize;
+  user-select: none;
+}
 .palette {
   margin-top: 12px;
   padding: 10px 2px 12px 0;
@@ -897,12 +931,10 @@ button.material.on {
   bottom: 12px;
   width: 64px;
   height: 64px;
-  cursor: grab;
+  cursor: default;
+  pointer-events: none; /* it only shows where north is */
   z-index: 2;
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.18));
-}
-.north-arrow:active {
-  cursor: grabbing;
 }
 
 /* ---------- plan check, area table ---------- */

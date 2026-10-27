@@ -13,6 +13,7 @@ import { MeasureTool } from '../tools/MeasureTool';
 import { TextTool } from '../tools/TextTool';
 import { ZoneTool } from '../tools/ZoneTool';
 import { StripTool } from '../tools/StripTool';
+import { GateTool } from '../tools/GateTool';
 import { StairTool } from '../tools/StairTool';
 import { RoofTool } from '../tools/RoofTool';
 import { PaintTool } from '../tools/PaintTool';
@@ -127,6 +128,7 @@ export function OverlayLayer() {
       {tool === 'text' && <TextTool />}
       {tool === 'zone' && <ZoneTool />}
       {tool === 'strip' && <StripTool />}
+      {tool === 'gate' && <GateTool />}
       {tool === 'stairs' && <StairTool />}
       {tool === 'roof' && <RoofTool />}
       {tool === 'paint' && <PaintTool />}

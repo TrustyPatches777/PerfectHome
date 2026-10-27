@@ -3,7 +3,7 @@
  * heading towards y = 0 (the top of the box) when the rotation is 0. Pure, so the canvas, the SVG export and the
  * tests all use the same drawing.
  */
-import type { Point, Stair, StairKind } from './model';
+import type { Point, RailStyle, Stair, StairBuild, StairKind, StairMaterial } from './model';
 
 export type StairShape =
   | { t: 'poly'; pts: number[]; fill?: boolean }
@@ -17,6 +17,9 @@ export const STAIR_DEFAULTS: Record<StairKind, { w: number; d: number; steps: nu
   u: { w: 2.2, d: 3.0, steps: 16, label: 'U-shaped' },
   spiral: { w: 1.6, d: 1.6, steps: 14, label: 'Spiral' },
 };
+
+/** Radius of the pole in the middle of a spiral staircase. */
+export const spiralPole = (w: number, d: number): number => Math.min(0.07, Math.min(w, d) * 0.05);
 
 const arrow = (pts: Point[]): StairShape[] => {
   // polyline plus an arrow head at its end
@@ -63,7 +66,7 @@ export function stairShapes(stair: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'f
     const cx = w / 2;
     const cy = d / 2;
     out.push({ t: 'ellipse', cx, cy, rx: r, ry: r, fill: true });
-    const pole = Math.min(0.12, r * 0.2);
+    const pole = spiralPole(w, d);
     for (let i = 0; i < n; i++) {
       const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
       out.push({ t: 'line', pts: [cx + Math.cos(a) * pole, cy + Math.sin(a) * pole, cx + Math.cos(a) * r, cy + Math.sin(a) * r] });
@@ -168,7 +171,7 @@ export function stairSteps(s: Shape): StairStep[] {
     for (let i = 0; i < n; i++) block(0, w, d - ((i + 1) * d) / n, d - (i * d) / n, i + 1);
   } else if (kind === 'spiral') {
     const r = Math.min(w, d) / 2;
-    const pole = Math.min(0.12, r * 0.2);
+    const pole = spiralPole(w, d);
     for (let i = 0; i < n; i++) {
       const a0 = -Math.PI / 2 + (i * 2 * Math.PI) / n;
       const a1 = a0 + (2 * Math.PI) / n;
@@ -235,28 +238,95 @@ export function stairOutline(s: Shape): Point[] {
   return mirrored(s) ? mirrorPts(pts, w) : pts;
 }
 
-/** The two rails of a staircase as lines in its box: `a` the outer side, `b` the inner one (none for a spiral). */
+/** How far the rails stand in from the edge of the steps, so that they do not sit inside the side of the stair. */
+export const RAIL_INSET = 0.04;
+
+/** The two rails of a staircase as lines in its box: `a` the outer side, `b` the inner one (none for a spiral). A spiral's rail leaves the first and the last tread free so that you can step on and off. */
 export function railPaths(s: Shape): { a: Point[]; b: Point[] } {
   const { kind, w, d } = s;
+  const m = RAIL_INSET;
+  const e = 0.01; // stay just inside the first and last step
   const P = (x: number, y: number): Point => ({ x, y });
   let a: Point[];
   let b: Point[] = [];
   if (kind === 'straight') {
-    a = [P(0, d), P(0, 0)];
-    b = [P(w, d), P(w, 0)];
+    a = [P(m, d - e), P(m, e)];
+    b = [P(w - m, d - e), P(w - m, e)];
   } else if (kind === 'l') {
     const f = flightWidth(kind, w, d);
-    a = [P(0, d), P(0, 0), P(w, 0)];
-    b = [P(f, d), P(f, f), P(w, f)];
+    a = [P(m, d - e), P(m, m), P(w - e, m)];
+    b = [P(f - m, d - e), P(f - m, f - m), P(w - e, f - m)];
   } else if (kind === 'u') {
     const f = flightWidth(kind, w, d);
-    a = [P(0, d), P(0, 0), P(w, 0), P(w, d)];
-    b = [P(f, d), P(f, f), P(w - f, f), P(w - f, d)];
+    a = [P(m, d - e), P(m, m), P(w - m, m), P(w - m, d - e)];
+    b = [P(f - m, d - e), P(f - m, f - m), P(w - f + m, f - m), P(w - f + m, d - e)];
   } else {
-    const r = Math.min(w, d) / 2 - 0.03;
-    a = Array.from({ length: 29 }, (_, i) => P(w / 2 + Math.cos(-Math.PI / 2 + (i * 2 * Math.PI) / 28) * r, d / 2 + Math.sin(-Math.PI / 2 + (i * 2 * Math.PI) / 28) * r));
+    const n = Math.max(2, s.steps);
+    const r = Math.min(w, d) / 2 - m;
+    const from = -Math.PI / 2 + (2 * Math.PI) / n;
+    const to = (3 * Math.PI) / 2 - (2 * Math.PI) / n;
+    const segs = Math.max(8, Math.round(((to - from) / (2 * Math.PI)) * 40));
+    a = Array.from({ length: segs + 1 }, (_, i) => P(w / 2 + Math.cos(from + ((to - from) * i) / segs) * r, d / 2 + Math.sin(from + ((to - from) * i) / segs) * r));
   }
   return mirrored(s) ? { a: mirrorPts(a, w), b: mirrorPts(b, w) } : { a, b };
+}
+
+/**
+ * One point of a railing seen from the side: where it stands (in the stair's box), the height of the walking line there (the
+ * nosings of the steps, a straight slope) and whether it is a place for a thick post (an end or a turn).
+ */
+export interface RailNode {
+  x: number;
+  y: number;
+  h: number;
+  turn: boolean;
+  end: boolean;
+}
+
+/**
+ * The railing along a path as a polyline whose heights follow the nosings of the steps: straight along a flight, flat on a landing,
+ * with a node at every step edge and at every turn. Pure, so the 3D view and the walking share it.
+ */
+export function railProfile(s: Shape, path: Point[], steps: StairStep[] = stairSteps(s)): RailNode[] {
+  if (path.length < 2) return [];
+  const pts: Point[] = [path[0]];
+  const vertex = new Set<number>();
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1];
+    const b = path[i];
+    const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.03));
+    for (let k = 1; k <= n; k++) pts.push({ x: a.x + ((b.x - a.x) * k) / n, y: a.y + ((b.y - a.y) * k) / n });
+    if (i < path.length - 1) vertex.add(pts.length - 1);
+  }
+  const raw = pts.map((p) => stairTopAt(s, p, 0, steps));
+  let last = raw.find((v) => v !== null) ?? 0;
+  const hs = raw.map((v) => (last = v ?? last));
+  const found: { key: number; node: RailNode }[] = [{ key: 0, node: { ...pts[0], h: hs[0], turn: false, end: true } }];
+  for (let i = 1; i < pts.length; i++) {
+    const jump = Math.abs(hs[i] - hs[i - 1]) > 1e-4;
+    if (jump) {
+      const hi = hs[i] >= hs[i - 1] ? i : i - 1; // stand on the higher of the two steps
+      found.push({ key: i - 0.5, node: { ...pts[hi], h: Math.max(hs[i], hs[i - 1]), turn: vertex.has(i), end: false } });
+    } else if (vertex.has(i)) found.push({ key: i, node: { ...pts[i], h: hs[i], turn: true, end: false } });
+  }
+  found.push({ key: pts.length, node: { ...pts[pts.length - 1], h: hs[hs.length - 1], turn: false, end: true } });
+  found.sort((p, q) => p.key - q.key);
+  // nodes closer than 2 cm are one node
+  const out: RailNode[] = [];
+  for (const { node } of found) {
+    const prev = out[out.length - 1];
+    if (prev && Math.hypot(prev.x - node.x, prev.y - node.y) < 0.02) {
+      prev.h = Math.max(prev.h, node.h);
+      prev.turn = prev.turn || node.turn;
+      prev.end = prev.end || node.end;
+    } else out.push(node);
+  }
+  return out;
+}
+
+/** A rail on a level path (the guard round a stairwell): nodes at the ends and at the turns. */
+export function flatProfile(path: Point[], h: number): RailNode[] {
+  return path.map((p, i) => ({ x: p.x, y: p.y, h, turn: i > 0 && i < path.length - 1, end: i === 0 || i === path.length - 1 }));
 }
 
 /** The edges of the stairwell hole that need a guard rail on the floor above: all of them except the one you step off the stair onto. */
@@ -280,6 +350,28 @@ export function guardEdges(s: Shape): [Point, Point][] {
   return out;
 }
 
+/** The guard edges joined into continuous runs, so that the rail has no seams where two edges meet. */
+export function guardRuns(s: Shape): Point[][] {
+  const runs: Point[][] = [];
+  for (const [p, q] of guardEdges(s)) {
+    const run = runs[runs.length - 1];
+    const end = run?.[run.length - 1];
+    if (run && end && Math.hypot(end.x - p.x, end.y - p.y) < 1e-6) run.push(q);
+    else runs.push([p, q]);
+  }
+  // the outline is a loop: when the first run starts where the last one ends they are one run
+  if (runs.length > 1) {
+    const first = runs[0];
+    const lastRun = runs[runs.length - 1];
+    const end = lastRun[lastRun.length - 1];
+    if (Math.hypot(end.x - first[0].x, end.y - first[0].y) < 1e-6) {
+      runs[0] = [...lastRun, ...first.slice(1)];
+      runs.pop();
+    }
+  }
+  return runs;
+}
+
 /** A polyline with extra points so that no piece is longer than `step`. */
 export function densify(path: Point[], step: number): Point[] {
   const out: Point[] = [path[0]];
@@ -291,3 +383,66 @@ export function densify(path: Point[], step: number): Point[] {
   }
   return out;
 }
+
+// ---- construction, materials and colors -----------------------------------------------------------------------------------------
+
+export const STAIR_BUILD_LABEL: Record<StairBuild, string> = { closed: 'Solid with risers', open: 'Open (treads on side beams)', floating: 'Floating treads' };
+
+export interface StairLook {
+  label: string;
+  /** Default color of the treads and of the risers/beams. */
+  tread: string;
+  body: string;
+  /** A floor texture for the treads in 3D (see FloorMaterial), and see-through treads. */
+  tex?: 'wood' | 'parquet' | 'tile' | 'carpet' | 'stone' | 'concrete';
+  glass?: boolean;
+}
+
+export const STAIR_LOOKS: Record<StairMaterial, StairLook> = {
+  concrete: { label: 'Concrete', tread: '#e5e7eb', body: '#e5e7eb' },
+  wood: { label: 'Oak', tread: '#c19a6b', body: '#f3f0ea', tex: 'wood' },
+  darkwood: { label: 'Dark wood', tread: '#6b4a2f', body: '#3b2f27', tex: 'wood' },
+  stone: { label: 'Stone', tread: '#a8a29e', body: '#cfcac4', tex: 'stone' },
+  metal: { label: 'Steel', tread: '#7b8794', body: '#4b5563' },
+  glass: { label: 'Glass', tread: '#bfe3f5', body: '#9ca3af', glass: true },
+  carpet: { label: 'Carpet', tread: '#9a3b3b', body: '#e9e5de', tex: 'carpet' },
+};
+
+/** The colors a staircase is drawn with (its own, or its material's). */
+export function stairColors(s: Pick<Stair, 'material' | 'color' | 'bodyColor'>): { tread: string; body: string; look: StairLook } {
+  const look = STAIR_LOOKS[s.material ?? 'concrete'];
+  return { tread: s.color ?? look.tread, body: s.bodyColor ?? look.body, look };
+}
+
+export interface RailLook {
+  label: string;
+  /** Default color of the frame (posts, handrail, solid walls). */
+  color: string;
+  /** Distance between posts/bars along the rail. */
+  gap: number;
+}
+
+export const RAIL_LOOKS: Record<Exclude<RailStyle, 'none'>, RailLook> = {
+  wood: { label: 'Wooden balusters', color: '#a5835a', gap: 0.12 },
+  metal: { label: 'Metal posts and rods', color: '#4b5563', gap: 0.9 },
+  bars: { label: 'Fine vertical bars', color: '#374151', gap: 0.11 },
+  glass: { label: 'Glass panels', color: '#8b95a1', gap: 1.5 },
+  cable: { label: 'Steel cables', color: '#6b7280', gap: 0.9 },
+  solid: { label: 'Solid wall', color: '#e5e7eb', gap: 9 },
+};
+export const RAIL_HEIGHT_DEFAULT = 0.9;
+
+/** The color a rail is drawn with on the plan. */
+export const railPlanColor = (r: { style: RailStyle; color?: string }): string => r.color ?? (r.style === 'glass' ? '#38bdf8' : r.style === 'none' ? '#000' : RAIL_LOOKS[r.style].color);
+
+/** Mix a #rgb / #rrggbb color with white (0 = the color, 1 = white); anything else comes back unchanged. */
+export function lighten(hex: string, amount: number): string {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const full = m[1].length === 3 ? m[1].split('').map((c) => c + c).join('') : m[1];
+  const ch = [0, 2, 4].map((i) => Math.round(parseInt(full.slice(i, i + 2), 16) * (1 - amount) + 255 * amount));
+  return `#${ch.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** The fill of a stair on the plan: white-ish, or a pale version of its color when it has one of its own. */
+export const stairPlanFill = (s: Pick<Stair, 'material' | 'color'>): string => (s.color || (s.material && s.material !== 'concrete') ? lighten(stairColors(s).tread, 0.55) : '#f8fafc');

@@ -212,14 +212,18 @@ describe('stairs', () => {
 
   it('a straight stair has one block per step, each a step higher, up to the full rise', () => {
     const parts = stairParts({ ...base, kind: 'straight' });
-    expect(parts).toHaveLength(16);
-    const sorted = [...tops(parts)].sort((a, b) => a - b);
+    // a solid block and a tread on top of it for every step
+    expect(parts.filter((p) => p.t === 'box')).toHaveLength(16);
+    const treads = parts.filter((p) => p.t === 'prism');
+    expect(treads).toHaveLength(16);
+    const sorted = treads.map((p) => (p.t === 'prism' ? p.y1 : 0)).sort((a, b) => a - b);
     expect(sorted[0]).toBeCloseTo(2.8 / 16);
     expect(sorted[15]).toBeCloseTo(2.8);
     // the first step is at the bottom of the box (+z), the top step at the far end (-z)
-    const first = parts.find((p) => p.t === 'box' && Math.abs(p.y + p.sy / 2 - 2.8 / 16) < 1e-6)!;
-    const last = parts.find((p) => p.t === 'box' && Math.abs(p.y + p.sy / 2 - 2.8) < 1e-6)!;
-    expect(first.t === 'box' && last.t === 'box' && first.z > last.z).toBe(true);
+    const midZ = (p: Part) => (p.t === 'prism' ? p.pts.reduce((a, q) => a + q.y, 0) / p.pts.length : 0);
+    const first = treads.find((p) => p.t === 'prism' && Math.abs(p.y1 - 2.8 / 16) < 1e-6)!;
+    const last = treads.find((p) => p.t === 'prism' && Math.abs(p.y1 - 2.8) < 1e-6)!;
+    expect(midZ(first)).toBeGreaterThan(midZ(last));
   });
 
   it('L, U and spiral stairs reach the full rise inside their box', () => {

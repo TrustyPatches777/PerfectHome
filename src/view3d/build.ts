@@ -3,15 +3,16 @@
  * when asked. The viewer asks for a chunk again only when something in its `deps` changed (immer keeps untouched items
  * identical), so dragging a sofa rebuilds one sofa, not the house.
  */
-import { CUSTOM_PREFIX, catalogLayer, furnitureHeight } from '../catalog';
+import { CUSTOM_PREFIX, catalogLayer, furnitureHeight, shade } from '../catalog';
 import { contentBounds } from '../bounds';
-import { clipPolygon, isConvex, pointInPolygon, wallArc, wallLength, wallPointAt, wallSolidSegments, type WallPoint } from '../geometry';
-import type { Design, Furniture, Opening, OpeningKind, Point, Roof, Skylight, Stair, Wall, WallType, Zone } from '../model';
-import { STRIP_STYLES } from '../outdoor';
+import { clipPolygon, faceSpan, isConvex, pointInPolygon, wallArc, wallCorners, wallLength, wallPointAt, wallSegmentOutline, wallSolidSegments, type WallCorners, type WallPoint } from '../geometry';
+import type { Design, Furniture, Gate, Opening, OpeningKind, Point, Roof, Skylight, Stair, Strip, Wall, WallType, Zone } from '../model';
+import { STRIP_STYLES, gateGeometry, gateSpans, pathMarks, solidSpans, stripColor } from '../outdoor';
+import { WINDOW_SPEC } from '../windows';
 import { inFace, roofBaseHeight, roofModel, skylightPlacement, type SkylightPlacement, type V3 } from '../roofs';
-import { densify, guardEdges, railPaths, stairOutline, stairSteps, stairTopAt } from '../stairs';
+import { stairOutline } from '../stairs';
 import { groundIndex } from '../shadows';
-import { beam, box, cyl, place, prism, type Anim, type Look, type Part } from './parts';
+import { box, cyl, place, prism, type Anim, type Look, type Part } from './parts';
 import { SITS_ON_FURNITURE, furnitureParts } from './furniture3d';
 
 export interface ChunkSpec {
@@ -50,15 +51,16 @@ const GLASS = '#bfe3f5';
 const WOOD = '#b08968';
 
 /** Heights of the top of each opening above the floor, in meters. */
-export const OPENING_HEAD: Record<OpeningKind, number> = { door: 2.05, main: 2.3, garden: 2.1, double: 2.1, french: 2.15, sliding: 2.15, garage: 2.2, gap: 2.1, window: 2.1, bay: 2.1 };
-export const WINDOW_SILL = 0.9;
+export const OPENING_HEAD: Record<OpeningKind, number> = { door: 2.05, main: 2.3, garden: 2.1, double: 2.1, french: 2.15, sliding: 2.15, garage: 2.2, gap: 2.1, window: 2.1, bay: 2.1, casement: 2.1, sash: 2.15, picture: 2.2, highwin: 2.25, floorwin: 2.3 };
+export const WINDOW_SILL = WINDOW_SPEC.window.sill;
 
 // ---- walls ----------------------------------------------------------------------------------------------------------
 
 /** Outline of the part of a wall between distances s0 and s1 along it (full thickness, following the curve). */
-export function wallStrip(w: Wall, s0: number, s1: number): Point[] {
+export function wallStrip(w: Wall, s0: number, s1: number, corners: WallCorners = {}): Point[] {
   const h = w.thickness / 2;
   const arc = wallArc(w);
+  if (!arc) return wallSegmentOutline(w, s0, s1, corners);
   const steps = arc ? Math.max(1, Math.ceil((Math.abs(arc.sweep) * ((s1 - s0) / arc.length)) / (Math.PI / 24))) : 1;
   const outer: Point[] = [];
   const inner: Point[] = [];
@@ -105,18 +107,22 @@ function leafAnim(wp: WallPoint, o: Opening, side: -1 | 1, width: number, base: 
 }
 
 /** Thin covering panels on the painted faces of a wall between two distances along it and two heights (a hair outside the wall). */
-export function skinPanels(w: Wall, s0: number, s1: number, y0: number, y1: number): Part[] {
+export function skinPanels(w: Wall, s0: number, s1: number, y0: number, y1: number, corners: WallCorners = {}): Part[] {
   if (!w.paint || y1 - y0 < 0.01) return [];
   const out: Part[] = [];
-  const steps = wallArc(w) ? Math.max(1, Math.ceil(((s1 - s0) * 8) / 4)) : 1;
   for (const side of ['l', 'r'] as const) {
     const skin = w.paint[side];
     if (!skin) continue;
+    // past the end of the wall (the half thickness it is drawn longer): at a corner the outer face runs out to where the two outer
+    // faces meet and the inner face stops at the centerline; at a free end both faces run to the end of the wall
+    const [t0, t1] = faceSpan(w, side, s0, s1, corners);
+    if (t1 - t0 < 0.005) continue;
+    const steps = wallArc(w) ? Math.max(1, Math.ceil(((t1 - t0) * 8) / 4)) : 1;
     const sign = side === 'r' ? 1 : -1;
     const off = w.thickness / 2 + 0.002;
     for (let i = 0; i < steps; i++) {
-      const a = wallPointAt(w, s0 + ((s1 - s0) * i) / steps);
-      const b = wallPointAt(w, s0 + ((s1 - s0) * (i + 1)) / steps);
+      const a = wallPointAt(w, t0 + ((t1 - t0) * i) / steps);
+      const b = wallPointAt(w, t0 + ((t1 - t0) * (i + 1)) / steps);
       const A: [number, number] = [a.p.x + a.n.x * off * sign, a.p.y + a.n.y * off * sign];
       const B: [number, number] = [b.p.x + b.n.x * off * sign, b.p.y + b.n.y * off * sign];
       const quad: [number, number, number][] = [[A[0], y0, A[1]], [B[0], y0, B[1]], [B[0], y1, B[1]], [A[0], y1, A[1]]];
@@ -174,6 +180,43 @@ function singleDoor(w: Wall, o: Opening, wp: WallPoint, base: number, head: numb
   return out;
 }
 
+/** The glass and frames of the window kinds (not the bay, which is built out of the wall). */
+function windowGlass(wp: WallPoint, kind: Exclude<OpeningKind, 'bay'>, width: number, y0: number, y1: number, t: number): Part[] {
+  const out: Part[] = [];
+  const mullion = (off: number, w = 0.05) => out.push(slab(wp, off, 0, w, 0.06, y0, y1, FRAME));
+  switch (kind) {
+    case 'casement':
+      // two wings with their own frames, a post between them and a handle on each
+      for (const sgn of [-1, 1]) out.push(...glazed(wp, (sgn * width) / 4, width / 2, y0, y1));
+      mullion(0, 0.07);
+      for (const sgn of [-1, 1]) out.push(slab(wp, sgn * 0.09, 0.05, 0.02, 0.02, (y0 + y1) / 2 - 0.06, (y0 + y1) / 2 + 0.06, '#9ca3af'));
+      break;
+    case 'sash': {
+      // two sashes meeting in the middle, each divided into small panes by thin bars
+      const mid = (y0 + y1) / 2;
+      out.push(...glazed(wp, 0, width, y0, mid + 0.02), ...glazed(wp, 0, width, mid - 0.02, y1));
+      const cols = Math.max(2, Math.round(width / 0.4));
+      for (let i = 1; i < cols; i++) mullion(-width / 2 + (width * i) / cols, 0.02);
+      for (const f of [0.5]) out.push(slab(wp, 0, 0, width, 0.05, y0 + (mid - y0) * f - 0.01, y0 + (mid - y0) * f + 0.01, FRAME), slab(wp, 0, 0, width, 0.05, mid + (y1 - mid) * f - 0.01, mid + (y1 - mid) * f + 0.01, FRAME));
+      break;
+    }
+    case 'picture':
+      out.push(...glazed(wp, 0, width, y0, y1));
+      break;
+    case 'floorwin': {
+      out.push(...glazed(wp, 0, width, y0, y1));
+      const cols = Math.max(1, Math.round(width / 1.3));
+      for (let i = 1; i < cols; i++) mullion(-width / 2 + (width * i) / cols, 0.05);
+      break;
+    }
+    default:
+      out.push(...glazed(wp, 0, width, y0, y1));
+      if (width > 1.3 && kind === 'window') mullion(0);
+  }
+  void t;
+  return out;
+}
+
 function openingParts(w: Wall, o: Opening, base: number, top: number, wy0: number): Part[] {
   const L = wallLength(w);
   const wp = wallPointAt(w, o.pos);
@@ -219,15 +262,19 @@ function openingParts(w: Wall, o: Opening, base: number, top: number, wy0: numbe
       break;
     }
     case 'window':
+    case 'casement':
+    case 'sash':
+    case 'picture':
+    case 'highwin':
+    case 'floorwin':
     case 'bay': {
-      const y0 = base + WINDOW_SILL;
+      const y0 = base + WINDOW_SPEC[o.kind].sill;
       const y1 = Math.max(y0 + 0.4, head);
       sill(y0);
       lintel(y1);
-      if (o.kind === 'window') {
-        out.push(...glazed(wp, 0, width, y0, y1));
-        if (width > 1.3) out.push(slab(wp, 0, 0, 0.05, 0.06, y0, y1, FRAME));
-        out.push(slab(wp, 0, t / 2 + 0.03, width + 0.08, 0.1, y0 - 0.03, y0, '#e5e7eb'));
+      if (o.kind !== 'bay') {
+        out.push(...windowGlass(wp, o.kind, width, y0, y1, t));
+        if (WINDOW_SPEC[o.kind].sill > 0.2) out.push(slab(wp, 0, t / 2 + 0.03, width + 0.08, 0.1, y0 - 0.03, y0, '#e5e7eb'));
       } else {
         const side = o.swing;
         const bay = Math.min(0.6, width * 0.35);
@@ -254,7 +301,7 @@ function openingParts(w: Wall, o: Opening, base: number, top: number, wy0: numbe
   return out;
 }
 
-function wallChunk(d: Design, w: Wall, ops: Opening[], elev: number): Part[] {
+function wallChunk(d: Design, w: Wall, ops: Opening[], elev: number, corners: WallCorners = {}): Part[] {
   const above = elev > 0.01;
   const wy0 = above ? elev - slabThickness(d) : elev;
   // the walls of a basement reach up to the ground (a hair under it, so they do not fight with its top)
@@ -263,99 +310,16 @@ function wallChunk(d: Design, w: Wall, ops: Opening[], elev: number): Part[] {
   const out: Part[] = [];
   for (const [a, b] of wallSolidSegments(w, ops)) {
     if (b - a <= 0.005) continue;
-    out.push(prism(wallStrip(w, a, b), wy0, top, color), ...skinPanels(w, Math.max(0, a), Math.min(wallLength(w), b), wy0, top));
+    out.push(prism(wallStrip(w, a, b, corners), wy0, top, color), ...skinPanels(w, a, b, wy0, top, corners));
   }
   for (const o of ops) out.push(...openingParts(w, o, elev, top, wy0));
   return out;
 }
 
-// ---- stairs ------------------------------------------------------------------------------------------------------------
+// ---- stairs (the steps and railings are in stairs3d.ts) ---------------------------------------------------------------------
 
-/** A staircase around its own center, climbing towards -z when unrotated (the same orientation as the plan symbol). */
-export function stairParts(s: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'rise' | 'flip'>): Part[] {
-  const { w, d, rise } = s;
-  const color = '#e5e7eb';
-  const out: Part[] = [];
-  for (const st of stairSteps(s)) {
-    const centered = st.poly.map((p) => ({ x: p.x - w / 2, y: p.y - d / 2 }));
-    if (st.thin) out.push(prism(centered, st.top - 0.06, st.top, color));
-    else {
-      const xs = centered.map((p) => p.x);
-      const ys = centered.map((p) => p.y);
-      out.push(box(Math.min(...xs), Math.max(...xs), 0, st.top, Math.min(...ys), Math.max(...ys), color));
-    }
-  }
-  if (s.kind === 'spiral') out.push(cyl(0, 0, 0, rise + 0.9, Math.min(0.12, Math.min(w, d) * 0.1), '#9ca3af'));
-  return out;
-}
-
-const RAIL_HEIGHT = 0.9;
-const RAIL_COLORS = { wood: '#a5835a', metal: '#6b7280', glass: '#bfe3f5', cable: '#9ca3af' } as const;
-
-/** A moving average, to turn the zig-zag of step tops into a smooth slope for a handrail. */
-const smooth = (ys: number[], r: number) => ys.map((_, i) => {
-  let sum = 0;
-  let n = 0;
-  for (let k = Math.max(0, i - r); k <= Math.min(ys.length - 1, i + r); k++) {
-    sum += ys[k];
-    n++;
-  }
-  return sum / n;
-});
-
-/** One run of railing along a path (stair-box coordinates, already centered): posts or glass, and a handrail on top. `floorY` is the height of the walking surface at each point. */
-function railRun(path: { x: number; y: number }[], floorY: number[], style: Exclude<Stair['railing'], undefined>['style']): Part[] {
-  const out: Part[] = [];
-  if (style === 'none' || path.length < 2) return out;
-  const top = smooth(floorY, 2).map((y) => y + RAIL_HEIGHT);
-  const at = (i: number, y: number): [number, number, number] => [path[i].x, y, path[i].y];
-  const color = RAIL_COLORS[style];
-  for (let i = 0; i + 1 < path.length; i++) {
-    const dx = path[i + 1].x - path[i].x;
-    const dz = path[i + 1].y - path[i].y;
-    const len = Math.hypot(dx, dz) || 1;
-    if (style === 'glass') out.push({ t: 'panel', pts: [at(i, floorY[i] + 0.06), at(i + 1, floorY[i + 1] + 0.06), at(i + 1, top[i + 1] - 0.04), at(i, top[i] - 0.04)], thick: 0.012, facing: [-dz / len, 0, dx / len], color, glass: true });
-    if (style === 'cable') for (const f of [0.28, 0.52, 0.76]) out.push(beam(at(i, floorY[i] + RAIL_HEIGHT * f), at(i + 1, floorY[i + 1] + RAIL_HEIGHT * f), 0.008, 0.008, '#c2c8d0'));
-    out.push(beam(at(i, top[i]), at(i + 1, top[i + 1]), style === 'wood' ? 0.06 : 0.04, style === 'wood' ? 0.05 : 0.035, style === 'glass' ? '#9ca3af' : style === 'metal' ? '#374151' : '#a5835a'));
-  }
-  const every = style === 'wood' ? 1 : style === 'metal' ? 2 : style === 'glass' ? 6 : 6;
-  path.forEach((p, i) => {
-    if (i % every !== 0 && i !== path.length - 1) return;
-    if (style === 'wood') out.push(box(p.x - 0.018, p.x + 0.018, floorY[i], top[i], p.y - 0.018, p.y + 0.018, '#b08968'));
-    else if (style === 'metal') out.push(cyl(p.x, p.y, floorY[i], top[i], 0.011, '#9ca3af'));
-    else out.push(cyl(p.x, p.y, floorY[i], top[i], style === 'glass' ? 0.016 : 0.014, '#9ca3af'));
-  });
-  return out;
-}
-
-/** The railings of a staircase (`guard` false: along its flights) or the guard rail around its opening in the floor above (`guard` true), in the stair's centered box. */
-export function railParts(s: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'rise' | 'flip' | 'railing'>, guard: boolean): Part[] {
-  const r = s.railing;
-  if (!r || r.style === 'none') return [];
-  const { w, d } = s;
-  const c = (p: { x: number; y: number }) => ({ x: p.x - w / 2, y: p.y - d / 2 });
-  const out: Part[] = [];
-  if (guard) {
-    for (const [p, q] of guardEdges(s)) {
-      const path = densify([p, q], 0.14).map(c);
-      out.push(...railRun(path, path.map(() => s.rise), r.style));
-    }
-    return out;
-  }
-  const steps = stairSteps(s);
-  const paths = railPaths(s);
-  for (const [on, path] of [[r.a, paths.a], [r.b, paths.b]] as const) {
-    if (!on || path.length < 2) continue;
-    const dense = densify(path, 0.14);
-    let last = 0;
-    const ys = dense.map((p) => (last = stairTopAt(s, p, 0.08, steps) ?? last));
-    // the first points before the first step is found take the height of the first one that is
-    const first = dense.findIndex((p) => stairTopAt(s, p, 0.08, steps) !== null);
-    for (let i = 0; i < first; i++) ys[i] = ys[first] ?? 0;
-    out.push(...railRun(dense.map(c), ys, r.style));
-  }
-  return out;
-}
+export { railParts, stairParts } from './stairs3d';
+import { railParts, stairParts } from './stairs3d';
 
 /** The outline of a staircase on the plan (where it stands and the hole it makes in the floor above). */
 export function stairPlanOutline(s: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'rise' | 'flip' | 'x' | 'y' | 'rotation'>): Point[] {
@@ -415,38 +379,109 @@ function zoneParts(z: Zone, elev: number): Part[] {
   return [prism(z.points, elev - 0.02, elev + ZONE_HEIGHT[z.kind], z.color)];
 }
 
-function stripParts(kind: 'road' | 'path' | 'fence' | 'hedge', pts: Point[], width: number, color: string, elev: number): Part[] {
+const FENCE_WOOD = '#5b4a38';
+
+/** The leaf of a gate: a framed board gate (two rails, a brace and pickets) of length `len` from `hinge` along `dir`, carrying the animation that opens it. */
+function gateLeaf(hinge: Point, dir: Point, len: number, height: number, elev: number, color: string, anim: Anim): Part[] {
   const out: Part[] = [];
-  const h = kind === 'road' ? 0.02 : kind === 'path' ? 0.03 : kind === 'fence' ? 1.1 : 1.2;
-  for (let i = 0; i + 1 < pts.length; i++) {
-    const a = pts[i];
-    const b = pts[i + 1];
-    const len = Math.hypot(b.x - a.x, b.y - a.y);
-    if (len < 1e-4) continue;
-    out.push({ t: 'box', x: (a.x + b.x) / 2, y: elev + h / 2 - 0.01, z: (a.y + b.y) / 2, sx: len + (kind === 'fence' ? 0 : width * 0.0), sy: h, sz: width, ry: yaw({ x: b.x - a.x, y: b.y - a.y }), color });
-    if (kind === 'road' || kind === 'path') {
-      // dashes in the middle of a street
-      if (kind === 'road') {
-        const dir = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
-        for (let s = 0.5; s + 1 < len; s += 3) out.push({ t: 'box', x: a.x + dir.x * (s + 0.5), y: elev + h, z: a.y + dir.y * (s + 0.5), sx: 1.5, sy: 0.005, sz: 0.12, ry: yaw(dir), color: '#f5f5f4' });
+  const ry = yaw(dir);
+  const at = (s: number) => ({ x: hinge.x + dir.x * s, z: hinge.y + dir.y * s });
+  const bar = (s0: number, s1: number, y0: number, y1: number, thick: number, col: string): Part => {
+    const m = at((s0 + s1) / 2);
+    return { t: 'box', x: m.x, y: (y0 + y1) / 2, z: m.z, sx: s1 - s0, sy: y1 - y0, sz: thick, ry, color: col, anim };
+  };
+  out.push(bar(0, len, elev + 0.12, elev + 0.2, 0.05, color), bar(0, len, elev + height - 0.2, elev + height - 0.12, 0.05, color));
+  out.push(bar(0, 0.06, elev + 0.08, elev + height - 0.06, 0.06, shade(color, -0.2)), bar(len - 0.06, len, elev + 0.08, elev + height - 0.06, 0.06, shade(color, -0.2)));
+  for (let s = 0.14; s < len - 0.1; s += 0.12) out.push(bar(s - 0.025, s + 0.025, elev + 0.1, elev + height - 0.08, 0.025, color));
+  const a = at(0.06);
+  const b = at(len - 0.06);
+  out.push({ t: 'beam', a: [a.x, elev + 0.18, a.z], b: [b.x, elev + height - 0.18, b.z], w: 0.05, h: 0.045, color: shade(color, -0.3), anim });
+  return out;
+}
+
+/** The posts and the leaves of a gate (they open when clicked, like a door). */
+export function gateParts(s: Pick<Strip, 'kind' | 'points' | 'width'>, g: Gate, elev: number): Part[] {
+  const geo = gateGeometry(s, g);
+  const height = s.kind === 'hedge' ? 1.3 : 1.1;
+  const color = s.kind === 'hedge' ? '#7a6650' : STRIP_STYLES.fence.color;
+  const out: Part[] = [];
+  for (const p of [geo.a, geo.b]) out.push(box(p.x - 0.07, p.x + 0.07, elev, elev + height + 0.25, p.y - 0.07, p.y + 0.07, FENCE_WOOD), box(p.x - 0.09, p.x + 0.09, elev + height + 0.25, elev + height + 0.29, p.y - 0.09, p.y + 0.09, '#6d5a45'));
+  for (const leaf of geo.leaves) {
+    const full = Math.hypot(leaf.shut.x - leaf.hinge.x, leaf.shut.y - leaf.hinge.y);
+    const dir = { x: (leaf.shut.x - leaf.hinge.x) / (full || 1), y: (leaf.shut.y - leaf.hinge.y) / (full || 1) };
+    const len = Math.max(0.2, full - 0.1);
+    const start = { x: leaf.hinge.x + dir.x * (g.kind === 'sliding' ? 0 : 0.05), y: leaf.hinge.y + dir.y * (g.kind === 'sliding' ? 0 : 0.05) };
+    const anim: Anim =
+      g.kind === 'sliding'
+        ? { door: g.id, kind: 'slide', move: [leaf.open.x - leaf.shut.x, 0, leaf.open.y - leaf.shut.y] }
+        : (() => {
+            const od = Math.hypot(leaf.open.x - leaf.hinge.x, leaf.open.y - leaf.hinge.y) || 1;
+            return { door: g.id, kind: 'swing' as const, origin: [leaf.hinge.x, elev, leaf.hinge.y] as [number, number, number], angle: swingAngle(dir, { x: (leaf.open.x - leaf.hinge.x) / od, y: (leaf.open.y - leaf.hinge.y) / od }) };
+          })();
+    out.push(...gateLeaf(start, dir, g.kind === 'sliding' ? full : len, height, elev, color, anim));
+  }
+  return out;
+}
+
+/** A street, footpath, fence or hedge, with the gates in it and what a path is made of. */
+function stripParts(s: Strip, elev: number): Part[] {
+  const { kind, points: pts, width } = s;
+  const color = stripColor(s);
+  const out: Part[] = [];
+  // roads and paths lie a little above the lawn (3 cm) so that they are not buried in it
+  const h = kind === 'road' ? 0.045 : kind === 'path' ? (s.surface === 'gravel' ? 0.055 : s.surface === 'boards' ? 0.08 : 0.06) : kind === 'fence' ? 1.1 : 1.2;
+  const solid = kind === 'fence' || kind === 'hedge' ? solidSpans(s) : [pts];
+  const stepping = kind === 'path' && s.surface === 'stepping';
+
+  if (!stepping) {
+    for (const run of solid) {
+      for (let i = 0; i + 1 < run.length; i++) {
+        const a = run[i];
+        const b = run[i + 1];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        if (len < 1e-4) continue;
+        out.push({ t: 'box', x: (a.x + b.x) / 2, y: elev + h / 2 - 0.01, z: (a.y + b.y) / 2, sx: len, sy: h, sz: width, ry: yaw({ x: b.x - a.x, y: b.y - a.y }), color });
+        // dashes in the middle of a street
+        if (kind === 'road') {
+          const dir = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
+          for (let d = 0.5; d + 1 < len; d += 3) out.push({ t: 'box', x: a.x + dir.x * (d + 0.5), y: elev + h, z: a.y + dir.y * (d + 0.5), sx: 1.5, sy: 0.005, sz: 0.12, ry: yaw(dir), color: '#f5f5f4' });
+        }
+      }
+      // round the joints: a disc for roads and paths, a post for fences, a block for hedges
+      for (let i = 0; i < run.length; i++) {
+        const p = run[i];
+        if (kind === 'road' || kind === 'path') {
+          if (i > 0 && i < run.length - 1) out.push(cyl(p.x, p.y, elev - 0.01, elev - 0.01 + h, width / 2, color));
+        } else if (kind === 'fence') out.push(box(p.x - 0.05, p.x + 0.05, elev, elev + 1.2, p.y - 0.05, p.y + 0.05, FENCE_WOOD));
+        else if (i > 0 && i < run.length - 1) out.push(box(p.x - width / 2, p.x + width / 2, elev, elev + h - 0.01, p.y - width / 2, p.y + width / 2, color));
+      }
+      if (kind === 'fence') {
+        // posts every 2 m along the fence
+        for (let i = 0; i + 1 < run.length; i++) {
+          const a = run[i];
+          const b = run[i + 1];
+          const len = Math.hypot(b.x - a.x, b.y - a.y);
+          for (let d = 2; d < len - 0.3; d += 2) out.push(box(a.x + ((b.x - a.x) * d) / len - 0.05, a.x + ((b.x - a.x) * d) / len + 0.05, elev, elev + 1.2, a.y + ((b.y - a.y) * d) / len - 0.05, a.y + ((b.y - a.y) * d) / len + 0.05, FENCE_WOOD));
+        }
       }
     }
   }
-  // round the joints: a disc for roads and paths, a post for fences, a block for hedges
-  for (let i = 0; i < pts.length; i++) {
-    const p = pts[i];
-    if (kind === 'road' || kind === 'path') {
-      if (i > 0 && i < pts.length - 1) out.push(cyl(p.x, p.y, elev - 0.01, elev - 0.01 + h, width / 2, color));
-    } else if (kind === 'fence') out.push(box(p.x - 0.05, p.x + 0.05, elev, elev + 1.2, p.y - 0.05, p.y + 0.05, '#5b4a38'));
-    else if (i > 0 && i < pts.length - 1) out.push(box(p.x - width / 2, p.x + width / 2, elev, elev + h - 0.01, p.y - width / 2, p.y + width / 2, color));
-  }
-  if (kind === 'fence') {
-    // posts every 2 m along the fence
-    for (let i = 0; i + 1 < pts.length; i++) {
-      const a = pts[i];
-      const b = pts[i + 1];
-      const len = Math.hypot(b.x - a.x, b.y - a.y);
-      for (let s = 2; s < len - 0.3; s += 2) out.push(box(a.x + ((b.x - a.x) * s) / len - 0.05, a.x + ((b.x - a.x) * s) / len + 0.05, elev, elev + 1.2, a.y + ((b.y - a.y) * s) / len - 0.05, a.y + ((b.y - a.y) * s) / len + 0.05, '#5b4a38'));
+  if (kind === 'fence' || kind === 'hedge') for (const { gate } of gateSpans(s)) out.push(...gateParts(s, gate, elev));
+  if (kind === 'path') {
+    const line = shade(color, -0.25);
+    for (const m of pathMarks(s)) {
+      if (m.t === 'stone') {
+        // stepping stones are flat blocks; the pebbles of a gravel path are too small to show
+        if (stepping) out.push({ ...cyl(m.x, m.y, elev, elev + 0.05, m.rx, color, undefined, { rz: m.ry }), ry: -rad(m.rot) } as Part);
+      } else {
+        for (let i = 0; i + 1 < m.pts.length; i++) {
+          const a = m.pts[i];
+          const b = m.pts[i + 1];
+          const len = Math.hypot(b.x - a.x, b.y - a.y);
+          if (len < 1e-4) continue;
+          out.push({ t: 'box', x: (a.x + b.x) / 2, y: elev + h - 0.007, z: (a.y + b.y) / 2, sx: len, sy: 0.004, sz: 0.012, ry: yaw({ x: b.x - a.x, y: b.y - a.y }), color: line });
+        }
+      }
     }
   }
   return out;
@@ -532,6 +567,30 @@ export function skylightParts(sp: SkylightPlacement, s: Skylight): Part[] {
   ];
 }
 
+/**
+ * The wall that a gable end of a roof stands on (the one of the roof's floor lying along that end), and which of its faces looks
+ * outwards ('l' or 'r'). A painted wall paints the triangle above it too.
+ */
+function gableWall(d: Design, r: Roof, sx: number): { wall: Wall; outer: 'l' | 'r' } | null {
+  const c = Math.cos(rad(r.rotation));
+  const s = Math.sin(rad(r.rotation));
+  const out = { x: sx * c, y: sx * s }; // the way the end faces on the plan
+  const mid = { x: r.x + out.x * (r.w / 2), y: r.y + out.y * (r.w / 2) };
+  let best: { wall: Wall; outer: 'l' | 'r'; dist: number } | null = null;
+  for (const w of d.walls) {
+    if (w.floor !== r.floor || w.type === 'railing' || wallArc(w)) continue;
+    const wp = wallPointAt(w, 0);
+    // roughly parallel to the end, and close to it
+    if (Math.abs(wp.u.x * out.x + wp.u.y * out.y) > 0.2) continue;
+    const dist = Math.abs((mid.x - w.a.x) * out.x + (mid.y - w.a.y) * out.y);
+    // the wall also has to reach the middle of the end sideways
+    const along = (mid.x - w.a.x) * wp.u.x + (mid.y - w.a.y) * wp.u.y;
+    if (along < -w.thickness || along > wallLength(w) + w.thickness || dist > Math.max(0.6, w.thickness * 1.5)) continue;
+    if (!best || dist < best.dist) best = { wall: w, outer: wp.n.x * out.x + wp.n.y * out.y > 0 ? 'r' : 'l', dist };
+  }
+  return best && { wall: best.wall, outer: best.outer };
+}
+
 /** A roof as panels and blocks in its own box, then moved onto the walls it covers. */
 export function roofParts(d: Design, r: Roof, elev: number): Part[] {
   const m = roofModel(r);
@@ -549,7 +608,16 @@ export function roofParts(d: Design, r: Roof, elev: number): Part[] {
     } else {
       const sx = Math.sign(f.pts[0][0]) || 1;
       // a little lower than the roof, so the top edge of the wall hides under the roof instead of fighting with it
-      out.push({ t: 'panel', pts: f.pts.map((p) => [p[0], p[1] > 0.01 ? p[1] - r.thickness : p[1], p[2]] as [number, number, number]), thick: 0.2, facing: [sx, 0, 0], color: WALL_COLOR.exterior });
+      const pts = f.pts.map((p) => [p[0], p[1] > 0.01 ? p[1] - r.thickness : p[1], p[2]] as [number, number, number]);
+      const under = gableWall(d, r, sx);
+      const skin = (side: 'l' | 'r') => under?.wall.paint?.[side];
+      const outer = skin(under?.outer ?? 'r');
+      const inner = skin(under?.outer === 'l' ? 'r' : 'l');
+      const thick = under?.wall.thickness ?? 0.2;
+      const tex = (k: NonNullable<typeof outer>) => (k.finish === 'paint' ? undefined : { kind: `wall-${k.finish}`, color: k.color });
+      out.push({ t: 'panel', pts, thick, facing: [sx, 0, 0], color: outer?.color ?? WALL_COLOR.exterior, ...(outer && tex(outer) ? { tex: tex(outer) } : {}) });
+      // the face of the gable seen from the attic
+      if (inner) out.push({ t: 'panel', pts: pts.map((p) => [p[0] - sx * thick, p[1], p[2]] as [number, number, number]), thick: 0.004, facing: [-sx, 0, 0], color: inner.color, ...(tex(inner) ? { tex: tex(inner) } : {}) });
     }
   }
   for (const b of m.blocks) out.push(box(b.x0, b.x1, b.y0, b.y1, b.z0, b.z1, b.kind === 'chimney' ? BRICK : b.kind === 'cap' ? '#6b7280' : WALL_COLOR.exterior));
@@ -572,11 +640,16 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
   const opsByWall = new Map<string, Opening[]>();
   for (const o of d.openings) (opsByWall.get(o.wallId) ?? opsByWall.set(o.wallId, []).get(o.wallId)!).push(o);
 
+  const floorWalls = new Map<string, Wall[]>();
+  for (const w of d.walls) (floorWalls.get(w.floor) ?? floorWalls.set(w.floor, []).get(w.floor)!).push(w);
+  const wallsOf = (floor: string) => floorWalls.get(floor) ?? [];
   for (const w of d.walls) {
     if (!visible.has(w.floor) || !shown('structure')) continue;
     const e = elev.get(w.floor) ?? 0;
     const ops = opsByWall.get(w.id) ?? [];
-    out.push({ key: `wall:${w.id}`, deps: [w, e, slab, ...ops], make: () => wallChunk(d, w, ops, e) });
+    const corners = wallCorners(w, wallsOf(w.floor));
+    // the corners are part of what the chunk looks like (a neighbor that moves changes them)
+    out.push({ key: `wall:${w.id}`, deps: [w, e, slab, JSON.stringify(corners), ...ops], make: () => wallChunk(d, w, ops, e, corners) });
   }
   for (const r of d.rooms) {
     if (!visible.has(r.floor) || !shown('rooms')) continue;
@@ -595,7 +668,7 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
   for (const s of d.strips) {
     if (!visible.has(s.floor) || !shown('outdoor')) continue;
     const e = elev.get(s.floor) ?? 0;
-    out.push({ key: `strip:${s.id}`, deps: [s, e], make: () => stripParts(s.kind, s.points, s.width, STRIP_STYLES[s.kind].color, e) });
+    out.push({ key: `strip:${s.id}`, deps: [s, e], make: () => stripParts(s, e) });
   }
   for (const s of d.stairs) {
     if (!visible.has(s.floor) || !shown('structure')) continue;
@@ -611,7 +684,7 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
     if (!visible.has(r.floor) || !shown('roofs') || opts.showRoof === false || (activeIndex >= 0 && (index >= activeIndex || intoAttic))) continue;
     const e = elev.get(r.floor) ?? 0;
     const base = roofBaseHeight(d, r.floor);
-    out.push({ key: `roof:${r.id}`, deps: [r, e, base, ...skylightsOn(d, r)], make: () => roofParts(d, r, e) });
+    out.push({ key: `roof:${r.id}`, deps: [r, e, base, ...skylightsOn(d, r), ...[0, 1].map((sx) => gableWall(d, r, sx ? 1 : -1)?.wall)], make: () => roofParts(d, r, e) });
   }
   for (const f of d.furniture) {
     if (!visible.has(f.floor) || !shown(catalogLayer(f.type))) continue;

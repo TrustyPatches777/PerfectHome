@@ -593,7 +593,8 @@ const bbq: Recipe = ({ hw, hd, h }) => [
 
 const patioSet: Recipe = ({ hw, hd, h, c }) => [
   cyl(0, 0, h - 0.04, h, 0.5, c, undefined), cyl(0, 0, 0, h - 0.04, 0.05, METAL), cyl(0, 0, 0, 0.03, 0.3, METAL),
-  ...at(chair(shade(c, -0.1)), 0, -hd * 0.72, 0), ...at(chair(shade(c, -0.1)), 0, hd * 0.72, 2), ...at(chair(shade(c, -0.1)), -hw * 0.72, 0, 1), ...at(chair(shade(c, -0.1)), hw * 0.72, 0, 3),
+  // every chair has its back to the outside and faces the table
+  ...at(chair(shade(c, -0.1)), 0, -hd * 0.72, 0), ...at(chair(shade(c, -0.1)), 0, hd * 0.72, 2), ...at(chair(shade(c, -0.1)), -hw * 0.72, 0, 3), ...at(chair(shade(c, -0.1)), hw * 0.72, 0, 1),
 ];
 
 const lounger: Recipe = ({ hw, hd, c }) => [
@@ -632,7 +633,31 @@ const pool: Recipe = ({ hw, hd }) => {
   ];
 };
 
-const hotTub: Recipe = ({ hw, hd, h }) => [cyl(0, 0, 0, h, hw, '#8a6a4a', undefined, { rz: hd }), cyl(0, 0, h - 0.02, h + 0.01, hw - 0.1, '#7dc4e8', undefined, { rz: hd - 0.1, glass: true })];
+/** A round tub on a plinth: a cabinet of wooden slats, a pale shell with a rounded rim, the water below the rim, a glowing light strip and a step to climb in by. */
+const hotTub: Recipe = ({ hw, hd, h }) => {
+  const R = Math.min(hw, hd) * 0.86;
+  const cz = -(hd - R); // the step takes the rest of the box at the front
+  const slats = 28;
+  const out: Part[] = [
+    cyl(0, cz, 0, 0.1, R - 0.03, '#3f3f46'),
+    cyl(0, cz, 0.1, h - 0.2, R - 0.02, '#6f533a'),
+    ring(0, h - 0.06, cz, R - 0.06, 0.08, 'y', '#f1f5f9'),
+    cyl(0, cz, h - 0.5, h - 0.14, R - 0.1, '#dff1fb'),
+    cyl(0, cz, h - 0.17, h - 0.12, R - 0.1, '#6cc4ea', undefined, { glass: true }),
+    ring(0, 0.1, cz, R - 0.02, 0.012, 'y', '#7dd3fc', { glow: true }),
+    // the control panel on the rim
+    box(-0.12, 0.12, h - 0.03, h + 0.015, cz - R + 0.04, cz - R + 0.15, '#1f2937'),
+    // the step
+    box(-0.4, 0.4, 0, 0.22, cz + R - 0.05, hd, '#a5835a'), box(-0.4, 0.4, 0.22, 0.25, cz + R - 0.05, hd, '#c9a679'),
+  ];
+  for (let i = 0; i < slats; i++) {
+    const a = (i * 2 * Math.PI) / slats;
+    const r = R - 0.005;
+    const part = box(-0.5, 0.5, 0.1, h - 0.1, -0.012, 0.012, i % 2 ? '#8a6a4a' : '#7a5c40');
+    if (part.t === 'box') out.push({ ...part, x: Math.cos(a) * r, z: cz + Math.sin(a) * r, sx: ((2 * Math.PI * R) / slats) * 0.82, ry: Math.atan2(-Math.cos(a), -Math.sin(a)) });
+  }
+  return out;
+};
 
 const firePit: Recipe = ({ hw, hd }) => [cyl(0, 0, 0, 0.35, hw, '#6b7280', hw * 0.9, { rz: hd }), cyl(0, 0, 0.3, 0.36, hw * 0.8, '#1f2937', undefined, { rz: hd * 0.8 }), cyl(0, 0, 0.3, 0.7, 0.18, '#f97316', 0.02, { glow: true })];
 

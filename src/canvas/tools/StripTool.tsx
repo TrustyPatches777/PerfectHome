@@ -30,7 +30,8 @@ export function StripTool() {
     if (points.length >= 2) {
       const id = newId();
       useDesign.getState().update((d) => {
-        d.strips.push({ id, floor: floorId(), kind, points, width });
+        const surface = useUi.getState().pathSurface;
+        d.strips.push({ id, floor: floorId(), kind, points, width, ...(kind === 'path' && surface !== 'plain' ? { surface } : {}) });
       });
       useUi.getState().setTool('select');
       useUi.getState().select({ kind: 'strip', id });

@@ -90,8 +90,8 @@ export interface Wall {
  * door = single door with swing arc, double = two leaves, french = double door with glass, sliding = sliding
  * door, window, bay = bay window projecting outwards, garage = wide overhead door, gap = open passage.
  */
-export type OpeningKind = 'door' | 'main' | 'garden' | 'double' | 'french' | 'sliding' | 'window' | 'bay' | 'garage' | 'gap';
-export const OPENING_KINDS: OpeningKind[] = ['door', 'main', 'garden', 'double', 'french', 'sliding', 'window', 'bay', 'garage', 'gap'];
+export type OpeningKind = 'door' | 'main' | 'garden' | 'double' | 'french' | 'sliding' | 'window' | 'casement' | 'sash' | 'picture' | 'bay' | 'highwin' | 'floorwin' | 'garage' | 'gap';
+export const OPENING_KINDS: OpeningKind[] = ['door', 'main', 'garden', 'double', 'french', 'sliding', 'window', 'casement', 'sash', 'picture', 'bay', 'highwin', 'floorwin', 'garage', 'gap'];
 
 /** One leaf, hinged on one side: an interior door, the main (front) door, or a garden door. */
 export const isSingleDoor = (k: OpeningKind): boolean => k === 'door' || k === 'main' || k === 'garden';
@@ -152,13 +152,26 @@ export interface Furniture {
 export type StairKind = 'straight' | 'l' | 'u' | 'spiral';
 export const STAIR_KINDS: StairKind[] = ['straight', 'l', 'u', 'spiral'];
 /** What the railing of a staircase is made of. */
-export type RailStyle = 'none' | 'wood' | 'metal' | 'glass' | 'cable';
-export const RAIL_STYLES: RailStyle[] = ['none', 'wood', 'metal', 'glass', 'cable'];
-/** `a` and `b` are the two sides of the staircase (see `railPaths` in stairs.ts): each can have a rail. */
+export type RailStyle = 'none' | 'wood' | 'metal' | 'glass' | 'cable' | 'bars' | 'solid';
+export const RAIL_STYLES: RailStyle[] = ['none', 'wood', 'metal', 'bars', 'glass', 'cable', 'solid'];
+/** How a staircase is built: solid blocks with risers, treads on side beams (open), or treads sticking out of the wall (floating). */
+export type StairBuild = 'closed' | 'open' | 'floating';
+export const STAIR_BUILDS: StairBuild[] = ['closed', 'open', 'floating'];
+/** What the treads are made of (the color can be changed on top of that). */
+export type StairMaterial = 'concrete' | 'wood' | 'darkwood' | 'stone' | 'metal' | 'glass' | 'carpet';
+export const STAIR_MATERIALS: StairMaterial[] = ['concrete', 'wood', 'darkwood', 'stone', 'metal', 'glass', 'carpet'];
+/**
+ * `a` and `b` are the two sides of the staircase (see `railPaths` in stairs.ts): each can have a rail. `guard` is the rail round
+ * the stairwell on the floor above. `height` (meters) and `color` change every rail of the staircase.
+ */
 export interface Railing {
   style: RailStyle;
   a: boolean;
   b: boolean;
+  /** Absent = a guard rail round the stairwell on the floor above. */
+  guard?: boolean;
+  height?: number;
+  color?: string;
 }
 
 export interface Stair {
@@ -177,6 +190,13 @@ export interface Stair {
   flip: boolean;
   /** Absent = no railing. */
   railing?: Railing;
+  /** Absent = closed (solid). */
+  build?: StairBuild;
+  /** Absent = concrete (the original grey). */
+  material?: StairMaterial;
+  /** Color of the treads, overriding the material's; `bodyColor` the same for risers and side beams. */
+  color?: string;
+  bodyColor?: string;
 }
 
 /**
@@ -305,6 +325,24 @@ export type StripKind = 'road' | 'path' | 'fence' | 'hedge';
 export const STRIP_KINDS: StripKind[] = ['road', 'path', 'fence', 'hedge'];
 export const STRIP_DEFAULT_WIDTH: Record<StripKind, number> = { road: 6, path: 1.2, fence: 0.1, hedge: 0.6 };
 
+/** What a footpath is made of (absent = plain). */
+export type PathSurface = 'plain' | 'slabs' | 'gravel' | 'stepping' | 'brick' | 'boards';
+export const PATH_SURFACE_KINDS: PathSurface[] = ['plain', 'slabs', 'gravel', 'stepping', 'brick', 'boards'];
+
+/** A gate in a fence or hedge: an opening `width` wide centered `pos` meters along the line, with leaves that swing or slide. */
+export type GateKind = 'single' | 'double' | 'sliding';
+export const GATE_KINDS: GateKind[] = ['single', 'double', 'sliding'];
+export interface Gate {
+  id: string;
+  pos: number;
+  width: number;
+  kind: GateKind;
+  /** The side it opens to: 1 = the right of the way the line is drawn, -1 = the left. */
+  swing: 1 | -1;
+  /** Which end of the opening the leaf is hinged at (a sliding gate rolls towards it). */
+  hinge: 'a' | 'b';
+}
+
 export interface Strip {
   id: string;
   floor: string;
@@ -312,6 +350,10 @@ export interface Strip {
   /** Centerline, at least two points. */
   points: Point[];
   width: number;
+  /** Fences and hedges only. */
+  gates?: Gate[];
+  /** Footpaths only. */
+  surface?: PathSurface;
 }
 
 export interface Settings {
@@ -600,6 +642,19 @@ export function parseDesign(input: unknown): Design {
         kind,
         points: pts,
         width: num(o.width, STRIP_DEFAULT_WIDTH[kind], 0.02, 50),
+        ...(kind !== 'road' && kind !== 'path' && Array.isArray(o.gates) && o.gates.length
+          ? {
+              gates: list<Gate>(o.gates, (g) => ({
+                id: str(g.id, newId(), 20),
+                pos: num(g.pos, 1, 0, 1e5),
+                width: num(g.width, 1.2, 0.5, 8),
+                kind: GATE_KINDS.includes(g.kind as GateKind) ? (g.kind as GateKind) : 'single',
+                swing: g.swing === -1 ? -1 : 1,
+                hinge: g.hinge === 'b' ? 'b' : 'a',
+              })),
+            }
+          : {}),
+        ...(kind === 'path' && PATH_SURFACE_KINDS.includes(o.surface as PathSurface) && o.surface !== 'plain' ? { surface: o.surface as PathSurface } : {}),
       };
     }),
     stairs: list<Stair>(input.stairs, (o) => ({
@@ -614,7 +669,22 @@ export function parseDesign(input: unknown): Design {
       steps: Math.round(num(o.steps, 14, 2, 60)),
       rise: num(o.rise, 2.8, 0.2, 10),
       flip: o.flip === true,
-      ...(isObj(o.railing) && RAIL_STYLES.includes(o.railing.style as RailStyle) && o.railing.style !== 'none' ? { railing: { style: o.railing.style as RailStyle, a: o.railing.a !== false, b: o.railing.b !== false } } : {}),
+      ...(isObj(o.railing) && RAIL_STYLES.includes(o.railing.style as RailStyle) && o.railing.style !== 'none'
+        ? {
+            railing: {
+              style: o.railing.style as RailStyle,
+              a: o.railing.a !== false,
+              b: o.railing.b !== false,
+              ...(o.railing.guard === false ? { guard: false } : {}),
+              ...(typeof o.railing.height === 'number' ? { height: num(o.railing.height, 0.9, 0.4, 1.6) } : {}),
+              ...(typeof o.railing.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(o.railing.color) ? { color: o.railing.color } : {}),
+            },
+          }
+        : {}),
+      ...(STAIR_BUILDS.includes(o.build as StairBuild) && o.build !== 'closed' ? { build: o.build as StairBuild } : {}),
+      ...(STAIR_MATERIALS.includes(o.material as StairMaterial) && o.material !== 'concrete' ? { material: o.material as StairMaterial } : {}),
+      ...(typeof o.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(o.color) ? { color: o.color } : {}),
+      ...(typeof o.bodyColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(o.bodyColor) ? { bodyColor: o.bodyColor } : {}),
     })),
     roofs: list<Roof>(input.roofs, (o) => ({
       id: str(o.id, newId(), 20),

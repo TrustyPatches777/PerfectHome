@@ -15,6 +15,7 @@ export function SelectionTransformer() {
   const sel = useUi((s) => s.selection);
   const tool = useUi((s) => s.tool);
   const design = useDesign((s) => s.design);
+  const zoom = useUi((s) => s.viewport.zoom);
 
   const kind = sel?.kind === 'furniture' || sel?.kind === 'label' || sel?.kind === 'stair' || sel?.kind === 'roof' ? sel.kind : null;
   const layer = sel && kind ? design.layers[layerOfRef(design, sel)] : null;
@@ -77,17 +78,26 @@ export function SelectionTransformer() {
     });
   };
 
+  // A thin item (a radiator, a socket) is narrower on the screen than the handles: the handles on its long sides would sit on top of it and
+  // turn every attempt to move it into a resize. It keeps only the two at the ends of its long side.
+  const item = sel?.kind === 'furniture' ? design.furniture.find((f) => f.id === sel.id) : undefined;
+  const thin = item && Math.min(item.w, item.d) * zoom < 40;
+  const anchors =
+    sel?.kind === 'furniture' || sel?.kind === 'stair' || sel?.kind === 'roof'
+      ? thin
+        ? item.w >= item.d
+          ? ['middle-left', 'middle-right']
+          : ['top-center', 'bottom-center']
+        : ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
+      : [];
+
   return (
     <Transformer
       ref={ref}
       rotateEnabled
       keepRatio={false}
       ignoreStroke
-      enabledAnchors={
-        sel?.kind === 'furniture' || sel?.kind === 'stair' || sel?.kind === 'roof'
-          ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
-          : []
-      }
+      enabledAnchors={anchors}
       rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
       rotationSnapTolerance={5}
       borderStroke={SELECT_COLOR}

@@ -21,7 +21,8 @@ Node is in `C:\Program Files\nodejs`; shells opened before it was installed may 
 ## Architecture
 ```
 src/model.ts          THE data model: every type of the shared JSON, defaults, parseDesign (validation), serializeDesign
-src/geometry.ts       pure math: snapping, walls (straight AND arcs: wallArc/wallPointAt/projectOnWall), door arcs, polygons, rooms
+src/geometry.ts       pure math: snapping, walls (straight AND arcs: wallArc/wallPointAt/projectOnWall), door arcs, polygons, rooms,
+                      wallCorners/faceSpan/wallSegmentOutline (mitred corners)
 src/distance.ts       closest points/distances between segments and polygon outlines
 src/selection.ts      pure group operations: item bounds, move/rotate/align/distribute, copy/paste clipboard, remove, layer of an item
 src/catalog.ts        furniture catalog (~110 items incl. cars, garden, lamps, electrical, plumbing) + custom items registry,
@@ -33,9 +34,12 @@ src/shapes.ts         rectangles of walls, addRoomTo, shiftEdge (drag a side of 
 src/roofs.ts          roofs: 3D shape (faces + blocks per kind), plan symbol, "fit to walls" (min-area rotated box), base height
 src/roofActions.ts    make/refit/turn roofs, kind and covering changes that keep a sensible look
 src/stairs.ts         stair drawings (straight/L/U/spiral) as pure instructions, walking length, comfort check; stairSteps (the solid
-                      steps and their heights), stairOutline (the hole in the floor above), railPaths/guardEdges (railings)
+                      steps and their heights), stairOutline (the hole in the floor above), railPaths/railProfile/guardRuns (railings:
+                      railProfile gives the nosing line the 3D view AND walking share), stair materials/colors, rail looks
+src/windows.ts        the window kinds (sill, plan symbol, labels); a window kind is an OpeningKind in model.ts, listed in WINDOW_KINDS
 src/patterns.ts       procedural tile images (wall hatch, floor materials) for the canvas; svgExport has vector twins
-src/walls.ts, outdoor.ts   look/defaults of wall types (exterior/load-bearing is ONE type), wall coverings and paint colors, outdoor zones and strips
+src/walls.ts, outdoor.ts   look/defaults of wall types (exterior/load-bearing is ONE type), wall coverings and paint colors, outdoor zones and strips;
+                      outdoor.ts also has fence gates (gateSpans/solidSpans/gateGeometry) and garden path surfaces (pathMarks)
 src/typed.ts          parse typed lengths ("350", "2.4m", "3.5<45", "5x3")
 src/mount.ts          snap wall-mounted symbols (sockets, taps) flat onto the wall face under the cursor
 src/dims.ts           automatic dimension labels ("All dimensions")
@@ -61,6 +65,7 @@ src/view3d/             the house in 3D (three.js, loaded only when the 3D view 
                         model inside its footprint, so a new recipe cannot wander off
   roofTex.ts            canvas textures for roof coverings (tiles, slate, metal ribs, thatch...)
   build.ts              design -> chunks (one per wall/room/item) with `deps`; walls get cut for doors/windows, floors stack by storey
+  stairs3d.ts           steps (closed / open / floating, materials) and railings of staircases; build.ts re-exports stairParts/railParts
   scene.ts              Three.js: meshes from parts, sun + shadows + lamps, orbit and walk cameras, only rebuilds changed chunks
   View3D.tsx            the 3D view with its controls (orbit/walk, cut-away, shadows, time of day, save image)
 src/live/              working together live (see the "Live sessions" rule below)
@@ -129,6 +134,21 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
 - **Three renderers**: the canvas (Konva), `svgExport.ts` and the 3D view (`view3d/`). When you change how something is drawn, check all
   three. 3D coordinates: plan x -> x, plan y -> z, up -> y; a plan rotation of +θ° (clockwise) is `ry = -θ` in three.js. Anything new on
   the plan that has a size and height (a new item kind, not just a catalog entry) needs a chunk in `view3d/build.ts`.
+- **Wall corners** are mitred, not just extended: a wall is drawn half a thickness longer than its centerline, which only closes a
+  90° corner. `wallCorners(w, walls)` gives, for a wall that meets exactly one other wall end to end, where the outer faces meet (`s`) and the
+  inner faces (`si`); `wallSegmentOutline`/`faceSpan` use them, so the plan, the SVG, the 3D walls AND the paint stripes/skins all end exactly
+  on the mitre (no notch outside, no unpainted spot). Gable ends of roofs take the paint of the wall under them (`gableWall` in build.ts).
+- **Stairs**: `Stair.build` (closed/open/floating), `material`, `color`, `bodyColor` and `Stair.railing` (style, a/b sides, `guard` = the rail round the
+  stairwell upstairs, `height`, `color`) are all optional with defaults, so old links load. Rails are built from `railProfile`: a node at every
+  step edge on the nosing line, thick posts at ends and turns. Walking blocks at a rail only at the HEIGHT it is at (an obstacle has a feet-height
+  range), so rails never close the way on or off a stair; a spiral's rail leaves its first and last tread free. Upstairs the stairwell is drawn
+  with a dashed outline and guard rail and is clickable (it selects the stair of the floor below).
+- **Fence gates and garden paths**: `Strip.gates` (fence/hedge only: position along the line, width, single/double/sliding, side, hinge) cut the
+  line into `solidSpans`; every renderer and the walking code use those. A gate in 3D is a door (`anim.door` = the gate id), so clicking opens it.
+  `Strip.surface` (footpaths only) is drawn with `pathMarks` (joints, boards, stepping stones, pebbles). Roads and paths must lie ABOVE a lawn (3 cm).
+- **Left sidebar**: tools (a scrolling box) and the furniture list share the column; `ui.toolsHeight` is dragged with the bar between them (remembered).
+  Thin items (radiators, sockets) only get the two handles at the ends of their long side, or a press on them would resize them.
+- **Wall-mounted items** (`catalog.wallMounted`) snap flat onto the wall face under the cursor when PLACED (FurnitureTool) and when DRAGGED alone (press.ts).
 - **Typed lengths**: drawing tools call `useTypedInput(active, onSubmit)` BEFORE their own key handler.
 - **Windows file writes**: when scripting edits of source files from a shell, retry on `OSError` (rare transient EINVAL), and never
   chain `npm test; git commit` with `;` - use `&&`.

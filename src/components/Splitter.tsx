@@ -1,4 +1,34 @@
-import { useUi, SIDEBAR_WIDTH } from '../store/ui';
+import { useUi, SIDEBAR_WIDTH, TOOLS_HEIGHT } from '../store/ui';
+
+/** A draggable bar between the tools and the furniture list in the left sidebar: drag to give one more room; double-click to reset. */
+export function HSplitter() {
+  const start = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const y0 = e.clientY;
+    const h0 = useUi.getState().toolsHeight;
+    const move = (m: MouseEvent) => useUi.getState().setToolsHeight(h0 + m.clientY - y0);
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      document.body.classList.remove('resizing-v');
+    };
+    document.body.classList.add('resizing-v');
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+  return (
+    <div
+      className="hsplitter"
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Resize the tools and the furniture list"
+      title="Drag to resize · double-click to reset"
+      onMouseDown={start}
+      onDoubleClick={() => useUi.getState().setToolsHeight(TOOLS_HEIGHT.def)}
+      data-testid="splitter-tools"
+    />
+  );
+}
 
 /**
  * A draggable bar between a sidebar and the editing window. Drag to make the sidebar wider or narrower (the window takes the

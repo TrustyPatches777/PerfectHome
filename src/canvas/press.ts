@@ -1,4 +1,6 @@
 /** What happens when the mouse is pressed on an item in the select tool. One path for every kind of item. */
+import { catalogItem } from '../catalog';
+import { mountOnWall } from '../mount';
 import type { ItemRef } from '../model';
 import { anchorOf, isRefLocked, moveFromBase, sameRef } from '../selection';
 import { useDesign } from '../store/design';
@@ -13,13 +15,31 @@ export function startGroupMove(evt: MouseEvent, primary: ItemRef, narrowOnClick 
   const refs = useUi.getState().selected.filter((r) => r.kind !== 'opening' && !isRefLocked(base, r));
   const anchor = anchorOf(base, primary);
   if (!refs.length || !anchor) return;
+  // a wall-mounted item (socket, radiator, tap...) that is dragged on its own snaps flat onto the wall face under the cursor, as when it was placed
+  const only = refs.length === 1 && refs[0].kind === 'furniture' ? base.furniture.find((f) => f.id === refs[0].id) : undefined;
+  const mounted = only && catalogItem(only.type)?.wallMounted ? only : undefined;
   dragSession(evt, (world, start) => {
+    if (mounted) {
+      const walls = base.walls.filter((w) => w.floor === mounted.floor);
+      const ui = useUi.getState();
+      const m = mountOnWall(world, walls, mounted.d, 0.6, ui.snap ? base.settings.gridStep : 0);
+      if (m) {
+        useDesign.getState().update((d) => {
+          const f = d.furniture.find((i) => i.id === mounted.id);
+          if (f) Object.assign(f, { x: m.x, y: m.y, rotation: m.rotation });
+        });
+        return;
+      }
+    }
     const raw = { x: anchor.x + world.x - start.x, y: anchor.y + world.y - start.y };
     const snapped = snapWorld(raw, { ignore: () => true }).p; // grid only
     const dx = snapped.x - anchor.x;
     const dy = snapped.y - anchor.y;
     useDesign.getState().update((d) => {
       for (const r of refs) moveFromBase(d, base, r, dx, dy);
+      // away from every wall it goes back to the way it was turned
+      const f = mounted && d.furniture.find((i) => i.id === mounted.id);
+      if (f && mounted) f.rotation = mounted.rotation;
     });
   }, (moved) => {
     // a plain click on a member of a multi-selection narrows the selection to that item

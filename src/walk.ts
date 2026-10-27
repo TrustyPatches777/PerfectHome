@@ -8,8 +8,10 @@ import { exemptFromWalls, footprint, pushOut } from './fit';
 import { pointInPolygon, wallLength, wallRangePieces, wallSolidSegments } from './geometry';
 import type { Design, Point, Stair } from './model';
 import { atticClearance } from './roofs';
-import { densify, guardEdges, railPaths, stairOutline, stairSteps, stairTopAt } from './stairs';
+import { flatProfile, guardRuns, railPaths, railProfile, stairOutline, stairSteps, stairTopAt } from './stairs';
 import { POOL_DEPTH } from './view3d/furniture3d';
+import { gateGeometry, gateSpans, solidSpans } from './outdoor';
+import { isWindowKind } from './windows';
 
 /** How close to a wall you can get (the radius of the walker, in meters). */
 export const WALKER_RADIUS = 0.28;
@@ -17,16 +19,26 @@ export const WALKER_RADIUS = 0.28;
 export const STEP_UP = 0.55;
 export const HEAD_ROOM = 1.5;
 
+/** How close you can get to a railing (people brush past rails, unlike walls). */
+export const RAIL_REACH = 0.17;
+
 interface Obstacle {
   poly: Point[];
+  /** The radius of the walker against this obstacle, and the range of feet heights it applies to (railings are only in the way at their own height). */
+  r: number;
+  lo: number;
+  hi: number;
   minX: number;
   maxX: number;
   minY: number;
   maxY: number;
 }
 
-const obstacle = (poly: Point[]): Obstacle => ({
+const obstacle = (poly: Point[], r = WALKER_RADIUS, lo = -Infinity, hi = Infinity): Obstacle => ({
   poly,
+  r,
+  lo,
+  hi,
   minX: Math.min(...poly.map((p) => p.x)),
   maxX: Math.max(...poly.map((p) => p.x)),
   minY: Math.min(...poly.map((p) => p.y)),
@@ -94,7 +106,7 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
     // openings: windows always stop you, doors do while they are shut, open passages never
     const L = wallLength(w);
     for (const o of ops) {
-      const shut = o.kind === 'window' || o.kind === 'bay' || (o.kind !== 'gap' && !openDoors.has(o.id));
+      const shut = isWindowKind(o.kind) || (o.kind !== 'gap' && !openDoors.has(o.id));
       if (!shut) continue;
       const s0 = Math.max(0, o.pos - o.width / 2);
       const s1 = Math.min(L, o.pos + o.width / 2);
@@ -115,22 +127,32 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
   for (const st of d.strips) {
     const f = byFloor(st.floor);
     if (!f || (st.kind !== 'fence' && st.kind !== 'hedge')) continue;
-    for (let i = 0; i + 1 < st.points.length; i++) add(f.index, bar(st.points[i], st.points[i + 1], Math.max(st.width, 0.08)));
+    for (const run of solidSpans(st)) for (let i = 0; i + 1 < run.length; i++) add(f.index, bar(run[i], run[i + 1], Math.max(st.width, 0.08)));
+    // a gate that is shut is a fence; one that is open is a way through
+    for (const { gate } of gateSpans(st)) {
+      if (openDoors.has(gate.id)) continue;
+      const g = gateGeometry(st, gate);
+      add(f.index, bar(g.a, g.b, Math.max(st.width, 0.08)));
+    }
   }
-  // railings along the flights (they belong to the floor the stair starts on and to the one above) and the guard rails round the stairwell
+  // railings along the flights and the guard rails round the stairwells: only in the way at the height they are at
+  const rails: Obstacle[] = [];
+  const REACH_Y = 0.45;
+  const addRail = (nodes: { x: number; y: number; h: number }[], st: Stair, e: number) => {
+    for (let i = 0; i + 1 < nodes.length; i++) {
+      const A = stairToPlan(st, nodes[i]);
+      const B = stairToPlan(st, nodes[i + 1]);
+      if (Math.hypot(A.x - B.x, A.y - B.y) < 0.005) continue;
+      rails.push(obstacle(bar(A, B, 0.05), RAIL_REACH, e + Math.min(nodes[i].h, nodes[i + 1].h) - REACH_Y, e + Math.max(nodes[i].h, nodes[i + 1].h) + REACH_Y));
+    }
+  };
   for (const st of d.stairs) {
     const f = byFloor(st.floor);
     if (!f || !st.railing || st.railing.style === 'none') continue;
+    const steps = stairSteps(st);
     const paths = railPaths(st);
-    for (const [on, path] of [[st.railing.a, paths.a], [st.railing.b, paths.b]] as const) {
-      if (!on || path.length < 2) continue;
-      const dense = densify(path, 0.4).map((p) => stairToPlan(st, p));
-      for (let i = 0; i + 1 < dense.length; i++) {
-        add(f.index, bar(dense[i], dense[i + 1], 0.08));
-        add(f.index + 1, bar(dense[i], dense[i + 1], 0.08));
-      }
-    }
-    if (f.index + 1 < floors.length) for (const [p, q] of guardEdges(st)) add(f.index + 1, bar(stairToPlan(st, p), stairToPlan(st, q), 0.08));
+    for (const [on, path] of [[st.railing.a, paths.a], [st.railing.b, paths.b]] as const) if (on && path.length >= 2) addRail(railProfile(st, path, steps), st, f.elev);
+    if (st.railing.guard !== false && f.index + 1 < floors.length) for (const run of guardRuns(st)) addRail(flatProfile(run, st.rise), st, f.elev);
   }
 
   // ---- surfaces
@@ -184,8 +206,15 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
     return room !== null && room < HEAD_ROOM;
   };
 
+  /** What is in the way for a walker whose feet are at height `y`. */
+  const inTheWay = (y: number): Obstacle[] => {
+    const here = solids[floorIndexAt(y)] ?? [];
+    const rail = rails.filter((r) => y >= r.lo && y <= r.hi);
+    return rail.length ? [...here, ...rail] : here;
+  };
+
   const move = (x: number, z: number, y: number, dx: number, dz: number) => {
-    const list = solids[floorIndexAt(y)] ?? [];
+    const list = inTheWay(y);
     const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.05));
     let cx = x;
     let cz = z;
@@ -193,11 +222,10 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
       let nx = cx + dx / steps;
       let nz = cz + dz / steps;
       for (let pass = 0; pass < 3; pass++) {
-        const poly = circle({ x: nx, y: nz }, WALKER_RADIUS);
         let moved = false;
         for (const o of list) {
-          if (o.maxX < nx - WALKER_RADIUS || o.minX > nx + WALKER_RADIUS || o.maxY < nz - WALKER_RADIUS || o.minY > nz + WALKER_RADIUS) continue;
-          const push = pushOut(poly, o.poly);
+          if (o.maxX < nx - o.r || o.minX > nx + o.r || o.maxY < nz - o.r || o.minY > nz + o.r) continue;
+          const push = pushOut(circle({ x: nx, y: nz }, o.r), o.poly);
           if (push) {
             nx += push.x;
             nz += push.y;
@@ -215,11 +243,9 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
   };
 
   const freeSpot = (x: number, z: number, y: number) => {
-    const list = solids[floorIndexAt(y)] ?? [];
-    const free = (px: number, pz: number) => {
-      const poly = circle({ x: px, y: pz }, WALKER_RADIUS);
-      return !blockedAt(px, pz, y) && !list.some((o) => !(o.maxX < px - WALKER_RADIUS || o.minX > px + WALKER_RADIUS || o.maxY < pz - WALKER_RADIUS || o.minY > pz + WALKER_RADIUS) && pushOut(poly, o.poly));
-    };
+    const list = inTheWay(y);
+    const free = (px: number, pz: number) =>
+      !blockedAt(px, pz, y) && !list.some((o) => !(o.maxX < px - o.r || o.minX > px + o.r || o.maxY < pz - o.r || o.minY > pz + o.r) && pushOut(circle({ x: px, y: pz }, o.r), o.poly));
     if (free(x, z)) return { x, z };
     // look outwards in rings for the nearest free place that is still on a floor
     for (let r = 0.25; r <= 5; r += 0.25) {

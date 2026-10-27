@@ -108,7 +108,7 @@ export function SunPanel() {
             <NumberField label="Latitude" value={site.lat} unit="°N" min={-66} max={66} testId="sun-lat" onCommit={(v) => edit((s) => void (s.lat = v))} />
             <NumberField label="North is at" value={site.north} unit="°" min={0} max={359} testId="sun-north" onCommit={(v) => edit((s) => void (s.north = v))} />
           </div>
-          <p className="muted">Latitude: Berlin 52.5, London 51.5, Rome 42, Madrid 40. “North is at” turns the compass (0 = up the screen); you can also drag the compass on the plan. Lamps glow in the evening.</p>
+          <p className="muted">Latitude: Berlin 52.5, London 51.5, Rome 42, Madrid 40. “North is at” turns the compass (0 = up the screen). Lamps glow in the evening.</p>
         </>
       )}
     </div>

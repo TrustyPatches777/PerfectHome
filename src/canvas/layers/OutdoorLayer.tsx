@@ -1,8 +1,9 @@
-import { Group, Line, Rect, Text } from 'react-konva';
-import type { Strip, Zone } from '../../model';
+import { Fragment } from 'react';
+import { Ellipse, Group, Line, Rect, Text } from 'react-konva';
+import type { Gate, Strip, Zone } from '../../model';
 import { shade } from '../../catalog';
 import { formatArea, labelPoint, polygonArea } from '../../geometry';
-import { STRIP_STYLES, samplePolyline } from '../../outdoor';
+import { STRIP_STYLES, gateGeometry, gateSpans, pathMarks, samplePolyline, solidSpans, stripColor } from '../../outdoor';
 import { useOnFloor } from '../../store/floor';
 import { useDesign } from '../../store/design';
 import { useSelectedIds, useUi } from '../../store/ui';
@@ -57,12 +58,51 @@ function ZoneShape({ zone, selected, zoom }: { zone: Zone; selected: boolean; zo
   );
 }
 
+/** A gate in a fence or hedge on the plan: its two posts, the leaf (shut) and where it swings or slides when open. */
+export function GateShape({ strip, gate, color, ghost, selected, onDown }: { strip: Pick<Strip, 'points' | 'width' | 'kind'>; gate: Gate; color: string; ghost?: boolean; selected?: boolean; onDown?: (e: { evt: MouseEvent; cancelBubble: boolean }) => void }) {
+  const g = gateGeometry(strip, gate);
+  const post = Math.max(strip.width * 1.6, 0.16);
+  const ink = selected ? SELECT_COLOR : '#1f2937';
+  const hairline = { strokeScaleEnabled: false, listening: false } as const;
+  return (
+    <Group opacity={ghost ? 0.75 : 1}>
+      {[g.a, g.b].map((p, i) => (
+        <Rect key={i} x={p.x - post / 2} y={p.y - post / 2} width={post} height={post} fill={shade(color, -0.35)} listening={false} />
+      ))}
+      {g.leaves.map((l, i) => {
+        const open: number[] = [];
+        if (gate.kind !== 'sliding') {
+          // the quarter circle the leaf sweeps
+          const a0 = Math.atan2(l.shut.y - l.hinge.y, l.shut.x - l.hinge.x);
+          let sweep = Math.atan2(l.open.y - l.hinge.y, l.open.x - l.hinge.x) - a0;
+          while (sweep > Math.PI) sweep -= 2 * Math.PI;
+          while (sweep <= -Math.PI) sweep += 2 * Math.PI;
+          const r = Math.hypot(l.shut.x - l.hinge.x, l.shut.y - l.hinge.y);
+          for (let k = 0; k <= 12; k++) open.push(l.hinge.x + Math.cos(a0 + (sweep * k) / 12) * r, l.hinge.y + Math.sin(a0 + (sweep * k) / 12) * r);
+        } else open.push(l.shut.x, l.shut.y, l.open.x, l.open.y);
+        return (
+          <Group key={i}>
+            <Line points={open} stroke={ink} strokeWidth={1} dash={[4, 3]} {...hairline} />
+            <Line points={[l.hinge.x, l.hinge.y, l.shut.x, l.shut.y]} stroke={ink} strokeWidth={Math.max(strip.width * 0.6, 0.05)} lineCap="butt" listening={false} />
+          </Group>
+        );
+      })}
+      {onDown && <Line points={[g.a.x, g.a.y, g.b.x, g.b.y]} stroke="rgba(0,0,0,0.001)" strokeWidth={Math.max(strip.width + 0.5, 0.7)} onMouseDown={onDown} />}
+    </Group>
+  );
+}
+
 function StripShape({ strip, selected, zoom }: { strip: Strip; selected: boolean; zoom: number }) {
   const style = STRIP_STYLES[strip.kind];
+  const color = stripColor(strip);
   const pts = strip.points.flatMap((p) => [p.x, p.y]);
   const px = 1 / zoom;
   const onDown = (e: Parameters<typeof pressArea>[0]) => pressArea(e, 'strip', strip.id);
   const grab = Math.max(strip.width, 12 * px); // an easy-to-hit invisible band
+  const spans = strip.kind === 'fence' || strip.kind === 'hedge' ? solidSpans(strip) : [];
+  const marks = strip.kind === 'path' ? pathMarks(strip) : [];
+  const stepping = strip.kind === 'path' && strip.surface === 'stepping';
+  const joint = shade(color, -0.25);
   return (
     <>
       {selected && <Line points={pts} stroke={SELECT_COLOR} strokeWidth={strip.width + 7 * px} opacity={0.4} lineCap="round" lineJoin="round" listening={false} />}
@@ -72,21 +112,34 @@ function StripShape({ strip, selected, zoom }: { strip: Strip; selected: boolean
           <Line points={pts} stroke="#ffffff" strokeWidth={Math.min(0.15, strip.width * 0.03)} dash={[0.9, 0.7]} listening={false} />
         </>
       )}
-      {strip.kind === 'path' && <Line points={pts} stroke={style.color} strokeWidth={strip.width} lineJoin="round" listening={false} />}
-      {strip.kind === 'hedge' && (
-        <>
-          <Line points={pts} stroke={shade(style.color, -0.3)} strokeWidth={strip.width + 3 * px} lineCap="round" lineJoin="round" listening={false} />
-          <Line points={pts} stroke={style.color} strokeWidth={strip.width} lineCap="round" lineJoin="round" listening={false} />
-        </>
+      {strip.kind === 'path' && !stepping && <Line points={pts} stroke={color} strokeWidth={strip.width} lineJoin="round" listening={false} />}
+      {marks.map((m, i) =>
+        m.t === 'line' ? (
+          <Line key={i} points={m.pts.flatMap((p) => [p.x, p.y])} stroke={joint} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+        ) : (
+          <Ellipse key={i} x={m.x} y={m.y} radiusX={m.rx} radiusY={m.ry} rotation={m.rot} fill={stepping ? color : joint} stroke={stepping ? shade(color, -0.3) : undefined} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+        ),
       )}
-      {strip.kind === 'fence' && (
-        <>
-          <Line points={pts} stroke={style.color} strokeWidth={Math.max(strip.width * 0.5, 1.5 * px)} listening={false} />
-          {samplePolyline(strip.points, 1.5).map((p, i) => (
-            <Rect key={i} x={p.x - strip.width} y={p.y - strip.width} width={strip.width * 2} height={strip.width * 2} fill={shade(style.color, -0.25)} listening={false} />
-          ))}
-        </>
-      )}
+      {strip.kind === 'hedge' &&
+        spans.map((run, i) => {
+          const rp = run.flatMap((p) => [p.x, p.y]);
+          return (
+            <Fragment key={i}>
+              <Line points={rp} stroke={shade(style.color, -0.3)} strokeWidth={strip.width + 3 * px} lineCap="round" lineJoin="round" listening={false} />
+              <Line points={rp} stroke={style.color} strokeWidth={strip.width} lineCap="round" lineJoin="round" listening={false} />
+            </Fragment>
+          );
+        })}
+      {strip.kind === 'fence' &&
+        spans.map((run, i) => (
+          <Fragment key={i}>
+            <Line points={run.flatMap((p) => [p.x, p.y])} stroke={style.color} strokeWidth={Math.max(strip.width * 0.5, 1.5 * px)} listening={false} />
+            {samplePolyline(run, 1.5).map((p, k) => (
+              <Rect key={k} x={p.x - strip.width} y={p.y - strip.width} width={strip.width * 2} height={strip.width * 2} fill={shade(style.color, -0.25)} listening={false} />
+            ))}
+          </Fragment>
+        ))}
+      {spans.length > 0 && gateSpans(strip).map(({ gate }) => <GateShape key={gate.id} strip={strip} gate={gate} color={style.color} selected={selected} onDown={onDown} />)}
       <Line points={pts} stroke="rgba(0,0,0,0.001)" strokeWidth={grab} lineCap="round" lineJoin="round" onMouseDown={onDown} />
     </>
   );

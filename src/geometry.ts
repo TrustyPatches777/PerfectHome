@@ -574,3 +574,78 @@ export function clipPolygon(subject: Point[], clip: Point[]): Point[] {
   }
   return out.length >= 3 ? out : [];
 }
+
+// ---- wall corners ---------------------------------------------------------------------------------------------------------
+
+/**
+ * A place where this wall meets exactly one other wall end to end at an angle. Walls are drawn half a thickness longer than their
+ * centerlines, which closes a square corner but pokes out (a sharper turn leaves a notch, a gentler one an ear) at any other angle.
+ * So such corners are mitred instead: each face of the wall runs to the point where it meets the same face of the other wall.
+ * `side` is the outer face, `s` where the outer faces meet and `si` where the inner faces meet, both measured along this wall.
+ */
+export interface WallCorner {
+  side: 'l' | 'r';
+  s: number;
+  si: number;
+}
+export interface WallCorners {
+  a?: WallCorner;
+  b?: WallCorner;
+}
+
+/** The corners at the two ends of `w`, given the other walls of the same floor. Curved walls and T-junctions have none. */
+export function wallCorners(w: Wall, walls: readonly Wall[]): WallCorners {
+  if (wallArc(w)) return {};
+  const out: WallCorners = {};
+  const near = (p: Point, q: Point) => Math.abs(p.x - q.x) < 0.02 && Math.abs(p.y - q.y) < 0.02;
+  for (const end of ['a', 'b'] as const) {
+    const P = end === 'a' ? w.a : w.b;
+    const others = walls.filter((o) => o.id !== w.id && (near(o.a, P) || near(o.b, P)));
+    if (others.length !== 1 || wallArc(others[0])) continue;
+    const o = others[0];
+    const f = wallFrame(w);
+    const g = wallFrame(o);
+    const dA = end === 'a' ? f.u : { x: -f.u.x, y: -f.u.y };
+    const dB = near(o.a, P) ? g.u : { x: -g.u.x, y: -g.u.y };
+    const cross = dA.x * dB.y - dA.y * dB.x;
+    if (Math.abs(cross) < 0.05) continue; // straight on (or folded back): nothing to mitre
+    const bis = { x: dA.x + dB.x, y: dA.y + dB.y };
+    const outward = (n: Point) => (n.x * bis.x + n.y * bis.y < 0 ? 1 : -1); // +1 = the face on the normal's side is the outer one
+    const sA = outward(f.n);
+    const sB = outward(g.n);
+    const hA = w.thickness / 2;
+    const hB = o.thickness / 2;
+    const nA = { x: f.n.x * sA, y: f.n.y * sA };
+    const nB = { x: g.n.x * sB, y: g.n.y * sB };
+    // where P + nA*hA + t*dA meets P + nB*hB + t2*dB (the outer faces)
+    const rx = nB.x * hB - nA.x * hA;
+    const ry = nB.y * hB - nA.y * hA;
+    const t = (rx * -dB.y + dB.x * ry) / -cross;
+    if (!Number.isFinite(t) || Math.abs(t) > 10 * Math.max(hA, hB)) continue;
+    // the inner faces meet at the mirror image of that point along the wall
+    const L = wallLength(w);
+    out[end] = end === 'a' ? { side: sA === 1 ? 'r' : 'l', s: t, si: -t } : { side: sA === 1 ? 'r' : 'l', s: L - t, si: L + t };
+  }
+  return out;
+}
+
+/** Where a face of a wall (`l` or `r`) runs from and to when the solid part runs from s0 to s1, with mitred ends at corners. */
+export function faceSpan(w: Wall, side: 'l' | 'r', s0: number, s1: number, corners: WallCorners = {}): [number, number] {
+  let t0 = s0;
+  let t1 = s1;
+  if (s0 < 0 && corners.a) t0 = corners.a.side === side ? corners.a.s : corners.a.si;
+  if (s1 > wallLength(w) && corners.b) t1 = corners.b.side === side ? corners.b.s : corners.b.si;
+  return [t0, t1];
+}
+
+/** The outline of the part of a straight wall between s0 and s1, with mitred ends where it turns a corner. */
+export function wallSegmentOutline(w: Wall, s0: number, s1: number, corners: WallCorners = {}): Point[] {
+  const h = w.thickness / 2;
+  const [r0, r1] = faceSpan(w, 'r', s0, s1, corners);
+  const [l0, l1] = faceSpan(w, 'l', s0, s1, corners);
+  const at = (s: number, off: number) => {
+    const wp = wallPointAt(w, s);
+    return { x: wp.p.x + wp.n.x * off, y: wp.p.y + wp.n.y * off };
+  };
+  return [at(r0, h), at(r1, h), at(l1, -h), at(l0, -h)];
+}

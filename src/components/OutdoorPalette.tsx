@@ -48,6 +48,18 @@ export function OutdoorPalette() {
           </button>
         ))}
       </div>
+      <button className={`tile gate-tile ${tool === 'gate' ? 'active' : ''}`} onClick={() => useUi.getState().setTool('gate')} data-testid="tool-gate" title="Put a gate in a fence or hedge">
+        <span className="tile-icon">
+          <svg width="44" height="30" viewBox="0 0 44 30" aria-hidden>
+            <path d="M2 24 H12 M32 24 H42" stroke={STRIP_STYLES.fence.color} strokeWidth="2.5" />
+            <rect x="10" y="12" width="4" height="14" fill="#5b4a38" />
+            <rect x="30" y="12" width="4" height="14" fill="#5b4a38" />
+            <path d="M14 24 L30 12" stroke="#475569" strokeWidth="1.5" strokeDasharray="3 2" fill="none" />
+            <path d="M14 24 H30" stroke="#1f2937" strokeWidth="2" />
+          </svg>
+        </span>
+        <span className="tile-label">Fence gate</span>
+      </button>
       <p className="muted">Draw on the floor you are viewing, usually the ground floor. Cars, trees and garden furniture are in the Furniture tab.</p>
     </div>
   );

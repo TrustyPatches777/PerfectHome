@@ -70,7 +70,7 @@ test('stairs move, resize with the handles, and copy; the floor above shows the 
   await page.getByTestId('add-floor').click();
   expect((await design(page)).stairs).toHaveLength(1); // stairs belong to the lower floor
   await page.screenshot({ path: 'e2e/.results/m13-stairwell.png' });
-  // not selectable from upstairs (only the faint outline is there)
+  // the stairwell upstairs can be clicked: it selects the stair of the floor below (to edit it and its railings)
   await clickAt(page, 6, 5);
-  expect((await ui(page)).selection).toBeNull();
+  expect((await ui(page)).selection).toMatchObject({ kind: 'stair' });
 });

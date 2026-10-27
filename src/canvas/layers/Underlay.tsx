@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import { Group, Line } from 'react-konva';
-import { STRIP_STYLES } from '../../outdoor';
+import { stripColor } from '../../outdoor';
 import { useDesign } from '../../store/design';
 import { floorBelow, useFloorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
+import { wallCorners } from '../../geometry';
 import { WallShape } from './StructureLayer';
 
 /** The floor below, drawn faintly and non-interactive, so walls and stairs can be lined up. */
@@ -26,13 +27,13 @@ export function Underlay() {
         <Line key={z.id} points={z.points.flatMap((p) => [p.x, p.y])} closed fill={z.color} />
       ))}
       {design.strips.filter((s) => s.floor === below && (s.kind === 'road' || s.kind === 'path')).map((s) => (
-        <Line key={s.id} points={s.points.flatMap((p) => [p.x, p.y])} stroke={STRIP_STYLES[s.kind].color} strokeWidth={s.width} lineJoin="round" />
+        <Line key={s.id} points={s.points.flatMap((p) => [p.x, p.y])} stroke={stripColor(s)} strokeWidth={s.width} lineJoin="round" />
       ))}
       {design.rooms.filter((r) => r.floor === below).map((r) => (
         <Line key={r.id} points={r.points.flatMap((p) => [p.x, p.y])} closed fill={r.color} />
       ))}
       {walls.map((w) => (
-        <WallShape key={w.id} wall={w} openings={openings.filter((o) => o.wallId === w.id)} selected={false} />
+        <WallShape key={w.id} wall={w} openings={openings.filter((o) => o.wallId === w.id)} selected={false} corners={wallCorners(w, walls)} />
       ))}
     </Group>
   );

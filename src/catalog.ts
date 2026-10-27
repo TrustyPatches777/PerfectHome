@@ -388,7 +388,7 @@ export const CATALOG: CatalogItem[] = [
   },
   {
     type: 'hot-tub', label: 'Hot tub', category: 'Outdoor', w: 2.0, d: 2.0, color: '#bfe0f5',
-    shapes: [R(0, 0, 1, 1, 'white', 0.1), E(0.08, 0.08, 0.84, 0.84, 'body'), E(0.2, 0.2, 0.6, 0.6, 'light')],
+    shapes: [R(0.3, 0.86, 0.4, 0.14, 'dark', 0.1), E(0.07, 0.01, 0.86, 0.86, 'body'), E(0.15, 0.09, 0.7, 0.7, 'light'), E(0.22, 0.16, 0.56, 0.56, 'white')],
   },
   {
     type: 'fire-pit', label: 'Fire pit', category: 'Outdoor', w: 1.0, d: 1.0, color: '#f59e0b',

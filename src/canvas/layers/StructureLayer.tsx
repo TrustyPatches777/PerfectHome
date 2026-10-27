@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
+import { isWindowKind, windowMarks } from '../../windows';
 import { Group, Line, Rect, Shape } from 'react-konva';
 import { isSingleDoor, type Opening, type Wall } from '../../model';
-import { doorGeometry, wallArc, wallPointAt, wallSolidSegments } from '../../geometry';
+import { doorGeometry, faceSpan, wallArc, wallCorners, wallLength, wallPointAt, wallSolidSegments, type WallCorners } from '../../geometry';
 import { patternFillProps, patternFor } from '../../patterns';
 import { WALL_STYLE, wallFaceLine } from '../../walls';
 import { useDesign } from '../../store/design';
@@ -10,34 +11,47 @@ import { useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
 import { pressItem } from '../press';
 import { SELECT_COLOR } from '../style';
-import { railPaths, stairShapes } from '../../stairs';
-
-const RAIL_PLAN = { none: '#000', wood: '#a5835a', metal: '#4b5563', glass: '#38bdf8', cable: '#9ca3af' } as const;
+import { guardRuns, railPaths, railPlanColor, stairPlanFill, stairShapes } from '../../stairs';
 import { StairShapes } from './StairShapes';
 import { useFloorId } from '../../store/floor';
 import { useIsMulti } from '../../store/ui';
 
 /** A wall, with a thin colored stripe along each painted face. */
-export function WallShape(props: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean }) {
-  const { wall, openings, ghost } = props;
+export function WallShape(props: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean; corners?: WallCorners }) {
+  const { wall, openings, ghost, corners = {} } = props;
   const paint = wall.paint;
   if (!paint) return <WallBody {...props} />;
   const stripe = Math.min(0.05, wall.thickness * 0.22);
   return (
     <Group>
       <WallBody {...props} />
-      <Group opacity={ghost ? 0.5 : 1} listening={false}>
-        {(['l', 'r'] as const).flatMap((side) => {
-          const skin = paint[side];
-          return skin ? wallSolidSegments(wall, openings).map(([s0, s1], i) => <Line key={`${side}${i}`} points={wallFaceLine(wall, s0, s1, side, stripe / 2).flatMap((p) => [p.x, p.y])} stroke={skin.color} strokeWidth={stripe} lineCap="butt" listening={false} />) : [];
-        })}
-      </Group>
+      {paint && (
+        <Group opacity={ghost ? 0.5 : 1} listening={false}>
+          {(['l', 'r'] as const).flatMap((side) => {
+            const skin = paint[side];
+            return skin
+              ? wallSolidSegments(wall, openings).map(([s0, s1], i) => {
+                  const [t0, t1] = faceSpan(wall, side, s0, s1, corners);
+                  return <Line key={`${side}${i}`} points={wallFaceLine(wall, t0, t1, side, stripe / 2).flatMap((p) => [p.x, p.y])} stroke={skin.color} strokeWidth={stripe} lineCap="butt" listening={false} />;
+                })
+              : [];
+          })}
+        </Group>
+      )}
     </Group>
   );
 }
 
+/** The outline of a mitred wall segment in the wall's own frame. */
+function mitred(w: Wall, s0: number, s1: number, corners: WallCorners): number[] {
+  const h = w.thickness / 2;
+  const [r0, r1] = faceSpan(w, 'r', s0, s1, corners);
+  const [l0, l1] = faceSpan(w, 'l', s0, s1, corners);
+  return [r0, h, r1, h, l1, -h, l0, -h];
+}
+
 /** A wall: straight (a row of rectangles with gaps for doors) or curved (arc bands). */
-function WallBody({ wall, openings, selected, ghost }: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean }) {
+function WallBody({ wall, openings, selected, ghost, corners = {} }: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean; corners?: WallCorners }) {
   const style = WALL_STYLE[wall.type] ?? WALL_STYLE.interior;
   const segs = wallSolidSegments(wall, openings);
   const arc = wallArc(wall);
@@ -59,9 +73,14 @@ function WallBody({ wall, openings, selected, ghost }: { wall: Wall; openings: O
     const wp = wallPointAt(wall, 0);
     return (
       <Group x={wp.p.x} y={wp.p.y} rotation={wp.angle} opacity={ghost ? 0.5 : 1} onMouseDown={onMouseDown}>
-        {segs.map(([s0, s1], i) => (
-          <Rect key={i} x={s0} y={-t / 2} width={s1 - s0} height={t} {...paint} {...stroke} />
-        ))}
+        {segs.map(([s0, s1], i) =>
+          // a segment that ends in a mitred corner is a slanted quadrilateral (in the wall's own frame: x along it, y across)
+          (s0 < 0 && corners.a) || (s1 > wallLength(wall) && corners.b) ? (
+            <Line key={i} closed points={mitred(wall, s0, s1, corners)} {...paint} {...stroke} />
+          ) : (
+            <Rect key={i} x={s0} y={-t / 2} width={s1 - s0} height={t} {...paint} {...stroke} />
+          ),
+        )}
       </Group>
     );
   }
@@ -146,12 +165,17 @@ export function OpeningShape({ wall, opening, selected, ghost }: { wall: Wall; o
           pressItem(e.evt, { kind: 'opening', id: opening.id }, 'move');
         }}
       >
-        {kind === 'window' && (
-          <>
-            <Rect x={x0} y={-t / 2} width={w} height={t} fill={GLASS} stroke={stroke} strokeWidth={selected ? 2 : 1.25} strokeScaleEnabled={false} />
-            <Line points={[x0, 0, x1, 0]} stroke={stroke} strokeWidth={1} {...thin} />
-          </>
-        )}
+        {isWindowKind(kind) && kind !== 'bay' && (() => {
+          const m = windowMarks(kind, w, t);
+          return (
+            <>
+              <Rect x={x0} y={-t / 2} width={w} height={t} fill={m.fill} stroke={stroke} strokeWidth={selected ? 2 : 1.25} strokeScaleEnabled={false} dash={m.dash ? [6, 4] : undefined} />
+              {m.lines.map((l, i) => (
+                <Line key={i} points={l} stroke={stroke} strokeWidth={1} {...thin} />
+              ))}
+            </>
+          );
+        })()}
         {kind === 'bay' && (
           <>
             <Rect x={x0} y={-t / 2} width={w} height={t} fill={GLASS} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} />
@@ -225,21 +249,36 @@ export function StructureLayer() {
   return (
     <Group listening={tool === 'select' && !layer.locked}>
       {walls.map((w) => (
-        <WallShape key={w.id} wall={w} openings={byWall.get(w.id) ?? []} selected={wallIds.has(w.id)} />
+        <WallShape key={w.id} wall={w} openings={byWall.get(w.id) ?? []} selected={wallIds.has(w.id)} corners={wallCorners(w, walls)} />
       ))}
       {openings.map((o) => {
         const wall = walls.find((w) => w.id === o.wallId);
         return wall && <OpeningShape key={o.id} wall={wall} opening={o} selected={openingIds.has(o.id)} />;
       })}
-      {/* the stairs coming up from the floor below show as a dashed outline (the stairwell) */}
+      {/* the stairs coming up from the floor below: the stairwell, with its guard rail; click it to edit the stair */}
       {(() => {
         const at = floors.findIndex((f) => f.id === floor);
         const below = at > 0 ? floors[at - 1].id : null;
         return allStairs
           .filter((s) => s.floor === below)
           .map((s) => (
-            <Group key={`well-${s.id}`} x={s.x} y={s.y} offsetX={s.w / 2} offsetY={s.d / 2} rotation={s.rotation} listening={false}>
+            <Group
+              key={`well-${s.id}`}
+              id={s.id}
+              x={s.x}
+              y={s.y}
+              offsetX={s.w / 2}
+              offsetY={s.d / 2}
+              rotation={s.rotation}
+              onMouseDown={(e) => {
+                if (e.evt.button !== 0 || input.space) return;
+                e.cancelBubble = true;
+                pressItem(e.evt, { kind: 'stair', id: s.id }, 'move');
+              }}
+            >
+              <Rect width={s.w} height={s.d} fill="rgba(0,0,0,0.001)" />
               <StairShapes shapes={stairShapes(s)} ghost />
+              {s.railing && s.railing.guard !== false && guardRuns(s).map((run, i) => <Line key={i} points={run.flatMap((p) => [p.x, p.y])} stroke={railPlanColor(s.railing!)} strokeWidth={0.06} lineCap="round" lineJoin="round" listening={false} />)}
             </Group>
           ));
       })()}
@@ -259,8 +298,8 @@ export function StructureLayer() {
           }}
         >
           <Rect width={s.w} height={s.d} fill="rgba(0,0,0,0.001)" />
-          <StairShapes shapes={stairShapes(s)} />
-          {s.railing && (['a', 'b'] as const).filter((k) => s.railing![k]).map((k) => <Line key={k} points={railPaths(s)[k].flatMap((p) => [p.x, p.y])} stroke={RAIL_PLAN[s.railing!.style]} strokeWidth={0.05} lineCap="round" lineJoin="round" listening={false} />)}
+          <StairShapes shapes={stairShapes(s)} fill={stairPlanFill(s)} />
+          {s.railing && (['a', 'b'] as const).filter((k) => s.railing![k]).map((k) => <Line key={k} points={railPaths(s)[k].flatMap((p) => [p.x, p.y])} stroke={railPlanColor(s.railing!)} strokeWidth={0.05} lineCap="round" lineJoin="round" listening={false} />)}
           {multi && stairIds.has(s.id) && <Rect width={s.w} height={s.d} stroke={SELECT_COLOR} strokeWidth={2.5} strokeScaleEnabled={false} listening={false} />}
         </Group>
       ))}

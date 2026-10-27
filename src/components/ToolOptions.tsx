@@ -9,10 +9,14 @@ import { ROOF_STYLES } from '../roofs';
 import { WALL_FINISHES, type WallFinish } from '../model';
 import { FINISH_STYLES, PAINT_COLORS } from '../walls';
 import { SKYLIGHT_SIZES, addRoofFromWalls } from '../roofActions';
-import { STRIP_STYLES, ZONE_STYLES } from '../outdoor';
+import { PATH_SURFACES, STRIP_STYLES, ZONE_STYLES } from '../outdoor';
+import { GATE_KINDS, PATH_SURFACE_KINDS, type PathSurface } from '../model';
+
+const GATE_LABEL = { single: 'Single', double: 'Double', sliding: 'Sliding' } as const;
+import { WINDOW_KINDS, WINDOW_SPEC, type WindowKind } from '../windows';
 import { NumberField } from './fields';
 
-const DOOR_KINDS: { kind: Exclude<OpeningKind, 'window' | 'bay'>; label: string }[] = [
+const DOOR_KINDS: { kind: Exclude<OpeningKind, WindowKind>; label: string }[] = [
   { kind: 'door', label: 'Interior' },
   { kind: 'main', label: 'Main door' },
   { kind: 'garden', label: 'Garden door' },
@@ -31,6 +35,9 @@ export function ToolOptions() {
   const placing = useUi((s) => s.placing);
   const doorKind = useUi((s) => s.doorKind);
   const windowKind = useUi((s) => s.windowKind);
+  const gateKind = useUi((s) => s.gateKind);
+  const gateWidth = useUi((s) => s.gateWidth);
+  const pathSurface = useUi((s) => s.pathSurface);
   const wallType = useUi((s) => s.wallType);
   const wallMode = useUi((s) => s.wallMode);
   const wallRoom = useUi((s) => s.wallRoom);
@@ -106,12 +113,11 @@ export function ToolOptions() {
         )}
         {tool === 'window' && (
           <div className="segmented" role="group" aria-label="Window type">
-            <button className={windowKind === 'window' ? 'active' : ''} onClick={() => useUi.getState().setWindowKind('window')} data-testid="window-kind-window">
-              Window
-            </button>
-            <button className={windowKind === 'bay' ? 'active' : ''} onClick={() => useUi.getState().setWindowKind('bay')} data-testid="window-kind-bay">
-              Bay window
-            </button>
+            {WINDOW_KINDS.map((k) => (
+              <button key={k} className={windowKind === k ? 'active' : ''} title={WINDOW_SPEC[k].hint} onClick={() => useUi.getState().setWindowKind(k)} data-testid={`window-kind-${k}`}>
+                {WINDOW_SPEC[k].short}
+              </button>
+            ))}
           </div>
         )}
         <NumberField
@@ -212,10 +218,32 @@ export function ToolOptions() {
         </div>
       </>
     );
+  } else if (tool === 'gate') {
+    body = (
+      <>
+        <div className="segmented" role="group" aria-label="Gate type">
+          {GATE_KINDS.map((k) => (
+            <button key={k} className={gateKind === k ? 'active' : ''} onClick={() => useUi.getState().setGateKind(k)} data-testid={`gate-kind-${k}`}>
+              {GATE_LABEL[k]}
+            </button>
+          ))}
+        </div>
+        <NumberField label="Width" value={gateWidth} scale={100} unit="cm" min={50} max={800} testId="opt-gate-width" onCommit={(v) => useUi.getState().setGateWidth(v)} />
+      </>
+    );
   } else if (tool === 'strip') {
     body = (
       <>
         <strong>{STRIP_STYLES[stripKind].label}</strong>
+        {stripKind === 'path' && (
+          <select value={pathSurface} aria-label="What the path is made of" data-testid="opt-path-surface" onChange={(e) => useUi.getState().setPathSurface(e.target.value as PathSurface)}>
+            {PATH_SURFACE_KINDS.map((k) => (
+              <option key={k} value={k}>
+                {PATH_SURFACES[k].label}
+              </option>
+            ))}
+          </select>
+        )}
         <NumberField
           label="Width"
           value={stripWidth[stripKind]}

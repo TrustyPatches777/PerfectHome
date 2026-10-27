@@ -14,7 +14,7 @@ import { HelpDialog } from './components/HelpDialog';
 import { Dialogs } from './components/Dialogs';
 import { useShortcuts } from './hooks/useShortcuts';
 import { bootstrap } from './session';
-import { Splitter } from './components/Splitter';
+import { HSplitter, Splitter } from './components/Splitter';
 import { useUi } from './store/ui';
 
 // three.js is only downloaded when the 3D view is opened
@@ -27,6 +27,7 @@ export function App() {
   const view = useUi((s) => s.view);
   const leftWidth = useUi((s) => s.leftWidth);
   const rightWidth = useUi((s) => s.rightWidth);
+  const toolsHeight = useUi((s) => s.toolsHeight);
   // Child effects (the canvas measuring itself) run first, so the loaded design is framed correctly.
   useEffect(() => bootstrap(), []);
 
@@ -37,7 +38,10 @@ export function App() {
         {view === '2d' && (
           <>
             <aside className="sidebar left" style={{ width: leftWidth }}>
-              <ToolBar />
+              <div className="tools-box" style={{ height: toolsHeight }} data-testid="tools-box">
+                <ToolBar />
+              </div>
+              <HSplitter />
               <PalettePanel />
             </aside>
             <Splitter side="left" />

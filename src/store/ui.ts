@@ -3,7 +3,8 @@ import { create } from 'zustand';
 import { loadIdentity, type Identity } from '../identity';
 import { setNotifier } from './notice';
 import type { CustomItem, Design, ItemKind, ItemRef, OpeningKind, Point, RoofKind, StairKind, StripKind, WallFinish, WallType, ZoneKind } from '../model';
-import { STRIP_DEFAULT_WIDTH } from '../model';
+import { STRIP_DEFAULT_WIDTH, type GateKind, type PathSurface } from '../model';
+import type { WindowKind } from '../windows';
 
 /** A modal question or message. Rendered by components/Dialogs.tsx. */
 export type DialogState =
@@ -19,7 +20,7 @@ export type DialogState =
 
 import { DEFAULT_PRINT, type PrintOptions } from '../printLayout';
 
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'stairs' | 'roof' | 'skylight' | 'paint' | 'note';
+export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'gate' | 'stairs' | 'roof' | 'skylight' | 'paint' | 'note';
 
 /** Camera: screen = world * zoom + (x, y). `zoom` is pixels per meter. */
 export interface Viewport {
@@ -143,10 +144,10 @@ interface UiStore {
   openingWidth: Record<OpeningKind, number>;
   setOpeningWidth: (kind: OpeningKind, w: number) => void;
   /** Which kind the Door tool places, and which the Window tool places. */
-  doorKind: Exclude<OpeningKind, 'window' | 'bay'>;
-  setDoorKind: (k: Exclude<OpeningKind, 'window' | 'bay'>) => void;
-  windowKind: 'window' | 'bay';
-  setWindowKind: (k: 'window' | 'bay') => void;
+  doorKind: Exclude<OpeningKind, WindowKind>;
+  setDoorKind: (k: Exclude<OpeningKind, WindowKind>) => void;
+  windowKind: WindowKind;
+  setWindowKind: (k: WindowKind) => void;
   /** Wall tool: one wall at a time ('line') or four joined walls from two corners ('rect', optionally with its room). */
   wallMode: 'line' | 'rect';
   setWallMode: (m: 'line' | 'rect') => void;
@@ -166,6 +167,9 @@ interface UiStore {
   leftWidth: number;
   rightWidth: number;
   setSidebarWidth: (side: 'left' | 'right', px: number) => void;
+  /** Height of the tools section in the left sidebar in pixels (the furniture list takes the rest; dragged by a splitter; remembered). */
+  toolsHeight: number;
+  setToolsHeight: (px: number) => void;
   /** 3D: floors switched off in the view (ids). */
   hiddenFloors: string[];
   setFloorShown: (id: string, shown: boolean) => void;
@@ -173,6 +177,13 @@ interface UiStore {
   /** 3D: show the roofs. */
   showRoof3d: boolean;
   setShowRoof3d: (v: boolean) => void;
+  /** The Gate tool: which kind of gate and how wide; and what the next footpath is made of. */
+  gateKind: GateKind;
+  setGateKind: (k: GateKind) => void;
+  gateWidth: number;
+  setGateWidth: (w: number) => void;
+  pathSurface: PathSurface;
+  setPathSurface: (s: PathSurface) => void;
   /** Which kind of staircase the Stairs tool places. */
   stairKind: StairKind;
   setStairKind: (k: StairKind) => void;
@@ -203,6 +214,9 @@ const clampWidth = (side: 'left' | 'right', v: unknown): number => {
   const r = SIDEBAR_WIDTH[side];
   return typeof v === 'number' && Number.isFinite(v) ? Math.min(r.max, Math.max(r.min, Math.round(v))) : r.def;
 };
+
+export const TOOLS_HEIGHT = { min: 60, max: 600, def: 250 };
+const clampToolsHeight = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? Math.min(TOOLS_HEIGHT.max, Math.max(TOOLS_HEIGHT.min, Math.round(v))) : TOOLS_HEIGHT.def);
 
 const PREFS_KEY = 'perfect-home:prefs';
 const prefs: Record<string, unknown> = (() => {
@@ -260,6 +274,12 @@ export const useUi = create<UiStore>((set) => ({
   zoneShape: 'rect',
   stripKind: 'road',
   stripWidth: { ...STRIP_DEFAULT_WIDTH },
+  gateKind: 'single',
+  setGateKind: (gateKind) => set({ gateKind }),
+  gateWidth: 1.2,
+  setGateWidth: (gateWidth) => set({ gateWidth }),
+  pathSurface: 'plain',
+  setPathSurface: (pathSurface) => set({ pathSurface }),
   setZoneKind: (zoneKind) => set({ zoneKind }),
   setZoneShape: (zoneShape) => set({ zoneShape }),
   setStripKind: (stripKind) => set({ stripKind }),
@@ -300,6 +320,8 @@ export const useUi = create<UiStore>((set) => ({
   leftWidth: clampWidth('left', prefs.leftWidth),
   rightWidth: clampWidth('right', prefs.rightWidth),
   setSidebarWidth: (side, px) => set(side === 'left' ? { leftWidth: clampWidth('left', px) } : { rightWidth: clampWidth('right', px) }),
+  toolsHeight: clampToolsHeight(prefs.toolsHeight),
+  setToolsHeight: (px) => set({ toolsHeight: clampToolsHeight(px) }),
   showRulers: prefs.showRulers !== false,
   showGuides: prefs.showGuides !== false,
   showAllDims: prefs.showAllDims === true,
@@ -310,7 +332,7 @@ export const useUi = create<UiStore>((set) => ({
   panning: false,
   setPanning: (panning) => set({ panning }),
 
-  openingWidth: { door: 0.9, main: 1.0, garden: 0.9, double: 1.6, french: 1.6, sliding: 1.8, window: 1.2, bay: 1.6, garage: 2.5, gap: 1.0 },
+  openingWidth: { door: 0.9, main: 1.0, garden: 0.9, double: 1.6, french: 1.6, sliding: 1.8, window: 1.2, casement: 1.4, sash: 1.0, picture: 1.8, bay: 1.6, highwin: 1.2, floorwin: 1.2, garage: 2.5, gap: 1.0 },
   setOpeningWidth: (kind, w) => set((s) => ({ openingWidth: { ...s.openingWidth, [kind]: w } })),
   doorKind: 'door',
   setDoorKind: (doorKind) => set({ doorKind }),
@@ -361,9 +383,9 @@ export const useIsMulti = () => useUi((s) => s.selected.length > 1);
 
 // Remember the view switches between visits.
 useUi.subscribe((s, prev) => {
-  if (s.showRulers === prev.showRulers && s.showGuides === prev.showGuides && s.showAllDims === prev.showAllDims && s.leftWidth === prev.leftWidth && s.rightWidth === prev.rightWidth) return;
+  if (s.showRulers === prev.showRulers && s.showGuides === prev.showGuides && s.showAllDims === prev.showAllDims && s.leftWidth === prev.leftWidth && s.rightWidth === prev.rightWidth && s.toolsHeight === prev.toolsHeight) return;
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ showRulers: s.showRulers, showGuides: s.showGuides, showAllDims: s.showAllDims, leftWidth: s.leftWidth, rightWidth: s.rightWidth }));
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ showRulers: s.showRulers, showGuides: s.showGuides, showAllDims: s.showAllDims, leftWidth: s.leftWidth, rightWidth: s.rightWidth, toolsHeight: s.toolsHeight }));
   } catch {
     /* storage unavailable: the switches just reset next time */
   }

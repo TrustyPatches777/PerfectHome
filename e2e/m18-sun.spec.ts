@@ -73,16 +73,14 @@ test('the date, latitude and compass change the shadows', async ({ page }) => {
   expect((await red(page, 6.8, 4.5))[0]).toBeLessThan(200);
   expect((await red(page, 3.5, 2.2))[0]).toBeGreaterThan(225);
 
-  // the compass on the plan can be dragged too
+  // the compass on the plan only shows north: dragging it does not turn it
   const box = (await page.getByTestId('north-arrow').boundingBox())!;
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   await page.mouse.move(cx, cy - 20);
   await page.mouse.down();
-  await page.mouse.move(cx - 40, cy, { steps: 5 }); // to the left of the compass centre
+  await page.mouse.move(cx - 40, cy, { steps: 5 });
   await page.mouse.up();
-  expect((await design(page)).site.north).toBe(270);
-  await page.keyboard.press('Control+z'); // one undo step
   expect((await design(page)).site.north).toBe(90);
 });
 
