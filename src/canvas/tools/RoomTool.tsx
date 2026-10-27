@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
-import { Circle, Group, Line } from 'react-konva';
+import { Circle, Group, Line, Text } from 'react-konva';
 import type Konva from 'konva';
 import { layerBlocksEditing } from '../../actions';
 import { newId, type Point } from '../../model';
-import { detectRoom, dist, pointInPolygon, polygonsOverlap } from '../../geometry';
+import { detectRoom, dist, formatLength, pointInPolygon, polygonsOverlap } from '../../geometry';
+import { boxCorners } from '../../shapes';
 import { useDesign } from '../../store/design';
 import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
@@ -49,6 +50,14 @@ export function RoomTool() {
   const mode = useUi((s) => s.roomMode);
   const [points, setPoints] = useState<Point[]>([]);
   const [hover, setHover] = useState<Point | null>(null);
+  const [corner, setCorner] = useState<Point | null>(null);
+  const downAt = useRef({ x: 0, y: 0 });
+
+  const finishBox = (a: Point, b: Point) => {
+    setCorner(null);
+    if (Math.abs(a.x - b.x) < 0.3 || Math.abs(a.y - b.y) < 0.3) return;
+    tryAddRoom(boxCorners(a, b));
+  };
 
   const finish = () => {
     if (points.length >= 3) tryAddRoom(points);
@@ -56,10 +65,21 @@ export function RoomTool() {
   };
 
   useStageEvents(ref, {
-    mousemove: (_e, world) => setHover(mode === 'draw' ? snapWorld(world).p : world),
+    mousemove: (_e, world) => setHover(mode === 'auto' ? world : snapWorld(world).p),
+    mouseup: (e, world) => {
+      if (mode !== 'box' || !corner || !isPrimary(e)) return;
+      if (Math.hypot(e.evt.clientX - downAt.current.x, e.evt.clientY - downAt.current.y) > 6) finishBox(corner, snapWorld(world).p);
+    },
     mousedown: (e, world) => {
       if (!isPrimary(e)) return;
       if (layerBlocksEditing('room')) return;
+      if (mode === 'box') {
+        const p = snapWorld(world).p;
+        downAt.current = { x: e.evt.clientX, y: e.evt.clientY };
+        if (!corner) setCorner(p);
+        else finishBox(corner, p);
+        return;
+      }
       const dbl = isDoubleClick(e.evt);
       if (mode === 'draw' && dbl) {
         finish();
@@ -95,6 +115,10 @@ export function RoomTool() {
   });
 
   useCaptureKeys((e) => {
+    if (corner && e.key === 'Escape') {
+      setCorner(null);
+      return true;
+    }
     if (!points.length) return false;
     if (e.key === 'Enter') {
       finish();
@@ -122,10 +146,16 @@ export function RoomTool() {
           dash={[6, 4]}
         />
       )}
+      {mode === 'box' && corner && hover && (
+        <>
+          <Line points={boxCorners(corner, hover).flatMap((p) => [p.x, p.y])} closed stroke={SELECT_COLOR} strokeWidth={2} strokeScaleEnabled={false} fill="rgba(47,111,237,0.15)" dash={[6, 4]} />
+          <Text x={hover.x + 10 * px} y={hover.y + 8 * px} text={`${formatLength(Math.abs(hover.x - corner.x))} × ${formatLength(Math.abs(hover.y - corner.y))}`} fontSize={13 * px} fontStyle="bold" fill={SELECT_COLOR} />
+        </>
+      )}
       {points.map((p, i) => (
         <Circle key={i} x={p.x} y={p.y} radius={(i === 0 ? 6 : 4) * px} fill={SELECT_COLOR} />
       ))}
-      {mode === 'draw' && hover && <Circle x={hover.x} y={hover.y} radius={4 * px} fill={SELECT_COLOR} opacity={0.7} />}
+      {mode !== 'auto' && hover && <Circle x={hover.x} y={hover.y} radius={4 * px} fill={SELECT_COLOR} opacity={0.7} />}
     </Group>
   );
 }

@@ -3,7 +3,7 @@ import { Group, Line, Rect, Shape } from 'react-konva';
 import type { Opening, Wall } from '../../model';
 import { doorGeometry, wallArc, wallPointAt, wallSolidSegments } from '../../geometry';
 import { patternFillProps, patternFor } from '../../patterns';
-import { WALL_STYLE } from '../../walls';
+import { WALL_STYLE, wallFaceLine } from '../../walls';
 import { useDesign } from '../../store/design';
 import { useOnFloor } from '../../store/floor';
 import { useSelectedIds, useUi } from '../../store/ui';
@@ -15,8 +15,27 @@ import { StairShapes } from './StairShapes';
 import { useFloorId } from '../../store/floor';
 import { useIsMulti } from '../../store/ui';
 
+/** A wall, with a thin colored stripe along each painted face. */
+export function WallShape(props: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean }) {
+  const { wall, openings, ghost } = props;
+  const paint = wall.paint;
+  if (!paint) return <WallBody {...props} />;
+  const stripe = Math.min(0.05, wall.thickness * 0.22);
+  return (
+    <Group>
+      <WallBody {...props} />
+      <Group opacity={ghost ? 0.5 : 1} listening={false}>
+        {(['l', 'r'] as const).flatMap((side) => {
+          const skin = paint[side];
+          return skin ? wallSolidSegments(wall, openings).map(([s0, s1], i) => <Line key={`${side}${i}`} points={wallFaceLine(wall, s0, s1, side, stripe / 2).flatMap((p) => [p.x, p.y])} stroke={skin.color} strokeWidth={stripe} lineCap="butt" listening={false} />) : [];
+        })}
+      </Group>
+    </Group>
+  );
+}
+
 /** A wall: straight (a row of rectangles with gaps for doors) or curved (arc bands). */
-export function WallShape({ wall, openings, selected, ghost }: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean }) {
+function WallBody({ wall, openings, selected, ghost }: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean }) {
   const style = WALL_STYLE[wall.type] ?? WALL_STYLE.interior;
   const segs = wallSolidSegments(wall, openings);
   const arc = wallArc(wall);

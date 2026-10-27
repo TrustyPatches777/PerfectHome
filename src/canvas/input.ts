@@ -102,6 +102,8 @@ export function dragSession(
   startEvt: MouseEvent,
   onMove: (world: Point, start: Point, e: MouseEvent) => void,
   onEnd?: (moved: boolean) => void,
+  /** Runs inside the gesture (so it is part of the same undo step) when the drag ends after moving. */
+  beforeEnd?: () => void,
 ) {
   const start = clientToWorld(startEvt.clientX, startEvt.clientY);
   let started = false;
@@ -116,7 +118,10 @@ export function dragSession(
   const up = () => {
     window.removeEventListener('mousemove', move);
     window.removeEventListener('mouseup', up);
-    if (started) useDesign.getState().endTx();
+    if (started) {
+      beforeEnd?.();
+      useDesign.getState().endTx();
+    }
     onEnd?.(started);
   };
   window.addEventListener('mousemove', move);

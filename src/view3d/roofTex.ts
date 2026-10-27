@@ -1,5 +1,6 @@
 /** Tile images for roof coverings (clay tiles, slate, metal ribs...), one square meter each, tinted by the roof's color. */
 import { shade } from '../catalog';
+import { paintWall } from './wallTex';
 
 const cache = new Map<string, HTMLCanvasElement>();
 
@@ -25,6 +26,12 @@ export function roofImage(material: string, color: string): HTMLCanvasElement | 
   const g = c.getContext('2d');
   if (!g) return null;
   const rand = rng(material.length * 9973 + color.length * 31);
+  if (material.startsWith('wall-')) {
+    // the covering of a wall face: brick, stone, wood...
+    paintWall(g, S, material.slice(5), color, rand);
+    cache.set(key, c);
+    return c;
+  }
   g.fillStyle = color;
   g.fillRect(0, 0, S, S);
   const dark = shade(color, -0.28);

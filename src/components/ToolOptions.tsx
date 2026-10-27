@@ -6,7 +6,9 @@ import { WALL_STYLE } from '../walls';
 import { STAIR_DEFAULTS } from '../stairs';
 import { STAIR_KINDS, ROOF_KINDS, type RoofKind } from '../model';
 import { ROOF_STYLES } from '../roofs';
-import { addRoofFromWalls } from '../roofActions';
+import { WALL_FINISHES, type WallFinish } from '../model';
+import { FINISH_STYLES, PAINT_COLORS } from '../walls';
+import { SKYLIGHT_SIZES, addRoofFromWalls } from '../roofActions';
 import { STRIP_STYLES, ZONE_STYLES } from '../outdoor';
 import { NumberField } from './fields';
 
@@ -28,8 +30,13 @@ export function ToolOptions() {
   const doorKind = useUi((s) => s.doorKind);
   const windowKind = useUi((s) => s.windowKind);
   const wallType = useUi((s) => s.wallType);
+  const wallMode = useUi((s) => s.wallMode);
+  const wallRoom = useUi((s) => s.wallRoom);
   const stairKind = useUi((s) => s.stairKind);
   const roofKind = useUi((s) => s.roofKind);
+  const paintFinish = useUi((s) => s.paintFinish);
+  const skylightSize = useUi((s) => s.skylightSize);
+  const paintColor = useUi((s) => s.paintColor);
   const zoneKind = useUi((s) => s.zoneKind);
   const zoneShape = useUi((s) => s.zoneShape);
   const stripKind = useUi((s) => s.stripKind);
@@ -40,6 +47,20 @@ export function ToolOptions() {
   if (tool === 'wall') {
     body = (
       <>
+        <div className="segmented" role="group" aria-label="Wall mode">
+          <button className={wallMode === 'line' ? 'active' : ''} onClick={() => useUi.getState().setWallMode('line')} title="Click each corner" data-testid="wall-mode-line">
+            One by one
+          </button>
+          <button className={wallMode === 'rect' ? 'active' : ''} onClick={() => useUi.getState().setWallMode('rect')} title="Drag from one corner to the opposite one: four walls at once" data-testid="wall-mode-rect">
+            Rectangle
+          </button>
+        </div>
+        {wallMode === 'rect' && (
+          <label className="check" title="Also create the room inside the walls">
+            <input type="checkbox" checked={wallRoom} onChange={(e) => useUi.getState().setWallRoom(e.target.checked)} data-testid="wall-rect-room" />
+            with room
+          </label>
+        )}
         <div className="segmented" role="group" aria-label="Wall type">
           {WALL_TYPES.map((t) => (
             <button
@@ -110,6 +131,9 @@ export function ToolOptions() {
           <button className={roomMode === 'auto' ? 'active' : ''} onClick={() => useUi.getState().setRoomMode('auto')} data-testid="room-auto">
             Click inside walls
           </button>
+          <button className={roomMode === 'box' ? 'active' : ''} onClick={() => useUi.getState().setRoomMode('box')} title="Drag a box: a room without walls" data-testid="room-box">
+            Drag a box
+          </button>
           <button className={roomMode === 'draw' ? 'active' : ''} onClick={() => useUi.getState().setRoomMode('draw')} data-testid="room-draw">
             Draw corners
           </button>
@@ -126,6 +150,36 @@ export function ToolOptions() {
           </button>
         ))}
       </div>
+    );
+  } else if (tool === 'skylight') {
+    body = (
+      <div className="segmented" role="group" aria-label="Skylight size">
+        {SKYLIGHT_SIZES.map((s, i) => (
+          <button key={s.label} className={skylightSize === i ? 'active' : ''} onClick={() => useUi.getState().setSkylightSize(i)} title={`${Math.round(s.w * 100)} × ${Math.round(s.d * 100)} cm`} data-testid={`skylight-size-${i}`}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+    );
+  } else if (tool === 'paint') {
+    body = (
+      <>
+        <select value={paintFinish} aria-label="Covering" data-testid="paint-finish" onChange={(e) => useUi.getState().setPaint(e.target.value as WallFinish | 'clear', FINISH_STYLES[e.target.value as WallFinish]?.color)}>
+          {WALL_FINISHES.map((f) => (
+            <option key={f} value={f}>
+              {FINISH_STYLES[f].label}
+            </option>
+          ))}
+          <option value="clear">Remove covering</option>
+        </select>
+        {paintFinish !== 'clear' && (
+          <div className="swatches" role="group" aria-label="Color">
+            {PAINT_COLORS.map((c) => (
+              <button key={c} className={`swatch ${c === paintColor ? 'on' : ''}`} style={{ background: c }} aria-label={`Color ${c}`} data-testid={`paint-color-${c}`} onClick={() => useUi.getState().setPaint(paintFinish, c)} />
+            ))}
+          </div>
+        )}
+      </>
     );
   } else if (tool === 'roof') {
     body = (

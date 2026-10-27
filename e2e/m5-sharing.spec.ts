@@ -37,9 +37,10 @@ test('autosave: a reload brings the design back', async ({ page }) => {
   await fresh(page);
   await build(page);
   await expect(page.getByTestId('save-state')).toContainText('Saved');
+  // autosave waits a moment after the last change: wait for the final state to be stored
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('perfect-home:autosave') ?? '')).toContain('Living room');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('perfect-home:autosave') ?? '')).toContain('"locked":true');
   const before = await design(page);
-  const stored = await page.evaluate(() => localStorage.getItem('perfect-home:autosave'));
-  expect(stored).toContain('Living room');
 
   await page.reload();
   await expect(page.locator('canvas').first()).toBeVisible();

@@ -8,8 +8,15 @@
  */
 import type { Point } from '../model';
 
+/** How a part of a door moves when the door is opened: swung about a hinge, or slid/lifted. `door` is the opening's id. */
+export type Anim =
+  | { door: string; kind: 'swing'; origin: [number, number, number]; angle: number }
+  | { door: string; kind: 'slide'; move: [number, number, number] };
+
 export interface Look {
   color: string;
+  /** A moving part of a door (the viewer opens and closes these when you click the door). */
+  anim?: Anim;
   /** See-through (windows, aquariums). */
   glass?: boolean;
   /** Light-emitting (lamps switched on). */
@@ -26,7 +33,7 @@ export type Part = Look &
     /** Ring (tyre, trampoline frame). */
     | { t: 'ring'; x: number; y: number; z: number; R: number; tube: number; ax?: 'x' | 'y' | 'z'; ry: number }
     /** A flat outline (plan coordinates) extruded from height y0 to y1. `tex` paints a floor material on the top. */
-    | { t: 'prism'; pts: Point[]; y0: number; y1: number; tex?: { kind: string; color: string } }
+    | { t: 'prism'; pts: Point[]; y0: number; y1: number; tex?: { kind: string; color: string }; holes?: Point[][] }
     /** A flat polygon of any orientation (roof slopes, gable ends), given by its corners, thickened `thick` meters to the side opposite `facing`. */
     | { t: 'panel'; pts: [number, number, number][]; thick: number; facing: [number, number, number]; tex?: { kind: string; color: string } }
     /** A point light (a lamp that is switched on). */
@@ -56,7 +63,7 @@ export const ball = (x: number, y: number, z: number, sx: number, sy: number, sz
 
 export const ring = (x: number, y: number, z: number, R: number, tube: number, ax: 'x' | 'y' | 'z', color: string, o: Opt = {}): Part => ({ t: 'ring', x, y, z, R, tube, ax, ry: 0, color, ...o });
 
-export const prism = (pts: Point[], y0: number, y1: number, color: string, tex?: { kind: string; color: string }, o: Opt = {}): Part => ({ t: 'prism', pts, y0, y1, color, tex, ...o });
+export const prism = (pts: Point[], y0: number, y1: number, color: string, tex?: { kind: string; color: string }, o: Opt = {}, holes?: Point[][]): Part => ({ t: 'prism', pts, y0, y1, color, tex, ...o, ...(holes?.length ? { holes } : {}) });
 
 export const light = (x: number, y: number, z: number, color: string, intensity: number, dist: number): Part => ({ t: 'light', x, y, z, intensity, dist, color });
 

@@ -40,7 +40,7 @@ export function designFromHash(hash: string): Design | null {
 }
 
 export function isEmptyDesign(d: Design): boolean {
-  return !(d.walls.length || d.rooms.length || d.furniture.length || d.labels.length || d.dimensions.length || d.openings.length || d.zones.length || d.strips.length || d.stairs.length || d.roofs.length || d.notes.length);
+  return !(d.walls.length || d.rooms.length || d.furniture.length || d.labels.length || d.dimensions.length || d.openings.length || d.zones.length || d.strips.length || d.stairs.length || d.roofs.length || d.skylights.length || d.notes.length);
 }
 
 export const sameContent = (a: Design, b: Design) => serializeDesign(a) === serializeDesign(b);

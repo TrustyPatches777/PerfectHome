@@ -131,6 +131,24 @@ export function wallOutlinePoints(w: Wall): Point[] {
   return [...outer, ...inner.reverse()];
 }
 
+/** A wall as convex pieces (one rectangle for a straight wall, one short rectangle per step of a curved wall), for collision tests. */
+export function wallPieces(w: Wall): Point[][] {
+  const h = w.thickness / 2;
+  const arc = wallArc(w);
+  const steps = arc ? Math.max(6, Math.ceil(Math.abs(arc.sweep) / (Math.PI / 24))) : 1;
+  const L = wallLength(w);
+  const outer: Point[] = [];
+  const inner: Point[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const wp = wallPointAt(w, -h + ((L + 2 * h) * i) / steps);
+    outer.push({ x: wp.p.x + wp.n.x * h, y: wp.p.y + wp.n.y * h });
+    inner.push({ x: wp.p.x - wp.n.x * h, y: wp.p.y - wp.n.y * h });
+  }
+  const out: Point[][] = [];
+  for (let i = 0; i < steps; i++) out.push([outer[i], outer[i + 1], inner[i + 1], inner[i]]);
+  return out;
+}
+
 /** Frame of the straight chord a→b. For curved walls `length` is the length along the curve. */
 export function wallFrame(w: Wall): WallFrame {
   const chord = dist(w.a, w.b);

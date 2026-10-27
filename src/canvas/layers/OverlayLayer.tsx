@@ -1,8 +1,8 @@
-import { Circle, Layer } from 'react-konva';
+import { Circle, Layer, Rect } from 'react-konva';
 import { useDesign } from '../../store/design';
 import { useUi } from '../../store/ui';
 import { input } from '../input';
-import { startCurveDrag, startDimensionEndpointDrag, startEndpointDrag, startPointDrag } from '../editing';
+import { startCurveDrag, startDimensionEndpointDrag, startEdgeDrag, startEndpointDrag, startPointDrag } from '../editing';
 import { wallLength, wallPointAt } from '../../geometry';
 import { SELECT_COLOR } from '../style';
 import { WallTool } from '../tools/WallTool';
@@ -15,6 +15,8 @@ import { ZoneTool } from '../tools/ZoneTool';
 import { StripTool } from '../tools/StripTool';
 import { StairTool } from '../tools/StairTool';
 import { RoofTool } from '../tools/RoofTool';
+import { PaintTool } from '../tools/PaintTool';
+import { SkylightTool } from '../tools/SkylightTool';
 import { NoteTool } from '../tools/NoteTool';
 import { SelectionTransformer } from '../SelectionTransformer';
 
@@ -35,6 +37,32 @@ export function OverlayLayer() {
       y={y}
       radius={variant === 'curve' ? r * 0.8 : r}
       fill={variant === 'curve' ? SELECT_COLOR : '#ffffff'}
+      stroke={SELECT_COLOR}
+      strokeWidth={2}
+      strokeScaleEnabled={false}
+      onMouseDown={(e) => {
+        if (e.evt.button !== 0 || input.space) return;
+        e.cancelBubble = true;
+        onDown(e.evt);
+      }}
+      onMouseEnter={(e) => (e.target.getStage()!.container().style.cursor = 'move')}
+      onMouseLeave={(e) => (e.target.getStage()!.container().style.cursor = '')}
+    />
+  );
+
+  /** A handle in the middle of a side: drag it sideways to push the whole side out or in. */
+  const edgeHandle = (key: string, a: { x: number; y: number }, b: { x: number; y: number }, onDown: (e: MouseEvent) => void) => (
+    <Rect
+      key={key}
+      x={(a.x + b.x) / 2}
+      y={(a.y + b.y) / 2}
+      width={r * 2.6}
+      height={r * 1.3}
+      offsetX={r * 1.3}
+      offsetY={r * 0.65}
+      rotation={(Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI}
+      cornerRadius={r * 0.4}
+      fill="#ffffff"
       stroke={SELECT_COLOR}
       strokeWidth={2}
       strokeScaleEnabled={false}
@@ -73,6 +101,17 @@ export function OverlayLayer() {
     if (sel.kind === 'room' && !design.layers.rooms.locked) {
       const room = design.rooms.find((x) => x.id === sel.id);
       room?.points.forEach((p, i) => handles.push(handle(`v${i}`, p.x, p.y, (e) => startPointDrag(e, 'room', room.id, i))));
+      room?.points.forEach((p, i) => {
+        const q = room.points[(i + 1) % room.points.length];
+        if (Math.hypot(q.x - p.x, q.y - p.y) > 0.4) handles.push(edgeHandle(`e${i}`, p, q, (e) => startEdgeDrag(e, 'room', room.id, i)));
+      });
+    }
+    if (sel.kind === 'zone' && !design.layers.outdoor.locked) {
+      const zone = design.zones.find((x) => x.id === sel.id);
+      zone?.points.forEach((p, i) => {
+        const q = zone.points[(i + 1) % zone.points.length];
+        if (Math.hypot(q.x - p.x, q.y - p.y) > 0.4) handles.push(edgeHandle(`e${i}`, p, q, (e) => startEdgeDrag(e, 'zone', zone.id, i)));
+      });
     }
   }
 
@@ -90,6 +129,8 @@ export function OverlayLayer() {
       {tool === 'strip' && <StripTool />}
       {tool === 'stairs' && <StairTool />}
       {tool === 'roof' && <RoofTool />}
+      {tool === 'paint' && <PaintTool />}
+      {tool === 'skylight' && <SkylightTool />}
       {tool === 'note' && <NoteTool />}
       <SelectionTransformer />
     </Layer>

@@ -18,6 +18,7 @@ export default function View3D() {
   const walking = useUi((s) => s.walking);
   const shadows = useUi((s) => s.shadows3d);
   const showRoof = useUi((s) => s.showRoof3d);
+  const invertLook = useUi((s) => s.invertLook);
   const hour = useUi((s) => s.timeOfDay);
   const playing = useUi((s) => s.sunPlaying);
   const { lat, month, day, north } = design.site;
@@ -35,6 +36,7 @@ export default function View3D() {
     s.setDesign(d, { hideAbove: ui.cutaway ? f : null, showRoof: ui.showRoof3d, floorElevation: floorElevations(d).get(f) ?? 0 });
     s.setSun({ sun: sunPosition(d.site.lat, d.site.month, d.site.day, ui.timeOfDay), north: d.site.north, shadows: ui.shadows3d });
     s.resetView();
+    s.onFar = () => useUi.getState().showToast('Walk closer to open that door.');
     (window as unknown as { __ph3d: unknown }).__ph3d = { stats: () => s.stats(), scene: s };
     setScene(s);
     return () => {
@@ -64,6 +66,10 @@ export default function View3D() {
     scene.setMode('walk', p ? { x: p.x, z: p.y } : undefined);
     scene.renderer.domElement.focus();
   }, [scene, walking, floor]);
+
+  useEffect(() => {
+    if (scene) scene.invertY = invertLook;
+  }, [scene, invertLook]);
 
   // play a whole day
   useEffect(() => {
@@ -114,6 +120,12 @@ export default function View3D() {
         <button onClick={() => (ui.setWalking(false), scene?.topView())} title="Straight down, like the plan" data-testid="view3d-top">
           From above
         </button>
+        {walking && (
+          <label className="check" title="Dragging up looks down">
+            <input type="checkbox" checked={invertLook} onChange={(e) => ui.setInvertLook(e.target.checked)} data-testid="view3d-invert" />
+            Invert up/down
+          </label>
+        )}
         {design.floors.length > 1 && (
           <label className="check" title="Hide the floors above the one you are on, to see inside">
             <input type="checkbox" checked={cutaway} onChange={(e) => ui.setCutaway(e.target.checked)} data-testid="view3d-cutaway" />
@@ -142,7 +154,7 @@ export default function View3D() {
         <input type="range" min={0} max={24} step={0.05} value={hour} onChange={(e) => ui.setTimeOfDay(Number(e.target.value))} aria-label="Time of day" data-testid="view3d-slider" />
         <span className="muted">{phase}</span>
       </div>
-      <div className="view3d-hint">{walking ? 'Drag to look around · W A S D or arrow keys to walk · Shift = faster · Esc to stop' : 'Drag to turn · right-drag to move · wheel to zoom · 2 = back to the plan'}</div>
+      <div className="view3d-hint">{walking ? 'Drag to look around · W A S D to walk, arrow keys to walk and turn · click a door to open or close it · Shift = faster · Esc to stop' : 'Drag to turn · right-drag to move · wheel to zoom · click a door to open it · 2 = back to the plan'}</div>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Group } from 'react-konva';
 import type Konva from 'konva';
 import { layerBlocksEditing } from '../../actions';
 import { catalogItem, catalogLayer } from '../../catalog';
+import { settledPosition } from '../../fit';
 import { mountOnWall } from '../../mount';
 import { newId, type Point } from '../../model';
 import { useDesign } from '../../store/design';
@@ -29,6 +30,12 @@ export function FurnitureTool() {
       if (m) return m;
     }
     const p = snapWorld(world, { ignore: () => true }).p;
+    // pushed out of walls, like the real thing will be
+    if (item) {
+      const probe = { id: '', floor: floorId(), type: item.type, x: p.x, y: p.y, w: item.w, d: item.d, rotation, color: '', label: '' };
+      const spot = settledPosition(useDesign.getState().design, probe);
+      if (spot) return { x: spot.x, y: spot.y, rotation };
+    }
     return { x: p.x, y: p.y, rotation };
   };
 
@@ -50,7 +57,8 @@ export function FurnitureTool() {
       useDesign.getState().update((d) => {
         d.furniture.push({ id, floor: floorId(), type: item.type, x: at.x, y: at.y, w: item.w, d: item.d, rotation: at.rotation, color: item.color, label: '' });
       });
-      if (!e.evt.shiftKey) {
+      const placed = useDesign.getState().design.furniture.some((f) => f.id === id); // not when it did not fit between the walls
+      if (!e.evt.shiftKey && placed) {
         useUi.getState().setTool('select');
         useUi.getState().select({ kind: 'furniture', id });
       }

@@ -3,13 +3,17 @@ import { deleteSelection, duplicateSelection, isLayerLocked } from '../actions';
 import { setWallLength } from '../canvas/editing';
 import { FLOOR_COLORS } from '../canvas/style';
 import { clampOpeningPos, detectRoom, dist, formatArea, formatLength, openingOverlaps, polygonArea, wallLength } from '../geometry';
-import { WALL_STYLE } from '../walls';
+import { FINISH_STYLES, PAINT_COLORS, WALL_STYLE } from '../walls';
+import { WALL_FINISHES, type WallFinish } from '../model';
 import { newId, STRIP_KINDS, type Note, WALL_TYPES, WALL_TYPE_HEIGHT, WALL_TYPE_THICKNESS, ZONE_KINDS, type Wall, type WallType, type Furniture, type ItemRef, type Opening, type OpeningKind, type Room, type Strip, type StripKind, type TextLabel, type Zone, type ZoneKind } from '../model';
 import { STRIP_STYLES, ZONE_STYLES, polylineLength } from '../outdoor';
 import { STAIR_DEFAULTS, checkStair } from '../stairs';
 import { ROOF_KINDS, ROOF_MATERIALS, type Roof, type RoofKind, type RoofMaterial } from '../model';
 import { ROOF_MATERIAL_STYLES, ROOF_STYLES } from '../roofs';
 import { refitRoof, setRoofKind, setRoofMaterial, turnRoof } from '../roofActions';
+import { SKYLIGHT_SIZES } from '../roofActions';
+import { skylightPlacement } from '../roofs';
+import type { Skylight } from '../model';
 import { STAIR_KINDS, type Stair, type StairKind } from '../model';
 import { useDesign } from '../store/design';
 import { useOnFloor } from '../store/floor';
@@ -33,6 +37,7 @@ const TITLES: Record<ItemRef['kind'], string> = {
   strip: 'Street / path / fence',
   stair: 'Stairs',
   roof: 'Roof',
+  skylight: 'Skylight',
   note: 'Sticky note',
   guide: 'Guide',
 };
@@ -69,6 +74,7 @@ export function Properties() {
         {sel.kind === 'zone' && <ZoneProps id={sel.id} />}
         {sel.kind === 'stair' && <StairProps id={sel.id} />}
         {sel.kind === 'roof' && <RoofProps id={sel.id} />}
+        {sel.kind === 'skylight' && <SkylightProps id={sel.id} />}
         {sel.kind === 'guide' && <GuideProps id={sel.id} />}
         {sel.kind === 'note' && <NoteProps id={sel.id} />}
         {sel.kind === 'strip' && <StripProps id={sel.id} />}
@@ -174,6 +180,35 @@ function WallProps({ id }: { id: string }) {
         </button>
       )}
       <p className="muted">Drag the filled dot in the middle of a selected wall to bend it.</p>
+      {(['l', 'r'] as const).map((side) => {
+        const skin = wall.paint?.[side];
+        return (
+          <div className="field" key={side}>
+            <span>{side === 'l' ? 'Left face' : 'Right face'} (looking from the start of the wall to its end)</span>
+            <select
+              value={skin?.finish ?? 'none'}
+              data-testid={`wall-finish-${side}`}
+              onChange={(e) =>
+                edit((w) => {
+                  const v = e.target.value;
+                  if (v === 'none') {
+                    if (w.paint) delete w.paint[side];
+                    if (w.paint && !w.paint.l && !w.paint.r) delete w.paint;
+                  } else w.paint = { ...w.paint, [side]: { finish: v as WallFinish, color: skin?.color ?? FINISH_STYLES[v as WallFinish].color } };
+                })
+              }
+            >
+              <option value="none">Plain</option>
+              {WALL_FINISHES.map((f) => (
+                <option key={f} value={f}>
+                  {FINISH_STYLES[f].label}
+                </option>
+              ))}
+            </select>
+            {skin && <ColorField label="Color" value={skin.color} swatches={PAINT_COLORS} onChange={(c) => edit((w) => void (w.paint = { ...w.paint, [side]: { finish: skin.finish, color: c } }))} />}
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -510,6 +545,36 @@ function RoofProps({ id }: { id: string }) {
           Turn ridge 90°
         </button>
       </div>
+    </>
+  );
+}
+
+function SkylightProps({ id }: { id: string }) {
+  const sky = useDesign((s) => s.design.skylights.find((x) => x.id === id));
+  const roofs = useDesign((s) => s.design.roofs);
+  if (!sky) return null;
+  const edit = (fn: (s: Skylight) => void) =>
+    useDesign.getState().update((d) => {
+      const x = d.skylights.find((i) => i.id === id);
+      if (x) fn(x);
+    });
+  const spot = skylightPlacement(roofs, sky.floor, sky);
+  return (
+    <>
+      <div className="row two">
+        <NumberField label="Width" value={sky.w} scale={100} unit="cm" min={20} max={500} testId="sky-w" onCommit={(v) => edit((s) => void (s.w = v))} />
+        <NumberField label="Length (up the slope)" value={sky.d} scale={100} unit="cm" min={20} max={500} testId="sky-d" onCommit={(v) => edit((s) => void (s.d = v))} />
+      </div>
+      <div className="row three">
+        {SKYLIGHT_SIZES.map((s) => (
+          <button key={s.label} onClick={() => edit((x) => void ((x.w = s.w), (x.d = s.d)))} data-testid={`sky-size-${s.label.toLowerCase()}`}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+      <p className={spot ? 'muted' : 'notice'} data-testid="sky-status">
+        {spot ? (spot.flat ? 'On a flat roof: a raised window.' : 'Lies in the slope of the roof.') : 'Not on a roof: drag it onto one, or it will not show in 3D.'}
+      </p>
     </>
   );
 }

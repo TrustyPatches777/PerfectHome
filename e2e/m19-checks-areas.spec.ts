@@ -56,10 +56,18 @@ test('plan check: narrow passages follow the minimum you set; furniture inside a
   await page.getByTestId('min-passage').press('Enter');
   await expect(page.getByTestId('issue-count')).toHaveText('all clear');
 
-  // a bed pushed into the bottom wall
+  // a bed dropped on the bottom wall is pushed clear of it: nothing to report
   await pickFurniture(page, 'bed-double');
   await clickAt(page, 6.5, 5.6);
   await page.keyboard.press('Escape');
+  await expect(page.getByTestId('issue-count')).toHaveText('all clear');
+
+  // but a design made before furniture was kept out of walls can still have some in them: that is flagged
+  await page.evaluate(() => {
+    const store = (window as any).__ph.design;
+    const d = store.getState().design;
+    store.setState({ design: { ...d, furniture: [...d.furniture, { id: 'legacy', floor: d.floors[0].id, type: 'bed-double', x: 6.5, y: 5.6, w: 1.6, d: 2, rotation: 0, color: '#c7d7ee', label: '' }] } });
+  });
   await expect(page.getByTestId('checks-panel')).toContainText('overlaps a wall');
 });
 

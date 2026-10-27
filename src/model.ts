@@ -45,11 +45,22 @@ export interface LayerState {
   locked: boolean;
 }
 
-/** exterior, interior, load-bearing, light partition, or a low railing/parapet. */
-export type WallType = 'exterior' | 'interior' | 'load' | 'partition' | 'railing';
-export const WALL_TYPES: WallType[] = ['exterior', 'interior', 'load', 'partition', 'railing'];
-export const WALL_TYPE_THICKNESS: Record<WallType, number> = { exterior: 0.3, interior: 0.15, load: 0.24, partition: 0.1, railing: 0.06 };
-export const WALL_TYPE_HEIGHT: Record<WallType, number> = { exterior: 2.5, interior: 2.5, load: 2.5, partition: 2.5, railing: 1.0 };
+/**
+ * exterior / load-bearing (the structural shell and the walls that carry the floors and roof), interior, light partition, or a low
+ * railing/parapet. (Designs from before the two were merged have 'load' walls: they load as 'exterior'.)
+ */
+export type WallType = 'exterior' | 'interior' | 'partition' | 'railing';
+export const WALL_TYPES: WallType[] = ['exterior', 'interior', 'partition', 'railing'];
+export const WALL_TYPE_THICKNESS: Record<WallType, number> = { exterior: 0.3, interior: 0.15, partition: 0.1, railing: 0.06 };
+export const WALL_TYPE_HEIGHT: Record<WallType, number> = { exterior: 2.5, interior: 2.5, partition: 2.5, railing: 1.0 };
+
+/** What the surface of a wall is covered with. */
+export type WallFinish = 'paint' | 'plaster' | 'brick' | 'stone' | 'wood' | 'tiles' | 'concrete';
+export const WALL_FINISHES: WallFinish[] = ['paint', 'plaster', 'brick', 'stone', 'wood', 'tiles', 'concrete'];
+export interface WallSkin {
+  finish: WallFinish;
+  color: string;
+}
 
 /** A wall between two centerline points; straight, or an arc when `bulge` is set. */
 export interface Wall {
@@ -66,6 +77,11 @@ export interface Wall {
    * (positive bulges to the right of a→b on screen). 0 or absent = straight.
    */
   bulge?: number;
+  /**
+   * The two faces of the wall, seen looking from `a` towards `b`: `l` is the left face, `r` the right one (the side doors swing to when
+   * `swing` is +1). A face without a skin is the plain wall color.
+   */
+  paint?: { l?: WallSkin; r?: WallSkin };
 }
 
 /**
@@ -174,6 +190,19 @@ export interface Roof {
   chimney: boolean;
   /** Flat roofs: a low wall around the edge. */
   parapet: boolean;
+}
+
+/**
+ * A skylight / roof window. Its position is where it is on the plan; it lies in whichever roof is there (on that floor), turned to
+ * the slope. `w` is its width along the eave, `d` its length up the slope.
+ */
+export interface Skylight {
+  id: string;
+  floor: string;
+  x: number;
+  y: number;
+  w: number;
+  d: number;
 }
 
 /** A sticky note pinned on the plan. */
@@ -296,13 +325,14 @@ export interface Design {
   strips: Strip[];
   stairs: Stair[];
   roofs: Roof[];
+  skylights: Skylight[];
   notes: Note[];
   guides: Guide[];
   custom: CustomItem[];
   site: Site;
 }
 
-export type ItemKind = 'wall' | 'opening' | 'room' | 'furniture' | 'label' | 'dimension' | 'zone' | 'strip' | 'stair' | 'roof' | 'note' | 'guide';
+export type ItemKind = 'wall' | 'opening' | 'room' | 'furniture' | 'label' | 'dimension' | 'zone' | 'strip' | 'stair' | 'roof' | 'skylight' | 'note' | 'guide';
 export interface ItemRef {
   kind: ItemKind;
   id: string;
@@ -319,6 +349,7 @@ export const LAYER_OF: Record<ItemKind, LayerId> = {
   strip: 'outdoor',
   stair: 'structure',
   roof: 'roofs',
+  skylight: 'roofs',
   note: 'comments',
   guide: 'notes',
 };
@@ -365,6 +396,7 @@ export function createDesign(): Design {
     strips: [],
     stairs: [],
     roofs: [],
+    skylights: [],
     notes: [],
     guides: [],
     custom: [],
@@ -409,6 +441,17 @@ function list<T>(v: unknown, map: (o: Json) => T | null): T[] {
   return out;
 }
 
+function skin(v: unknown): WallSkin | undefined {
+  return isObj(v) && WALL_FINISHES.includes(v.finish as WallFinish) ? { finish: v.finish as WallFinish, color: color(v.color, '#f5f0e6') } : undefined;
+}
+
+function skins(v: unknown): Wall['paint'] | undefined {
+  if (!isObj(v)) return undefined;
+  const l = skin(v.l);
+  const r = skin(v.r);
+  return l || r ? { ...(l ? { l } : {}), ...(r ? { r } : {}) } : undefined;
+}
+
 export function parseDesign(input: unknown): Design {
   if (!isObj(input) || typeof input.v !== 'number' || !Array.isArray(input.walls)) {
     throw new Error('Not a design: this is not a Perfect Home design.');
@@ -433,7 +476,7 @@ export function parseDesign(input: unknown): Design {
   const floorOf = (v: unknown) => (typeof v === 'string' && floorIds.has(v) ? v : floors[0].id);
 
   const walls = list<Wall>(input.walls, (o) => {
-    const type = WALL_TYPES.includes(o.type as WallType) ? (o.type as WallType) : 'interior';
+    const type = o.type === 'load' ? 'exterior' : WALL_TYPES.includes(o.type as WallType) ? (o.type as WallType) : 'interior';
     const bulge = num(o.bulge, 0, -100, 100);
     return {
       id: str(o.id, newId(), 20),
@@ -444,6 +487,7 @@ export function parseDesign(input: unknown): Design {
       type,
       height: num(o.height, WALL_TYPE_HEIGHT[type], 0.1, 30),
       ...(Math.abs(bulge) > 0.001 ? { bulge } : {}),
+      ...(skins(o.paint) ? { paint: skins(o.paint) } : {}),
     };
   });
   const wallIds = new Set(walls.map((w) => w.id));
@@ -570,6 +614,14 @@ export function parseDesign(input: unknown): Design {
       color: color(o.color, '#b5523b'),
       chimney: o.chimney === true,
       parapet: o.parapet === true,
+    })),
+    skylights: list<Skylight>(input.skylights, (o) => ({
+      id: str(o.id, newId(), 20),
+      floor: floorOf(o.floor),
+      x: num(o.x, 0),
+      y: num(o.y, 0),
+      w: num(o.w, 0.78, 0.2, 5),
+      d: num(o.d, 1.18, 0.2, 5),
     })),
     notes: list<Note>(input.notes, (o) => ({
       id: str(o.id, newId(), 20),

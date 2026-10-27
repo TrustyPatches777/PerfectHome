@@ -340,3 +340,70 @@ export function roofBaseHeight(d: Design, floor: string): number {
   const hs = d.walls.filter((w) => w.floor === floor && w.type !== 'railing').map((w) => w.height);
   return hs.length ? Math.max(...hs) : 2.5;
 }
+
+// ---- skylights (roof windows) -------------------------------------------------------------------------------------------
+
+const toLocal = (r: Pick<Roof, 'x' | 'y' | 'rotation'>, p: Point): Point => {
+  const c = Math.cos((r.rotation * Math.PI) / 180);
+  const s = Math.sin((r.rotation * Math.PI) / 180);
+  const dx = p.x - r.x;
+  const dy = p.y - r.y;
+  return { x: dx * c + dy * s, y: -dx * s + dy * c };
+};
+
+/** The roof (on that floor) whose eaves cover a point of the plan, if any. */
+export function roofAt(roofs: Roof[], floor: string, p: Point): Roof | null {
+  for (const r of roofs) {
+    if (r.floor !== floor) continue;
+    const l = toLocal(r, p);
+    if (Math.abs(l.x) <= r.w / 2 + r.overhang && Math.abs(l.y) <= r.d / 2 + r.overhang) return r;
+  }
+  return null;
+}
+
+const inFace = (pts: V3[], x: number, z: number): boolean => {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const a = pts[i];
+    const b = pts[j];
+    if (a[2] > z !== b[2] > z && x < ((b[0] - a[0]) * (z - a[2])) / (b[2] - a[2]) + a[0]) inside = !inside;
+  }
+  return inside;
+};
+
+/** Where a skylight sits on its roof, in the roof's own box. */
+export interface SkylightPlacement {
+  roof: Roof;
+  /** Position in the roof's box (x along the ridge, z across it), and height of the roof surface there above the walls. */
+  lx: number;
+  lz: number;
+  y: number;
+  /** Unit vectors: the surface normal (up), along the eave (horizontal) and up the slope. */
+  n: V3;
+  t: V3;
+  u: V3;
+  /** A flat roof: the skylight is a raised box instead of lying in the surface. */
+  flat: boolean;
+}
+
+/** Find the roof under a skylight and the slope it lies on. Null when it is not on a roof (or only on the overhang of a flat edge). */
+export function skylightPlacement(roofs: Roof[], floor: string, p: Point): SkylightPlacement | null {
+  const roof = roofAt(roofs, floor, p);
+  if (!roof) return null;
+  const l = toLocal(roof, p);
+  const model = roofModel(roof);
+  for (const f of model.faces) {
+    if (f.kind !== 'slope' || !inFace(f.pts, l.x, l.y)) continue;
+    let n = faceNormal(f.pts);
+    if (n[1] < 0) n = [-n[0], -n[1], -n[2]];
+    const p0 = f.pts[0];
+    const y = p0[1] - (n[0] * (l.x - p0[0]) + n[2] * (l.y - p0[2])) / n[1];
+    if (n[1] > 0.9999) return { roof, lx: l.x, lz: l.y, y, n: [0, 1, 0], t: [1, 0, 0], u: [0, 0, -1], flat: true };
+    const t: V3 = [-n[2], 0, n[0]];
+    const tl = Math.hypot(t[0], t[2]) || 1;
+    const tt: V3 = [t[0] / tl, 0, t[2] / tl];
+    const u: V3 = [-tt[2] * n[1], tt[2] * n[0] - tt[0] * n[2], tt[0] * n[1]]; // t x n: up the slope
+    return { roof, lx: l.x, lz: l.y, y, n, t: tt, u, flat: false };
+  }
+  return null;
+}

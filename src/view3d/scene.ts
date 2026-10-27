@@ -10,14 +10,21 @@ import { darkness, goldenHour, type SunPosition } from '../sun';
 import { faceNormal } from '../roofs';
 import { sceneChunks, sceneExtent, type BuildOptions } from './build';
 import { roofImage } from './roofTex';
-import type { Part } from './parts';
+import type { Anim, Part } from './parts';
 
 const MAX_LAMPS = 6;
 const EYE = 1.6;
 
+/** A moving part of a door: the pivot it hangs from and how it moves when the door is open. */
+interface Leaf {
+  pivot: THREE.Group;
+  anim: Anim;
+}
+
 interface Built {
   deps: unknown[];
   group: THREE.Group;
+  leaves: Leaf[];
   lamps: { x: number; y: number; z: number; intensity: number; dist: number; color: string }[];
 }
 
@@ -43,6 +50,8 @@ export class Scene3D {
   private textures = new Map<string, THREE.Texture>();
   private geo = { box: new THREE.BoxGeometry(1, 1, 1), sphere: new THREE.SphereGeometry(1, 20, 14), cyl: new Map<string, THREE.CylinderGeometry>() };
   private dirty = true;
+  /** Doors by opening id: how far open (0..1) and where they are heading. Survives rebuilds of the walls. */
+  private doors = new Map<string, { t: number; target: 0 | 1 }>();
   private raf = 0;
   private extent = { cx: 0, cz: 0, radius: 8, top: 3 };
   private dark = 0;
@@ -53,6 +62,8 @@ export class Scene3D {
   private yaw = 0;
   private pitch = 0;
   private keys = new Set<string>();
+  /** Dragging up looks down (flight-stick style) instead of up. */
+  invertY = false;
   private lastTime = 0;
   private saved: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null;
 
@@ -85,6 +96,8 @@ export class Scene3D {
 
     const el = this.renderer.domElement;
     el.addEventListener('pointerdown', this.onDown);
+    el.addEventListener('pointerdown', this.onClickDown);
+    el.addEventListener('pointerup', this.onClickUp);
     window.addEventListener('keydown', this.onKey);
     window.addEventListener('keyup', this.onKey);
     this.resize();
@@ -106,6 +119,7 @@ export class Scene3D {
     this.raf = requestAnimationFrame(this.loop);
     const dt = Math.min(0.1, (t - this.lastTime) / 1000);
     this.lastTime = t;
+    this.stepDoors(dt);
     if (this.mode === 'walk') this.walk(dt);
     else if (this.controls.update()) this.dirty = true;
     if (this.dirty) {
@@ -124,6 +138,8 @@ export class Scene3D {
     window.removeEventListener('keydown', this.onKey);
     window.removeEventListener('keyup', this.onKey);
     this.renderer.domElement.removeEventListener('pointerdown', this.onDown);
+    this.renderer.domElement.removeEventListener('pointerdown', this.onClickDown);
+    this.renderer.domElement.removeEventListener('pointerup', this.onClickUp);
     this.controls.dispose();
     for (const b of this.built.values()) this.disposeGroup(b.group);
     this.geo.box.dispose();
@@ -166,16 +182,31 @@ export class Scene3D {
   private makeChunk(deps: unknown[], parts: Part[]): Built {
     const group = new THREE.Group();
     const lamps: Built['lamps'] = [];
+    const leaves: Leaf[] = [];
     for (const p of parts) {
       if (p.t === 'light') {
         lamps.push({ x: p.x, y: p.y, z: p.z, intensity: p.intensity, dist: p.dist, color: p.color });
         continue;
       }
       const mesh = this.makeMesh(p);
-      if (mesh) group.add(mesh);
+      if (!mesh) continue;
+      if (p.anim) {
+        // a leaf of a door hangs from a pivot (the hinge) so it can swing
+        const pivot = new THREE.Group();
+        if (p.anim.kind === 'swing') {
+          pivot.position.set(...p.anim.origin);
+          mesh.position.sub(pivot.position);
+        }
+        pivot.add(mesh);
+        pivot.userData.door = p.anim.door;
+        mesh.userData.door = p.anim.door;
+        leaves.push({ pivot, anim: p.anim });
+        group.add(pivot);
+        this.poseLeaf(leaves[leaves.length - 1], this.doors.get(p.anim.door)?.t ?? 0);
+      } else group.add(mesh);
     }
     this.world.add(group);
-    return { deps, group, lamps };
+    return { deps, group, lamps, leaves };
   }
 
   private material(color: string, o: { glass?: boolean; glow?: boolean }) {
@@ -295,6 +326,7 @@ export class Scene3D {
       case 'prism': {
         if (p.pts.length < 3) return null;
         const shape = new THREE.Shape(p.pts.map((q) => new THREE.Vector2(q.x, -q.y)));
+        for (const h of p.holes ?? []) if (h.length >= 3) shape.holes.push(new THREE.Path(h.map((q) => new THREE.Vector2(q.x, -q.y))));
         const geometry = new THREE.ExtrudeGeometry(shape, { depth: Math.max(0.001, p.y1 - p.y0), bevelEnabled: false });
         geometry.rotateX(-Math.PI / 2);
         const tex = p.tex ? this.floorTexture(p.tex.kind, p.tex.color) : null;
@@ -392,6 +424,23 @@ export class Scene3D {
     this.dirty = true;
   }
 
+  /** Stand somewhere on the floor and look in a direction (tests): `yaw` 0 looks towards +z, pi towards -z (the top of the plan). */
+  walkTo(x: number, z: number, yaw: number, pitch = 0) {
+    this.setMode('walk', { x, z });
+    this.camera.position.set(x, this.floorY + EYE, z);
+    this.yaw = yaw;
+    this.pitch = pitch;
+    this.applyLook();
+    this.dirty = true;
+  }
+
+  /** Where a point of the scene appears on the canvas, in CSS pixels (tests). */
+  screenOf(x: number, y: number, z: number): { x: number; y: number } {
+    const v = new THREE.Vector3(x, y, z).project(this.camera);
+    const r = this.renderer.domElement.getBoundingClientRect();
+    return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+  }
+
   /** Put the camera somewhere exact (tests, screenshots). */
   setView(pos: [number, number, number], target: [number, number, number]) {
     this.setMode('orbit');
@@ -452,7 +501,7 @@ export class Scene3D {
     const side = (k.has('d') ? 1 : 0) - (k.has('a') ? 1 : 0);
     const turn = (k.has('arrowright') ? 1 : 0) - (k.has('arrowleft') ? 1 : 0);
     if (turn) {
-      this.yaw -= turn * dt * 1.6;
+      this.yaw += turn * dt * 1.6;
       this.dirty = true;
     }
     if (fwd || side) {
@@ -470,6 +519,59 @@ export class Scene3D {
     }
   }
 
+  private ease = (t: number) => t * t * (3 - 2 * t);
+
+  private poseLeaf(leaf: Leaf, t: number) {
+    const e = this.ease(t);
+    if (leaf.anim.kind === 'swing') leaf.pivot.rotation.y = leaf.anim.angle * e;
+    else leaf.pivot.position.set(leaf.anim.move[0] * e, leaf.anim.move[1] * e, leaf.anim.move[2] * e);
+  }
+
+  /** Open a closed door, close an open one. */
+  toggleDoor(id: string) {
+    const s = this.doors.get(id) ?? { t: 0, target: 0 as 0 | 1 };
+    s.target = s.target === 1 ? 0 : 1;
+    this.doors.set(id, s);
+    this.dirty = true;
+  }
+
+  /** Ids of the doors that are open or opening. */
+  openDoors(): string[] {
+    return [...this.doors].filter(([, s]) => s.target === 1).map(([id]) => id);
+  }
+
+  private stepDoors(dt: number) {
+    let moving = false;
+    for (const s of this.doors.values()) {
+      if (s.t === s.target) continue;
+      s.t = s.target === 1 ? Math.min(1, s.t + dt / 0.7) : Math.max(0, s.t - dt / 0.7);
+      moving = true;
+    }
+    if (!moving) return;
+    for (const b of this.built.values()) for (const leaf of b.leaves) this.poseLeaf(leaf, this.doors.get(leaf.anim.door)?.t ?? 0);
+    this.dirty = true;
+  }
+
+  /** What is under a point of the canvas: the nearest thing the ray meets (tests and clicking). */
+  hitAt(clientX: number, clientY: number) {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), this.camera);
+    return ray.intersectObjects(this.world.children, true).find((h) => (h.object.userData as { door?: string }).door || !((h.object as THREE.Mesh).material as THREE.Material).transparent) ?? null;
+  }
+
+  /** A click (not a drag) on a door opens or closes it. */
+  private pick(e: PointerEvent) {
+    const hit = this.hitAt(e.clientX, e.clientY);
+    if (!hit) return;
+    const id = (hit.object.userData as { door?: string }).door;
+    if (id && (this.mode === 'orbit' || hit.distance < 4.5)) this.toggleDoor(id);
+    else if (id) this.onFar?.();
+  }
+
+  /** Called when a door was clicked from too far away to reach it. */
+  onFar: (() => void) | null = null;
+
   private onKey = (e: KeyboardEvent) => {
     if (this.mode !== 'walk') return;
     const t = e.target as HTMLElement | null;
@@ -480,6 +582,17 @@ export class Scene3D {
     if (key.startsWith('arrow')) e.preventDefault();
   };
 
+  private downAt: { x: number; y: number; t: number } | null = null;
+  private onClickDown = (e: PointerEvent) => {
+    this.downAt = { x: e.clientX, y: e.clientY, t: performance.now() };
+  };
+  private onClickUp = (e: PointerEvent) => {
+    const d = this.downAt;
+    this.downAt = null;
+    if (e.button !== 0 || !d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4 || performance.now() - d.t > 500) return;
+    this.pick(e);
+  };
+
   private onDown = (e: PointerEvent) => {
     if (this.mode !== 'walk') return;
     const el = this.renderer.domElement;
@@ -488,8 +601,8 @@ export class Scene3D {
     let x = e.clientX;
     let y = e.clientY;
     const move = (m: PointerEvent) => {
-      this.yaw -= (m.clientX - x) * 0.004;
-      this.pitch = Math.max(-1.3, Math.min(1.3, this.pitch - (m.clientY - y) * 0.004));
+      this.yaw += (m.clientX - x) * 0.004;
+      this.pitch = Math.max(-1.3, Math.min(1.3, this.pitch + (this.invertY ? 1 : -1) * (m.clientY - y) * 0.004));
       x = m.clientX;
       y = m.clientY;
       this.applyLook();
@@ -530,9 +643,11 @@ export class Scene3D {
       chunks: this.built.size,
       lamps: this.lampLights.filter((l) => l.visible).length,
       mode: this.mode,
+      look: this.camera.getWorldDirection(new THREE.Vector3()).toArray(),
       camera: this.camera.position.toArray(),
       target: this.controls.target.toArray(),
       shadows: this.sunLight.castShadow,
+      doorsOpen: this.openDoors().length,
       dark: this.dark,
       filled: content / (80 * 50),
     };

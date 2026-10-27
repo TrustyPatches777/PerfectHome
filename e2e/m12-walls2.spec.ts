@@ -31,8 +31,8 @@ test('wall types: each has its usual thickness, can be changed later, custom thi
   await page.getByTestId('tool-select').click();
   await clickAt(page, 3.5, 3);
   await expect(page.getByTestId('wall-type')).toHaveValue('partition');
-  await page.getByTestId('wall-type').selectOption('load');
-  expect((await design(page)).walls[1]).toMatchObject({ type: 'load', thickness: 0.24 });
+  await page.getByTestId('wall-type').selectOption('partition');
+  expect((await design(page)).walls[1]).toMatchObject({ type: 'partition', thickness: 0.1 });
   // a thickness you typed yourself survives a type change
   await page.getByTestId('wall-thickness').fill('17');
   await page.getByTestId('wall-thickness').press('Enter');

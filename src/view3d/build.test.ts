@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CATALOG, furnitureHeight } from '../catalog';
 import { createDesign, type Design, type Furniture, type Opening, type Wall } from '../model';
 import { buildParts, floorElevations, furnitureChunk, sceneChunks, stairParts, wallStrip } from './build';
+import { POOL_DEPTH } from './furniture3d';
 import { box, partsBounds, place, type Part } from './parts';
 
 const wall = (id: string, floor: string, ax: number, ay: number, bx: number, by: number, extra: Partial<Wall> = {}): Wall => ({ id, floor, a: { x: ax, y: ay }, b: { x: bx, y: by }, thickness: 0.2, type: 'interior', height: 2.5, ...extra });
@@ -44,7 +45,7 @@ describe('furniture models', () => {
       expect(b.maxX, `${item.type} right`).toBeLessThanOrEqual(item.w / 2 + 0.4);
       expect(b.minZ, `${item.type} back`).toBeGreaterThanOrEqual(-item.d / 2 - 0.4);
       expect(b.maxZ, `${item.type} front`).toBeLessThanOrEqual(item.d / 2 + 0.4);
-      expect(b.minY, `${item.type} below floor`).toBeGreaterThanOrEqual(-0.02);
+      expect(b.minY, `${item.type} below floor`).toBeGreaterThanOrEqual(item.type === 'pool' ? -POOL_DEPTH - 0.2 : -0.02);
       expect(b.maxY, `${item.type} too tall`).toBeLessThanOrEqual(Math.max(h * 1.5, 2.6) + 0.3);
     }
   });

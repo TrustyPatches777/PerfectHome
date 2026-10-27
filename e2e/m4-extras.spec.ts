@@ -101,8 +101,8 @@ test('locking the walls layer protects walls but not furniture', async ({ page }
   await page.getByTestId('tool-select').click();
 
   // furniture is still free to move
-  await dragWorld(page, [3, 3], [4, 3]);
-  expect((await design(page)).furniture[0].x).toBeCloseTo(4, 5);
+  await dragWorld(page, [3, 3], [3.5, 3]);
+  expect((await design(page)).furniture[0].x).toBeCloseTo(3.5, 5);
 
   // unlocking restores editing
   await page.getByTestId('lock-structure').click();

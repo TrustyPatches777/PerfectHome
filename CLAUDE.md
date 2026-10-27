@@ -26,11 +26,13 @@ src/distance.ts       closest points/distances between segments and polygon outl
 src/selection.ts      pure group operations: item bounds, move/rotate/align/distribute, copy/paste clipboard, remove, layer of an item
 src/catalog.ts        furniture catalog (~110 items incl. cars, garden, lamps, electrical, plumbing) + custom items registry,
                       heights for shadows, which layer an item lives on, wall-mounted and lamp flags
+src/fit.ts             furniture cannot stand in walls: SAT push-out, sweep along a drag, settleFurniture (called by store/design.ts update)
+src/shapes.ts         rectangles of walls, addRoomTo, shiftEdge (drag a side of a room/lawn), refitRooms (rooms follow their walls)
 src/roofs.ts          roofs: 3D shape (faces + blocks per kind), plan symbol, "fit to walls" (min-area rotated box), base height
 src/roofActions.ts    make/refit/turn roofs, kind and covering changes that keep a sensible look
 src/stairs.ts         stair drawings (straight/L/U/spiral) as pure instructions, walking length, comfort check
 src/patterns.ts       procedural tile images (wall hatch, floor materials) for the canvas; svgExport has vector twins
-src/walls.ts, outdoor.ts   look/defaults of wall types, outdoor zones and strips
+src/walls.ts, outdoor.ts   look/defaults of wall types (exterior/load-bearing is ONE type), wall coverings and paint colors, outdoor zones and strips
 src/typed.ts          parse typed lengths ("350", "2.4m", "3.5<45", "5x3")
 src/mount.ts          snap wall-mounted symbols (sockets, taps) flat onto the wall face under the cursor
 src/dims.ts           automatic dimension labels ("All dimensions")
@@ -135,7 +137,20 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
   fields; add a field to a type and it syncs (no list of keys to maintain). Rooms are keyed by random names; relays only see a hash.
   `localStorage['perfect-home:p2p'] = 'off'` limits transport to same-browser tabs (the e2e tests do; m21b tests the real network).
 - **Rooms** are polygons. Auto mode flood-fills from the click on a raster of the walls (door gaps count as closed), so
-  area is measured to the inner wall faces. Rooms do not follow walls when walls move; "Refit to walls" re-runs detection from the stored seed.
+  area is measured to the inner wall faces. Rooms found from walls remember a `seed` and follow the walls: when a wall drag, corner drag or
+  typed length ends, `refitRooms` re-detects them (inside the same undo step). A wall that has others joined to it only moves sideways
+  (Alt = free). Hand-drawn rooms (no seed) stay put; "Refit to walls" does it by hand. Sides of rooms and outdoor areas have middle handles.
+- **Furniture and walls**: `store/design.ts update` runs `settleFurniture` after every edit: a furniture item whose place, size or turn
+  changed is pushed out of the walls of its floor (walked from its old place in small steps, so a quick drag cannot jump a wall); when
+  there is no room it goes back (a new one is dropped, with a toast). Exempt: tech-layer items, wall-mounted ones, rugs, parking, tree
+  crowns. Edits that change walls never move furniture. Anything new that places furniture goes through `update` and gets this for free.
+- **Wall coverings**: `Wall.paint = { l?, r? }` (left/right face looking a->b). Plan: a thin stripe in the wall (`wallFaceLine`); 3D: thin
+  panels a hair outside the face (`skinPanels`, textures `wall-<finish>` in view3d/wallTex.ts). Doors in 3D: parts carry `anim`
+  (swing about the hinge, slide, lift); the viewer keeps open/closed state per opening id in memory only (not in the design).
+- **Skylights** (`design.skylights`, layer `roofs`) are placed by plan position and lie in whichever roof covers that point
+  (`skylightPlacement` finds the slope face and its frame); not on a roof = not drawn in 3D.
+- **Plan symbol = 3D model**: `footprint.test.ts` compares the plan symbol of every catalog item with its 3D model from above (grid
+  overlap > 60%); schematic exceptions are listed there. A new recipe must match the symbol, including which end is which.
 - **Debug hook**: `window.__ph = { design, ui }` exposes both stores; Playwright tests read state through it.
 - Keep the UI clean and simple. Desktop only: do not add touch/mobile handling.
 
@@ -146,3 +161,4 @@ then: multi-select/copy/paste/align · typed lengths · wall types + curved wall
 furniture · electrical/plumbing/lamps · guides + rulers + all dimensions · sticky notes · sun/shadows/day-night · plan check ·
 area table · SVG export + print at scale
 then: live co-editing (Yjs, peer-to-peer) · 3D view (orbit, walk, sun, furniture models) · roofs (gable, hip, flat, shed, gambrel, mansard)
+then: rectangles of walls · drag sides · wall paint · doors that open in 3D · walk-mode fix · deep pools · corner sofa fix · furniture kept out of walls · skylights

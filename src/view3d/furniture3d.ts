@@ -188,7 +188,15 @@ const sofaOf = (seats: number): Recipe => ({ hw, hd, h, c }) => {
   return out;
 };
 
-const sofaL: Recipe = (k) => {
+/** Mirror a model left to right (x -> -x). */
+function mirrorX(parts: Part[]): Part[] {
+  return parts.map((p) => (p.t === 'prism' || p.t === 'light' || p.t === 'panel' ? p : { ...p, x: -p.x, ...('ry' in p ? { ry: -p.ry } : {}) }));
+}
+
+/** The corner sofa as it is drawn on the plan: the chaise is at the LEFT end, at the front. */
+const sofaL: Recipe = (k) => mirrorX(sofaLChaiseRight(k));
+
+const sofaLChaiseRight: Recipe = (k) => {
   const { hw, hd, h, c } = k;
   const row = 0.95;
   const dark = shade(c, -0.18);
@@ -382,6 +390,14 @@ const toilet: Recipe = ({ hw, hd, c }) => [
   ball(0, 0.4, -hd + 0.5, hw * 0.88, 0.1, hd * 0.52, c),
   ball(0, 0.47, -hd + 0.5, hw * 0.78, 0.025, hd * 0.44, '#ffffff'),
   cyl(hw * 0.35, -hd + 0.15, 0.8, 0.84, 0.025, STEEL),
+];
+
+const bidet: Recipe = ({ hw, hd, c }) => [
+  box(-hw * 0.7, hw * 0.7, 0.0, 0.36, -hd, -hd * 0.62, c),
+  cyl(0, hd * 0.15, 0, 0.3, hw * 0.5, c, hw * 0.7, { rz: hd * 0.45 }),
+  ball(0, 0.38, hd * 0.15, hw * 0.95, 0.09, hd * 0.85, c),
+  ball(0, 0.44, hd * 0.2, hw * 0.78, 0.02, hd * 0.68, '#dbe4ee'),
+  cyl(0, -hd + 0.08, 0.36, 0.5, 0.014, STEEL), box(-0.012, 0.012, 0.48, 0.5, -hd + 0.08, -hd + 0.2, STEEL),
 ];
 
 const bathSink: Recipe = ({ hw, hd, c }) => [
@@ -598,10 +614,23 @@ const trampoline: Recipe = ({ hw, hd, h }) => [
 
 const sandbox: Recipe = ({ hw, hd, h }) => [box(-hw, hw, 0, h, -hd, -hd + 0.06, WOOD), box(-hw, hw, 0, h, hd - 0.06, hd, WOOD), box(-hw, -hw + 0.06, 0, h, -hd, hd, WOOD), box(hw - 0.06, hw, 0, h, -hd, hd, WOOD), box(-hw + 0.06, hw - 0.06, 0, h - 0.05, -hd + 0.06, hd - 0.06, '#e6d3a8')];
 
-const pool: Recipe = ({ hw, hd }) => [
-  box(-hw, hw, 0, 0.12, -hd, -hd + 0.25, '#e5e7eb'), box(-hw, hw, 0, 0.12, hd - 0.25, hd, '#e5e7eb'), box(-hw, -hw + 0.25, 0, 0.12, -hd + 0.25, hd - 0.25, '#e5e7eb'), box(hw - 0.25, hw, 0, 0.12, -hd + 0.25, hd - 0.25, '#e5e7eb'),
-  box(-hw + 0.25, hw - 0.25, 0.0, 0.07, -hd + 0.25, hd - 0.25, '#58b4dd', { glass: true }),
-];
+/** How deep a swimming pool is (the ground is cut away under it, see build.ts). */
+export const POOL_DEPTH = 1.5;
+
+const pool: Recipe = ({ hw, hd }) => {
+  const D = POOL_DEPTH;
+  const tile = '#9fd3e6';
+  const rim = '#e5e7eb';
+  return [
+    // a basin: floor, four walls, a rim of coping stones, and the water a little below the edge
+    box(-hw, hw, -D - 0.1, -D, -hd, hd, tile),
+    box(-hw, hw, -D, 0, -hd, -hd + 0.15, tile), box(-hw, hw, -D, 0, hd - 0.15, hd, tile), box(-hw, -hw + 0.15, -D, 0, -hd + 0.15, hd - 0.15, tile), box(hw - 0.15, hw, -D, 0, -hd + 0.15, hd - 0.15, tile),
+    box(-hw - 0.05, hw + 0.05, 0, 0.06, -hd - 0.05, -hd + 0.22, rim), box(-hw - 0.05, hw + 0.05, 0, 0.06, hd - 0.22, hd + 0.05, rim), box(-hw - 0.05, -hw + 0.22, 0, 0.06, -hd + 0.22, hd - 0.22, rim), box(hw - 0.22, hw + 0.05, 0, 0.06, -hd + 0.22, hd - 0.22, rim),
+    box(-hw + 0.15, hw - 0.15, -D + 0.05, -0.15, -hd + 0.15, hd - 0.15, '#4aa8d6', { glass: true }),
+    // steps down at one end
+    box(-hw + 0.15, -hw + 0.75, -0.9, -0.5, -hd + 0.15, hd - 0.15, tile), box(-hw + 0.15, -hw + 0.45, -0.5, -0.25, -hd + 0.15, hd - 0.15, tile),
+  ];
+};
 
 const hotTub: Recipe = ({ hw, hd, h }) => [cyl(0, 0, 0, h, hw, '#8a6a4a', undefined, { rz: hd }), cyl(0, 0, h - 0.02, h + 0.01, hw - 0.1, '#7dc4e8', undefined, { rz: hd - 0.1, glass: true })];
 
@@ -686,7 +715,7 @@ export const RECIPES: Record<string, Recipe> = {
   'dining-set-4': diningSet(2), 'dining-set-6': diningSet(3),
   fridge, stove, 'kitchen-sink': kitchenSink, counter, 'kitchen-island': island, dishwasher,
   desk, 'desk-l': deskL, 'office-chair': officeChair, 'meeting-table': meetingTable, 'filing-cabinet': filing, printer,
-  toilet, bidet: toilet, 'bath-sink': bathSink, 'double-sink': bathSink, bathtub, shower, washer, dryer: washer, 'water-heater': waterHeater,
+  toilet, bidet, 'bath-sink': bathSink, 'double-sink': bathSink, bathtub, shower, washer, dryer: washer, 'water-heater': waterHeater,
   workbench, 'utility-shelf': shelving, 'utility-sink': utilSink,
   fireplace, piano, radiator, aquarium, pouf, 'side-table': sideTable, plant: plantRecipe,
   'lamp-ceiling': lampCeiling, 'lamp-spot': lampSpot, 'lamp-pendant': lampPendant, 'lamp-chandelier': lampChandelier, 'lamp-wall': lampWall, 'lamp-table': lampTable, 'floor-lamp': lampFloor, 'lamp-garden': lampGarden,

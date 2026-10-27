@@ -12,6 +12,8 @@ const HINTS: Record<string, string> = {
   note: 'Click where the sticky note should go · it is signed with your name and color',
   stairs: 'Click to place the stairs · R rotates · choose straight, L, U or spiral above · Esc cancels',
   roof: 'Drag a box for the roof footprint (or click two corners) · or press "Fit to walls" above · choose the roof type above · Esc cancels',
+  skylight: 'Click on a roof to put a skylight there · Shift+click places several · choose the size above · Esc stops',
+  paint: 'Click the face of a wall to cover it · Shift+click covers both faces · choose the covering and color above · Esc stops',
   zone: 'Drag a box (or click two corners, then type 5x3 + Enter) · Polygon mode: click corners, double-click to finish · Esc cancels',
   strip: 'Click the points along the line · double-click or Enter to finish · Shift = 45° · Esc cancels',
 };
@@ -20,9 +22,12 @@ export function StatusBar() {
   const cursor = useUi((s) => s.cursor);
   const tool = useUi((s) => s.tool);
   const toast = useUi((s) => s.toast);
+  const wallMode = useUi((s) => s.wallMode);
+  const roomMode = useUi((s) => s.roomMode);
+  const hint = tool === 'wall' && wallMode === 'rect' ? 'Drag from one corner to the opposite one for four walls (and the room inside) · or click both corners · type 5x3 + Enter · Esc cancels' : tool === 'room' && roomMode === 'box' ? 'Drag a box to make a room (no walls) · or click two opposite corners · Esc cancels' : HINTS[tool];
   return (
     <div className="statusbar">
-      <span className="hint">{toast ?? HINTS[tool] ?? ''}</span>
+      <span className="hint">{toast ?? hint ?? ''}</span>
       <span className="coords" data-testid="coords">
         {cursor ? `x ${cursor.x.toFixed(2)} m   y ${cursor.y.toFixed(2)} m` : ''}
       </span>

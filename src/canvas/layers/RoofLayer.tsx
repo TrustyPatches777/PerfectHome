@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { Arrow, Group, Line, Rect } from 'react-konva';
 import { shade } from '../../catalog';
-import type { Roof } from '../../model';
-import { roofPlan } from '../../roofs';
+import type { Roof, Skylight } from '../../model';
+import { roofPlan, skylightPlacement } from '../../roofs';
 import { useDesign } from '../../store/design';
 import { useOnFloor } from '../../store/floor';
 import { useSelectedIds, useUi } from '../../store/ui';
@@ -43,17 +43,48 @@ function RoofShape({ roof, selected }: { roof: Roof; selected: boolean }) {
   );
 }
 
+/** A skylight on the plan: a small blue window turned to the slope it lies in. */
+function SkylightShape({ sky, roofs, selected }: { sky: Skylight; roofs: Roof[]; selected: boolean }) {
+  const spot = skylightPlacement(roofs, sky.floor, sky);
+  const rotation = spot ? spot.roof.rotation + (spot.flat ? 0 : (Math.atan2(spot.t[2], spot.t[0]) * 180) / Math.PI) : 0;
+  // seen from above a sloping window is shorter than it is long
+  const length = spot && !spot.flat ? sky.d * Math.hypot(spot.u[0], spot.u[2]) : sky.d;
+  const stroke = selected ? SELECT_COLOR : spot ? '#2f5f9e' : '#ef4444';
+  return (
+    <Group
+      x={sky.x}
+      y={sky.y}
+      rotation={rotation}
+      onMouseDown={(e) => {
+        if (e.evt.button !== 0 || input.space) return;
+        e.cancelBubble = true;
+        pressItem(e.evt, { kind: 'skylight', id: sky.id }, 'move');
+      }}
+    >
+      <Rect x={-sky.w / 2} y={-length / 2} width={sky.w} height={length} fill="rgba(147,197,253,0.6)" stroke={stroke} strokeWidth={selected ? 2.5 : 1.5} strokeScaleEnabled={false} dash={spot ? undefined : [4, 3]} />
+      <Line points={[-sky.w / 2, -length / 2, sky.w / 2, length / 2]} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+      <Line points={[sky.w / 2, -length / 2, -sky.w / 2, length / 2]} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+    </Group>
+  );
+}
+
 /** Roofs of the floor you are on (a roof belongs to the floor whose walls carry it). */
 export function RoofLayer() {
   const roofs = useOnFloor((d) => d.roofs);
   const layer = useDesign((s) => s.design.layers.roofs);
   const tool = useUi((s) => s.tool);
   const ids = useSelectedIds('roof');
+  const skylights = useOnFloor((d) => d.skylights);
+  const allRoofs = useDesign((s) => s.design.roofs);
+  const skyIds = useSelectedIds('skylight');
   if (!layer.visible) return null;
   return (
     <Group listening={tool === 'select' && !layer.locked}>
       {roofs.map((r) => (
         <RoofShape key={r.id} roof={r} selected={ids.has(r.id)} />
+      ))}
+      {skylights.map((s) => (
+        <SkylightShape key={s.id} sky={s} roofs={allRoofs} selected={skyIds.has(s.id)} />
       ))}
       {/* the invisible footprint box the resize handles attach to */}
       {roofs.map((r) => (

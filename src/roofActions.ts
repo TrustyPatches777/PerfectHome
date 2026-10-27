@@ -1,9 +1,30 @@
 /** Making and changing roofs: from a box you drag, from the walls of the floor, kind changes that keep the look sensible. */
 import { floorId } from './store/floor';
 import { newId, type Roof, type RoofKind } from './model';
-import { ROOF_MATERIAL_STYLES, ROOF_STYLES, fitRoofToWalls, type RoofBox } from './roofs';
+import { ROOF_MATERIAL_STYLES, ROOF_STYLES, fitRoofToWalls, skylightPlacement, type RoofBox } from './roofs';
 import { useDesign } from './store/design';
 import { useUi } from './store/ui';
+
+/** The usual sizes of a roof window (width x length up the slope, in meters). */
+export const SKYLIGHT_SIZES = [
+  { label: 'Small', w: 0.55, d: 0.78 },
+  { label: 'Standard', w: 0.78, d: 1.18 },
+  { label: 'Large', w: 1.14, d: 1.4 },
+];
+
+/** Put a skylight on the roof under a plan point. False (with a hint) when there is no roof there. */
+export function addSkylight(p: { x: number; y: number }, size: { w: number; d: number }): string | null {
+  const d0 = useDesign.getState().design;
+  const floor = floorId();
+  if (!skylightPlacement(d0.roofs, floor, p)) {
+    useUi.getState().showToast('Click on a roof to put a skylight there.');
+    return null;
+  }
+  const id = newId();
+  useDesign.getState().update((d) => void d.skylights.push({ id, floor, x: p.x, y: p.y, w: size.w, d: size.d }));
+  useUi.getState().select({ kind: 'skylight', id });
+  return id;
+}
 
 /** A roof with the usual settings for its kind. */
 export function newRoof(floor: string, box: RoofBox, kind: RoofKind): Roof {

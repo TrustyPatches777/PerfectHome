@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
 import { loadIdentity, type Identity } from '../identity';
-import type { CustomItem, Design, ItemKind, ItemRef, OpeningKind, Point, RoofKind, StairKind, StripKind, WallType, ZoneKind } from '../model';
+import { setNotifier } from './notice';
+import type { CustomItem, Design, ItemKind, ItemRef, OpeningKind, Point, RoofKind, StairKind, StripKind, WallFinish, WallType, ZoneKind } from '../model';
 import { STRIP_DEFAULT_WIDTH } from '../model';
 
 /** A modal question or message. Rendered by components/Dialogs.tsx. */
@@ -17,7 +18,7 @@ export type DialogState =
 
 import { DEFAULT_PRINT, type PrintOptions } from '../printLayout';
 
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'stairs' | 'roof' | 'note';
+export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'stairs' | 'roof' | 'skylight' | 'paint' | 'note';
 
 /** Camera: screen = world * zoom + (x, y). `zoom` is pixels per meter. */
 export interface Viewport {
@@ -70,8 +71,8 @@ interface UiStore {
   placingRotation: number;
   setPlacingRotation: (deg: number) => void;
 
-  roomMode: 'auto' | 'draw';
-  setRoomMode: (m: 'auto' | 'draw') => void;
+  roomMode: 'auto' | 'draw' | 'box';
+  setRoomMode: (m: 'auto' | 'draw' | 'box') => void;
 
   /** Outdoor tools: which kind of area / line feature is being drawn, and how areas are drawn. */
   zoneKind: ZoneKind;
@@ -102,6 +103,9 @@ interface UiStore {
   /** 3D: walk through the house instead of orbiting around it. */
   walking: boolean;
   setWalking: (v: boolean) => void;
+  /** 3D walking: invert the up/down look direction. */
+  invertLook: boolean;
+  setInvertLook: (v: boolean) => void;
   /** 3D: cast shadows. */
   shadows3d: boolean;
   setShadows3d: (v: boolean) => void;
@@ -142,6 +146,18 @@ interface UiStore {
   setDoorKind: (k: Exclude<OpeningKind, 'window' | 'bay'>) => void;
   windowKind: 'window' | 'bay';
   setWindowKind: (k: 'window' | 'bay') => void;
+  /** Wall tool: one wall at a time ('line') or four joined walls from two corners ('rect', optionally with its room). */
+  wallMode: 'line' | 'rect';
+  setWallMode: (m: 'line' | 'rect') => void;
+  wallRoom: boolean;
+  setWallRoom: (v: boolean) => void;
+  /** Skylight tool: which size to put on a roof (index into SKYLIGHT_SIZES). */
+  skylightSize: number;
+  setSkylightSize: (i: number) => void;
+  /** Paint tool: what to cover walls with ('clear' takes the covering off). */
+  paintFinish: WallFinish | 'clear';
+  paintColor: string;
+  setPaint: (finish: WallFinish | 'clear', color?: string) => void;
   /** Which kind of roof the Roof tool makes. */
   roofKind: RoofKind;
   setRoofKind: (k: RoofKind) => void;
@@ -219,6 +235,10 @@ export const useUi = create<UiStore>((set) => ({
   setPlacingRotation: (placingRotation) => set({ placingRotation }),
 
   roomMode: 'auto',
+  wallMode: 'line',
+  setWallMode: (wallMode) => set({ wallMode }),
+  wallRoom: true,
+  setWallRoom: (wallRoom) => set({ wallRoom }),
   setRoomMode: (roomMode) => set({ roomMode }),
 
   zoneKind: 'lawn',
@@ -254,6 +274,8 @@ export const useUi = create<UiStore>((set) => ({
   setCutaway: (cutaway) => set({ cutaway }),
   walking: false,
   setWalking: (walking) => set({ walking }),
+  invertLook: false,
+  setInvertLook: (invertLook) => set({ invertLook }),
   shadows3d: true,
   setShadows3d: (shadows3d) => set({ shadows3d }),
 
@@ -276,6 +298,11 @@ export const useUi = create<UiStore>((set) => ({
   setDoorKind: (doorKind) => set({ doorKind }),
   windowKind: 'window',
   setWindowKind: (windowKind) => set({ windowKind }),
+  skylightSize: 1,
+  setSkylightSize: (skylightSize) => set({ skylightSize }),
+  paintFinish: 'paint',
+  paintColor: '#e9d8b8',
+  setPaint: (paintFinish, color) => set((s) => ({ paintFinish, paintColor: color ?? s.paintColor })),
   roofKind: 'gable',
   setRoofKind: (roofKind) => set({ roofKind }),
   showRoof3d: true,
@@ -320,3 +347,5 @@ useUi.subscribe((s, prev) => {
     /* storage unavailable: the switches just reset next time */
   }
 });
+
+setNotifier((m) => useUi.getState().showToast(m));

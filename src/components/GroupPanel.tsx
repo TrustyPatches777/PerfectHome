@@ -14,6 +14,7 @@ const NAMES: Record<ItemKind, [string, string]> = {
   strip: ['street / fence / path', 'streets, fences & paths'],
   stair: ['staircase', 'staircases'],
   roof: ['roof', 'roofs'],
+  skylight: ['skylight', 'skylights'],
   note: ['sticky note', 'sticky notes'],
   guide: ['guide', 'guides'],
 };

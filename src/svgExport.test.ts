@@ -24,10 +24,10 @@ function house(): { d: Design; F: string } {
   const d = createDesign();
   const F = d.floors[0].id;
   d.name = 'Smith & "Co" <home>';
-  const wall = (id: string, ax: number, ay: number, bx: number, by: number, type: 'exterior' | 'load' = 'exterior', extra = {}) =>
+  const wall = (id: string, ax: number, ay: number, bx: number, by: number, type: 'exterior' | 'interior' = 'exterior', extra = {}) =>
     d.walls.push({ id, floor: F, a: { x: ax, y: ay }, b: { x: bx, y: by }, thickness: 0.25, type, height: 2.5, ...extra });
   wall('t', 0, 0, 8, 0);
-  wall('r', 8, 0, 8, 6, 'load');
+  wall('r', 8, 0, 8, 6, 'interior');
   wall('b', 8, 6, 0, 6);
   wall('l', 0, 6, 0, 0, 'exterior', { bulge: 1 }); // a curved wall
   d.openings.push({ id: 'door', wallId: 't', kind: 'door', pos: 2, width: 0.9, swing: 1, hinge: 'a' });
@@ -74,11 +74,9 @@ describe('SVG export', () => {
     expect(Number(m[1])).toBeCloseTo(-4, 3);
   });
 
-  it('draws walls with gaps for doors, curved walls as arcs, and load-bearing walls hatched', () => {
+  it('draws walls with gaps for doors and curved walls as arcs', () => {
     const { d, F } = house();
     const svg = buildSvg(d, F, { decorations: false })!.svg;
-    expect(svg).toContain('fill="url(#hatch)"'); // the load-bearing wall
-    expect(svg).toContain('<pattern id="hatch"');
     expect(svg).toContain('fill="#262c3a"'); // exterior walls
     // the top wall has a door and a window cut out: 3 pieces; the bottom wall has 3 openings: 4 pieces
     expect((svg.match(/<polygon points="[^"]*" fill="#262c3a"\/>/g) ?? []).length).toBeGreaterThanOrEqual(3 + 4 + 1);

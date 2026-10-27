@@ -11,7 +11,7 @@ import type { Design, FloorMaterial, Furniture, Opening, Point, Wall } from './m
 import { samplePolyline, STRIP_STYLES } from './outdoor';
 import { roofPlan } from './roofs';
 import { stairShapes } from './stairs';
-import { WALL_STYLE } from './walls';
+import { WALL_STYLE, wallFaceLine } from './walls';
 
 export interface SvgOptions {
   /** Draw the title, scale bar and north arrow inside the picture (for the exported file). */
@@ -193,7 +193,14 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
     for (const w of wallsHere) {
       const style = WALL_STYLE[w.type] ?? WALL_STYLE.interior;
       const gaps = d.openings.filter((x) => x.wallId === w.id);
-      for (const [s0, s1] of wallSolidSegments(w, gaps)) body.push(`<polygon points="${pts(wallSegmentPolygon(w, s0, s1))}" fill="${style.hatch ? 'url(#hatch)' : style.fill}"/>`);
+      for (const [s0, s1] of wallSolidSegments(w, gaps)) {
+        body.push(`<polygon points="${pts(wallSegmentPolygon(w, s0, s1))}" fill="${style.hatch ? 'url(#hatch)' : style.fill}"/>`);
+        const stripe = Math.min(0.05, w.thickness * 0.22);
+        for (const side of ['l', 'r'] as const) {
+          const skin = w.paint?.[side];
+          if (skin) body.push(`<polyline points="${pts(wallFaceLine(w, s0, s1, side, stripe / 2))}" fill="none" stroke="${skin.color}" stroke-width="${n(stripe)}"/>`);
+        }
+      }
     }
     for (const op of d.openings) {
       const w = wallsHere.find((x) => x.id === op.wallId);

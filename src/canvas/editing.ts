@@ -1,7 +1,8 @@
 /** Mouse-driven edits of existing items: moving walls, dragging endpoints, sliding doors along walls. */
 import type { Draft } from 'immer';
 import type { Design, Point } from '../model';
-import { clampOpeningPos, openingOverlaps, projectOnWall, samePoint, wallFrame, wallLength } from '../geometry';
+import { clampOpeningPos, openingOverlaps, polygonsOverlap, projectOnWall, samePoint, wallFrame, wallLength } from '../geometry';
+import { edgeNormal, refitRooms, shiftEdge } from '../shapes';
 import { useDesign } from '../store/design';
 import { newId } from '../model';
 import { useUi } from '../store/ui';
@@ -45,10 +46,17 @@ export function setWallLength(wallId: string, length: number) {
     }
     w.b = nb;
     fixOpenings(d, touched);
+    refitRooms(d, w.floor);
   });
 }
 
-/** Drag a whole wall; walls joined at its ends follow (stretch) so corners stay closed. */
+/** The rooms found from their walls follow the walls when those have moved. */
+const refitFloor = (floor: string) => () => useDesign.getState().update((d) => void refitRooms(d, floor));
+
+/**
+ * Drag a whole wall; walls joined at its ends follow (stretch) so corners stay closed. A wall that has others joined to it only moves
+ * sideways (straight out from itself), so a rectangle stays a rectangle: hold Alt to move it freely. Rooms found from the walls follow.
+ */
 export function startWallMove(evt: MouseEvent, wallId: string) {
   const d0 = useDesign.getState().design;
   const wall = d0.walls.find((w) => w.id === wallId);
@@ -57,12 +65,23 @@ export function startWallMove(evt: MouseEvent, wallId: string) {
   const b0 = { ...wall.b };
   const ends = [...endsAt(d0, a0, wall.floor), ...endsAt(d0, b0, wall.floor)].filter((e) => e.id !== wallId);
   const origins = new Map(ends.map((e) => [`${e.id}${e.end}`, { ...d0.walls.find((w) => w.id === e.id)![e.end] }]));
+  const n = wallFrame(wall).n;
+  const sideways = ends.length > 0 && !evt.altKey && !wall.bulge;
 
-  dragSession(evt, (world, start) => {
-    const raw = { x: a0.x + world.x - start.x, y: a0.y + world.y - start.y };
+  dragSession(evt, (world, start, e) => {
+    let raw = { x: a0.x + world.x - start.x, y: a0.y + world.y - start.y };
+    if (sideways && !e.altKey) {
+      const t = (world.x - start.x) * n.x + (world.y - start.y) * n.y;
+      raw = { x: a0.x + n.x * t, y: a0.y + n.y * t };
+    }
     const snapped = snapWorld(raw, { grid: true, ignore: () => true }).p; // grid only
-    const dx = snapped.x - a0.x;
-    const dy = snapped.y - a0.y;
+    let dx = snapped.x - a0.x;
+    let dy = snapped.y - a0.y;
+    if (sideways && !e.altKey) {
+      const k = dx * n.x + dy * n.y;
+      dx = n.x * k;
+      dy = n.y * k;
+    }
     useDesign.getState().update((d) => {
       const w = d.walls.find((x) => x.id === wallId)!;
       w.a = { x: a0.x + dx, y: a0.y + dy };
@@ -75,7 +94,7 @@ export function startWallMove(evt: MouseEvent, wallId: string) {
       }
       fixOpenings(d, touched);
     });
-  });
+  }, undefined, refitFloor(wall.floor));
 }
 
 /** Drag one corner of a wall; every wall end joined there moves with it. */
@@ -97,7 +116,7 @@ export function startEndpointDrag(evt: MouseEvent, wallId: string, end: End) {
       }
       fixOpenings(d, touched);
     });
-  });
+  }, undefined, refitFloor(wall.floor));
 }
 
 /** Slide a door/window along its wall. */
@@ -132,6 +151,28 @@ export function startPointDrag(evt: MouseEvent, kind: PolyKind, id: string, inde
     useDesign.getState().update((d) => {
       const r = (polyList(d, kind) as { id: string; points: Point[] }[]).find((x) => x.id === id);
       if (r) r.points[index] = { ...p };
+    });
+  });
+}
+
+/**
+ * Drag one side of a room or outdoor area sideways (straight out from itself): a rectangle grows or shrinks on that side, the
+ * neighbouring sides stretch. Rooms refuse to grow into another room.
+ */
+export function startEdgeDrag(evt: MouseEvent, kind: 'room' | 'zone', id: string, edge: number) {
+  const item = (polyList(useDesign.getState().design as Draft<Design>, kind) as { id: string; floor: string; points: Point[] }[]).find((x) => x.id === id);
+  if (!item) return;
+  const orig = item.points.map((p) => ({ ...p }));
+  const n = edgeNormal(orig, edge);
+  dragSession(evt, (world, start) => {
+    const probe = { x: orig[edge].x + world.x - start.x, y: orig[edge].y + world.y - start.y };
+    const snapped = snapWorld(probe, { grid: true, ignore: () => true }).p;
+    const delta = (snapped.x - orig[edge].x) * n.x + (snapped.y - orig[edge].y) * n.y;
+    const points = shiftEdge(orig, edge, delta);
+    if (kind === 'room' && useDesign.getState().design.rooms.some((o) => o.id !== id && o.floor === item.floor && polygonsOverlap(o.points, points))) return;
+    useDesign.getState().update((d) => {
+      const r = (polyList(d, kind) as { id: string; points: Point[] }[]).find((x) => x.id === id);
+      if (r) r.points = points;
     });
   });
 }
