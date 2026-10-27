@@ -9,6 +9,7 @@ import { autoDimensions } from './dims';
 import { doorGeometry, formatArea, labelPoint, niceLength, polygonArea, wallArc, wallPointAt, wallSolidSegments } from './geometry';
 import type { Design, FloorMaterial, Furniture, Opening, Point, Wall } from './model';
 import { samplePolyline, STRIP_STYLES } from './outdoor';
+import { roofPlan } from './roofs';
 import { stairShapes } from './stairs';
 import { WALL_STYLE } from './walls';
 
@@ -225,6 +226,21 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
       body.push(furnitureSvg(f));
       const size = Math.min(0.2, Math.min(f.w, f.d) * 0.28);
       if (layerId === 'furniture' && Math.min(f.w, f.d) >= 0.5) body.push(L(f.label || catalogItem(f.type).label, f.x, f.y + size * 0.35, size, 'fill="#1f2937" opacity="0.85"'));
+    }
+  }
+
+  if (vis('roofs')) {
+    for (const r of onFloor(d.roofs)) {
+      const plan = roofPlan(r);
+      const col = shade(r.color, -0.15);
+      const xy = (list: { x: number; y: number }[]) => list.map((p) => `${n(p.x)},${n(p.y)}`).join(' ');
+      const inner = [
+        `<polygon points="${xy(plan.outline)}" fill="none" stroke="${col}" stroke-width="1.5" stroke-dasharray="8 5" ${hairline}/>`,
+        `<polygon points="${xy(plan.footprint)}" fill="none" stroke="${col}" stroke-width="1" stroke-dasharray="2 4" opacity="0.4" ${hairline}/>`,
+        ...plan.lines.map((l) => `<polyline points="${xy(l)}" fill="none" stroke="${col}" stroke-width="1.25" ${hairline}/>`),
+        ...(plan.fall ? [`<polyline points="${xy(plan.fall)}" fill="none" stroke="${col}" stroke-width="1.25" ${hairline}/>`] : []),
+      ].join('');
+      body.push(`<g transform="translate(${n(r.x)} ${n(r.y)}) rotate(${n(r.rotation)})">${inner}</g>`);
     }
   }
 

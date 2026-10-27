@@ -7,7 +7,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { patternFor, type PatternKind } from '../patterns';
 import type { Design } from '../model';
 import { darkness, goldenHour, type SunPosition } from '../sun';
+import { faceNormal } from '../roofs';
 import { sceneChunks, sceneExtent, type BuildOptions } from './build';
+import { roofImage } from './roofTex';
 import type { Part } from './parts';
 
 const MAX_LAMPS = 6;
@@ -212,6 +214,35 @@ export class Scene3D {
     return t;
   }
 
+  private roofTexture(kind: string, color: string) {
+    const key = `roof|${kind}|${color}`;
+    let t = this.textures.get(key);
+    if (!t) {
+      const img = roofImage(kind, color);
+      if (!img) return null;
+      t = new THREE.CanvasTexture(img);
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.anisotropy = 4;
+      this.textures.set(key, t);
+    }
+    return t;
+  }
+
+  /** A flat polygon in space, thickened away from the side it faces. */
+  private panelGeometry(pts: [number, number, number][], thick: number, facing: [number, number, number]) {
+    let n = new THREE.Vector3(...faceNormal(pts));
+    if (n.dot(new THREE.Vector3(...facing)) < 0) n = n.negate();
+    const o = new THREE.Vector3(...pts[0]);
+    const u = new THREE.Vector3(...pts[1]).sub(o).normalize();
+    const v = new THREE.Vector3().crossVectors(n, u);
+    const shape = new THREE.Shape(pts.map((p) => new THREE.Vector2(new THREE.Vector3(...p).sub(o).dot(u), new THREE.Vector3(...p).sub(o).dot(v))));
+    const g = new THREE.ExtrudeGeometry(shape, { depth: Math.max(0.005, thick), bevelEnabled: false });
+    g.translate(0, 0, -Math.max(0.005, thick));
+    g.applyMatrix4(new THREE.Matrix4().makeBasis(u, v, n).setPosition(o));
+    return g;
+  }
+
   private cylGeometry(ratio: number) {
     const key = ratio.toFixed(3);
     let g = this.geo.cyl.get(key);
@@ -252,6 +283,13 @@ export class Scene3D {
         mesh.rotation.order = 'YXZ';
         mesh.rotation.set(p.ax === 'y' ? Math.PI / 2 : 0, p.ry + (p.ax === 'x' ? Math.PI / 2 : 0), 0);
         mesh.position.set(p.x, p.y, p.z);
+        break;
+      }
+      case 'panel': {
+        if (p.pts.length < 3) return null;
+        const tex = p.tex ? this.roofTexture(p.tex.kind, p.tex.color) : null;
+        const top = tex ? new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }) : mat;
+        mesh = new THREE.Mesh(this.panelGeometry(p.pts, p.thick, p.facing), tex ? [top, mat] : mat);
         break;
       }
       case 'prism': {

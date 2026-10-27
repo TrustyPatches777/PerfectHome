@@ -16,7 +16,7 @@ export function SelectionTransformer() {
   const tool = useUi((s) => s.tool);
   const design = useDesign((s) => s.design);
 
-  const kind = sel?.kind === 'furniture' || sel?.kind === 'label' || sel?.kind === 'stair' ? sel.kind : null;
+  const kind = sel?.kind === 'furniture' || sel?.kind === 'label' || sel?.kind === 'stair' || sel?.kind === 'roof' ? sel.kind : null;
   const layer = sel && kind ? design.layers[layerOfRef(design, sel)] : null;
   const locked = layer ? layer.locked : false;
   const visible = layer ? layer.visible : false;
@@ -59,6 +59,14 @@ export function SelectionTransformer() {
         st.x = x;
         st.y = y;
         st.rotation = rotation;
+      } else if (sel.kind === 'roof') {
+        const r = d.roofs.find((i) => i.id === sel.id);
+        if (!r) return;
+        r.w = cm(Math.max(0.5, r.w * sx));
+        r.d = cm(Math.max(0.5, r.d * sy));
+        r.x = x;
+        r.y = y;
+        r.rotation = rotation;
       } else if (sel.kind === 'label') {
         const l = d.labels.find((i) => i.id === sel.id);
         if (!l) return;
@@ -76,7 +84,7 @@ export function SelectionTransformer() {
       keepRatio={false}
       ignoreStroke
       enabledAnchors={
-        sel?.kind === 'furniture' || sel?.kind === 'stair'
+        sel?.kind === 'furniture' || sel?.kind === 'stair' || sel?.kind === 'roof'
           ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
           : []
       }

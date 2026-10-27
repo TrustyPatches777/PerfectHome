@@ -17,6 +17,10 @@ export function contentBounds(d: Design, floor?: string): Bounds | null {
     const r = Math.hypot(s.w, s.d) / 2;
     pts.push({ x: s.x - r, y: s.y - r }, { x: s.x + r, y: s.y + r });
   }
+  for (const r of on(d.roofs)) {
+    const e = Math.hypot(r.w, r.d) / 2 + r.overhang;
+    pts.push({ x: r.x - e, y: r.y - e }, { x: r.x + e, y: r.y + e });
+  }
   for (const f of on(d.furniture)) {
     const r = Math.hypot(f.w, f.d) / 2;
     pts.push({ x: f.x - r, y: f.y - r }, { x: f.x + r, y: f.y + r });

@@ -247,3 +247,52 @@ describe('rebuilding only what changed', () => {
     expect(changed.map((c) => c.key)).toEqual(['fur:a']);
   });
 });
+
+describe('roofs in 3D', () => {
+  const withRoof = () => {
+    const { d, F } = house();
+    d.roofs.push({ id: 'r', floor: F, kind: 'gable', x: 3, y: 2, w: 6.6, d: 4.6, rotation: 0, pitch: 35, overhang: 0.4, thickness: 0.15, material: 'tiles', color: '#b5523b', chimney: true, parapet: false });
+    return { d, F };
+  };
+
+  it('sits on top of the walls, as wide as the roof box plus the overhang, with a chimney above it', () => {
+    const { d } = withRoof();
+    const parts = sceneChunks(d).find((c) => c.key === 'roof:r')!.make();
+    const panels = parts.filter((p) => p.t === 'panel');
+    expect(panels.length).toBe(4); // two slopes and two gable ends
+    const b = partsBounds(parts);
+    expect(b.minX).toBeCloseTo(3 - 3.3 - 0.4, 1);
+    expect(b.maxX).toBeCloseTo(3 + 3.3 + 0.4, 1);
+    expect(b.minY).toBeLessThan(2.5); // the eaves hang a little below the wall tops
+    const ridge = 2.5 + 2.3 * Math.tan((35 * Math.PI) / 180);
+    expect(b.maxY).toBeGreaterThan(ridge + 0.8); // chimney
+  });
+
+  it('turns with the roof box', () => {
+    const { d } = withRoof();
+    d.roofs[0].rotation = 90;
+    const b = partsBounds(sceneChunks(d).find((c) => c.key === 'roof:r')!.make());
+    expect(b.maxX - b.minX).toBeCloseTo(4.6 + 0.8, 1);
+    expect(b.maxZ - b.minZ).toBeCloseTo(6.6 + 0.8, 1);
+  });
+
+  it('is left out when switched off, hidden by its layer, or cut away with the floor above', () => {
+    const { d, F } = withRoof();
+    const has = (o?: Parameters<typeof sceneChunks>[1]) => sceneChunks(d, o).some((c) => c.key === 'roof:r');
+    expect(has()).toBe(true);
+    expect(has({ showRoof: false })).toBe(false);
+    d.floors.push({ id: 'up', name: '1st' });
+    expect(has({ hideAbove: F })).toBe(false); // a cut-away takes off the roof of the floor you are on
+    expect(has({ hideAbove: 'up' })).toBe(true);
+    d.layers.roofs.visible = false;
+    expect(has()).toBe(false);
+  });
+
+  it('follows the height of the walls it sits on', () => {
+    const { d } = withRoof();
+    const low = partsBounds(sceneChunks(d).find((c) => c.key === 'roof:r')!.make()).maxY;
+    for (const w of d.walls) w.height = 3.5;
+    const high = partsBounds(sceneChunks(d).find((c) => c.key === 'roof:r')!.make()).maxY;
+    expect(high - low).toBeCloseTo(1, 5);
+  });
+});

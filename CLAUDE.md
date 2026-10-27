@@ -26,6 +26,8 @@ src/distance.ts       closest points/distances between segments and polygon outl
 src/selection.ts      pure group operations: item bounds, move/rotate/align/distribute, copy/paste clipboard, remove, layer of an item
 src/catalog.ts        furniture catalog (~110 items incl. cars, garden, lamps, electrical, plumbing) + custom items registry,
                       heights for shadows, which layer an item lives on, wall-mounted and lamp flags
+src/roofs.ts          roofs: 3D shape (faces + blocks per kind), plan symbol, "fit to walls" (min-area rotated box), base height
+src/roofActions.ts    make/refit/turn roofs, kind and covering changes that keep a sensible look
 src/stairs.ts         stair drawings (straight/L/U/spiral) as pure instructions, walking length, comfort check
 src/patterns.ts       procedural tile images (wall hatch, floor materials) for the canvas; svgExport has vector twins
 src/walls.ts, outdoor.ts   look/defaults of wall types, outdoor zones and strips
@@ -52,6 +54,7 @@ src/view3d/             the house in 3D (three.js, loaded only when the 3D view 
   parts.ts              the scene as plain data: boxes/cylinders/balls/rings/prisms/lights, `place()` (plan rotation -> three rotation)
   furniture3d.ts        a recipe per catalog type (item-local coords, back at -z); no recipe = plain block. A unit test keeps every
                         model inside its footprint, so a new recipe cannot wander off
+  roofTex.ts            canvas textures for roof coverings (tiles, slate, metal ribs, thatch...)
   build.ts              design -> chunks (one per wall/room/item) with `deps`; walls get cut for doors/windows, floors stack by storey
   scene.ts              Three.js: meshes from parts, sun + shadows + lamps, orbit and walk cameras, only rebuilds changed chunks
   View3D.tsx            the 3D view with its controls (orbit/walk, cut-away, shadows, time of day, save image)
@@ -110,7 +113,11 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
   `moveFromBase` from an untouched snapshot so long drags do not drift.
 - **Curved walls**: positions along a wall are ARC LENGTH. Use `wallLength`, `wallPointAt`, `projectOnWall` (never `b - a`) so doors,
   windows, snapping and room detection work on curves.
-- **Layers**: `structure` (walls, openings, stairs), `rooms`, `outdoor`, `furniture`, `tech` (lamps, electrical, plumbing: chosen by the
+- **Roofs** are items of their own (`design.roofs`, layer `roofs`), oriented boxes like furniture: x,y = middle of the footprint, `w` along the
+  ridge, `d` across, `floor` = the floor whose walls carry it (its base height = the tallest wall of that floor). On the plan only the dashed
+  outline reacts to the mouse, so a roof never covers what is under it. In 3D a cut-away removes the roof of the active floor and above.
+  Every roof kind must keep all faces planar (roofs.test.ts checks), because 3D draws each face as one flat panel.
+- **Layers**: `structure` (walls, openings, stairs), `rooms`, `roofs`, `outdoor`, `furniture`, `tech` (lamps, electrical, plumbing: chosen by the
   catalog item, not by the item kind), `notes` (labels, measurements, guides), `comments` (sticky notes), `shadows` (draws only).
 - **Sun & shadows** live in one Konva layer (`LightingLayer`); heights come from `furnitureHeight`/`wall.height`; off by default.
   Time of day is UI state; date, latitude and north are in the design (`design.site`).
@@ -138,4 +145,4 @@ then: room overlap fix · floors + garage/double door/open passage · outdoor ar
 then: multi-select/copy/paste/align · typed lengths · wall types + curved walls · more openings · stairs · floor materials · custom
 furniture · electrical/plumbing/lamps · guides + rulers + all dimensions · sticky notes · sun/shadows/day-night · plan check ·
 area table · SVG export + print at scale
-then: live co-editing (Yjs, peer-to-peer) · 3D view (orbit, walk, sun, furniture models)
+then: live co-editing (Yjs, peer-to-peer) · 3D view (orbit, walk, sun, furniture models) · roofs (gable, hip, flat, shed, gambrel, mansard)

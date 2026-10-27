@@ -18,11 +18,12 @@ export interface Point {
 }
 
 /** Layers can be hidden and locked. Locked layers cannot be selected or moved. */
-export type LayerId = 'structure' | 'rooms' | 'outdoor' | 'furniture' | 'tech' | 'notes' | 'comments' | 'shadows';
-export const LAYER_IDS: LayerId[] = ['structure', 'rooms', 'outdoor', 'furniture', 'tech', 'notes', 'comments', 'shadows'];
+export type LayerId = 'structure' | 'rooms' | 'roofs' | 'outdoor' | 'furniture' | 'tech' | 'notes' | 'comments' | 'shadows';
+export const LAYER_IDS: LayerId[] = ['structure', 'rooms', 'roofs', 'outdoor', 'furniture', 'tech', 'notes', 'comments', 'shadows'];
 export const LAYER_LABELS: Record<LayerId, string> = {
   structure: 'Walls, doors, windows & stairs',
   rooms: 'Rooms',
+  roofs: 'Roofs',
   outdoor: 'Garden, driveway & street',
   furniture: 'Furniture & vehicles',
   tech: 'Lamps, electrical & plumbing',
@@ -145,6 +146,36 @@ export interface Stair {
   flip: boolean;
 }
 
+/**
+ * A roof sits on top of one floor's walls. It is an oriented box like furniture: (x, y) is the middle of the footprint, `w` runs
+ * along the ridge (local x) and `d` across it. `overhang` is how far it sticks out beyond the footprint.
+ */
+export type RoofKind = 'flat' | 'shed' | 'gable' | 'hip' | 'gambrel' | 'mansard';
+export const ROOF_KINDS: RoofKind[] = ['gable', 'hip', 'flat', 'shed', 'gambrel', 'mansard'];
+export type RoofMaterial = 'tiles' | 'slate' | 'metal' | 'shingle' | 'thatch' | 'green' | 'gravel';
+export const ROOF_MATERIALS: RoofMaterial[] = ['tiles', 'slate', 'metal', 'shingle', 'thatch', 'green', 'gravel'];
+export interface Roof {
+  id: string;
+  /** The floor whose walls carry the roof. */
+  floor: string;
+  kind: RoofKind;
+  x: number;
+  y: number;
+  w: number;
+  d: number;
+  rotation: number;
+  /** Slope in degrees (the upper slope of gambrel and mansard roofs; flat roofs ignore it). */
+  pitch: number;
+  overhang: number;
+  /** Thickness of the roof covering in meters. */
+  thickness: number;
+  material: RoofMaterial;
+  color: string;
+  chimney: boolean;
+  /** Flat roofs: a low wall around the edge. */
+  parapet: boolean;
+}
+
 /** A sticky note pinned on the plan. */
 export interface Note {
   id: string;
@@ -264,13 +295,14 @@ export interface Design {
   zones: Zone[];
   strips: Strip[];
   stairs: Stair[];
+  roofs: Roof[];
   notes: Note[];
   guides: Guide[];
   custom: CustomItem[];
   site: Site;
 }
 
-export type ItemKind = 'wall' | 'opening' | 'room' | 'furniture' | 'label' | 'dimension' | 'zone' | 'strip' | 'stair' | 'note' | 'guide';
+export type ItemKind = 'wall' | 'opening' | 'room' | 'furniture' | 'label' | 'dimension' | 'zone' | 'strip' | 'stair' | 'roof' | 'note' | 'guide';
 export interface ItemRef {
   kind: ItemKind;
   id: string;
@@ -286,6 +318,7 @@ export const LAYER_OF: Record<ItemKind, LayerId> = {
   zone: 'outdoor',
   strip: 'outdoor',
   stair: 'structure',
+  roof: 'roofs',
   note: 'comments',
   guide: 'notes',
 };
@@ -313,6 +346,7 @@ export function createDesign(): Design {
     layers: {
       structure: { visible: true, locked: false },
       rooms: { visible: true, locked: false },
+      roofs: { visible: true, locked: false },
       outdoor: { visible: true, locked: false },
       furniture: { visible: true, locked: false },
       tech: { visible: true, locked: false },
@@ -330,6 +364,7 @@ export function createDesign(): Design {
     zones: [],
     strips: [],
     stairs: [],
+    roofs: [],
     notes: [],
     guides: [],
     custom: [],
@@ -518,6 +553,23 @@ export function parseDesign(input: unknown): Design {
       steps: Math.round(num(o.steps, 14, 2, 60)),
       rise: num(o.rise, 2.8, 0.2, 10),
       flip: o.flip === true,
+    })),
+    roofs: list<Roof>(input.roofs, (o) => ({
+      id: str(o.id, newId(), 20),
+      floor: floorOf(o.floor),
+      kind: ROOF_KINDS.includes(o.kind as RoofKind) ? (o.kind as RoofKind) : 'gable',
+      x: num(o.x, 0),
+      y: num(o.y, 0),
+      w: num(o.w, 8, 0.5, 100),
+      d: num(o.d, 6, 0.5, 100),
+      rotation: num(o.rotation, 0, -3600, 3600),
+      pitch: num(o.pitch, 35, 3, 80),
+      overhang: num(o.overhang, 0.4, 0, 3),
+      thickness: num(o.thickness, 0.15, 0.03, 0.8),
+      material: ROOF_MATERIALS.includes(o.material as RoofMaterial) ? (o.material as RoofMaterial) : 'tiles',
+      color: color(o.color, '#b5523b'),
+      chimney: o.chimney === true,
+      parapet: o.parapet === true,
     })),
     notes: list<Note>(input.notes, (o) => ({
       id: str(o.id, newId(), 20),

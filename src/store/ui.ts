@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
 import { loadIdentity, type Identity } from '../identity';
-import type { CustomItem, Design, ItemKind, ItemRef, OpeningKind, Point, StairKind, StripKind, WallType, ZoneKind } from '../model';
+import type { CustomItem, Design, ItemKind, ItemRef, OpeningKind, Point, RoofKind, StairKind, StripKind, WallType, ZoneKind } from '../model';
 import { STRIP_DEFAULT_WIDTH } from '../model';
 
 /** A modal question or message. Rendered by components/Dialogs.tsx. */
@@ -17,7 +17,7 @@ export type DialogState =
 
 import { DEFAULT_PRINT, type PrintOptions } from '../printLayout';
 
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'stairs' | 'note';
+export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'stairs' | 'roof' | 'note';
 
 /** Camera: screen = world * zoom + (x, y). `zoom` is pixels per meter. */
 export interface Viewport {
@@ -142,6 +142,12 @@ interface UiStore {
   setDoorKind: (k: Exclude<OpeningKind, 'window' | 'bay'>) => void;
   windowKind: 'window' | 'bay';
   setWindowKind: (k: 'window' | 'bay') => void;
+  /** Which kind of roof the Roof tool makes. */
+  roofKind: RoofKind;
+  setRoofKind: (k: RoofKind) => void;
+  /** 3D: show the roofs. */
+  showRoof3d: boolean;
+  setShowRoof3d: (v: boolean) => void;
   /** Which kind of staircase the Stairs tool places. */
   stairKind: StairKind;
   setStairKind: (k: StairKind) => void;
@@ -270,6 +276,10 @@ export const useUi = create<UiStore>((set) => ({
   setDoorKind: (doorKind) => set({ doorKind }),
   windowKind: 'window',
   setWindowKind: (windowKind) => set({ windowKind }),
+  roofKind: 'gable',
+  setRoofKind: (roofKind) => set({ roofKind }),
+  showRoof3d: true,
+  setShowRoof3d: (showRoof3d) => set({ showRoof3d }),
   stairKind: 'straight',
   setStairKind: (stairKind) => set({ stairKind }),
   wallType: 'interior',

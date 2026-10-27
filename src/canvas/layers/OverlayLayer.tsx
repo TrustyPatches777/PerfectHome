@@ -14,6 +14,7 @@ import { TextTool } from '../tools/TextTool';
 import { ZoneTool } from '../tools/ZoneTool';
 import { StripTool } from '../tools/StripTool';
 import { StairTool } from '../tools/StairTool';
+import { RoofTool } from '../tools/RoofTool';
 import { NoteTool } from '../tools/NoteTool';
 import { SelectionTransformer } from '../SelectionTransformer';
 
@@ -88,6 +89,7 @@ export function OverlayLayer() {
       {tool === 'zone' && <ZoneTool />}
       {tool === 'strip' && <StripTool />}
       {tool === 'stairs' && <StairTool />}
+      {tool === 'roof' && <RoofTool />}
       {tool === 'note' && <NoteTool />}
       <SelectionTransformer />
     </Layer>

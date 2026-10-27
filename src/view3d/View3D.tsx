@@ -17,6 +17,7 @@ export default function View3D() {
   const cutaway = useUi((s) => s.cutaway);
   const walking = useUi((s) => s.walking);
   const shadows = useUi((s) => s.shadows3d);
+  const showRoof = useUi((s) => s.showRoof3d);
   const hour = useUi((s) => s.timeOfDay);
   const playing = useUi((s) => s.sunPlaying);
   const { lat, month, day, north } = design.site;
@@ -31,7 +32,7 @@ export default function View3D() {
     const d = useDesign.getState().design;
     const ui = useUi.getState();
     const f = floorIdOf(d, ui.activeFloor);
-    s.setDesign(d, { hideAbove: ui.cutaway ? f : null, floorElevation: floorElevations(d).get(f) ?? 0 });
+    s.setDesign(d, { hideAbove: ui.cutaway ? f : null, showRoof: ui.showRoof3d, floorElevation: floorElevations(d).get(f) ?? 0 });
     s.setSun({ sun: sunPosition(d.site.lat, d.site.month, d.site.day, ui.timeOfDay), north: d.site.north, shadows: ui.shadows3d });
     s.resetView();
     (window as unknown as { __ph3d: unknown }).__ph3d = { stats: () => s.stats(), scene: s };
@@ -45,8 +46,8 @@ export default function View3D() {
 
   // the design (or which floors to show) changed
   useEffect(() => {
-    scene?.setDesign(design, { hideAbove: cutaway ? floor : null, floorElevation: elevation });
-  }, [scene, design, floor, cutaway, elevation]);
+    scene?.setDesign(design, { hideAbove: cutaway ? floor : null, showRoof, floorElevation: elevation });
+  }, [scene, design, floor, cutaway, showRoof, elevation]);
 
   // sun and time of day
   useEffect(() => {
@@ -117,6 +118,12 @@ export default function View3D() {
           <label className="check" title="Hide the floors above the one you are on, to see inside">
             <input type="checkbox" checked={cutaway} onChange={(e) => ui.setCutaway(e.target.checked)} data-testid="view3d-cutaway" />
             Hide upper floors
+          </label>
+        )}
+        {design.roofs.length > 0 && (
+          <label className="check">
+            <input type="checkbox" checked={showRoof} onChange={(e) => ui.setShowRoof3d(e.target.checked)} data-testid="view3d-roof" />
+            Roof
           </label>
         )}
         <label className="check">

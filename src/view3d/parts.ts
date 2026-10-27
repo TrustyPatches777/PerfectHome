@@ -27,6 +27,8 @@ export type Part = Look &
     | { t: 'ring'; x: number; y: number; z: number; R: number; tube: number; ax?: 'x' | 'y' | 'z'; ry: number }
     /** A flat outline (plan coordinates) extruded from height y0 to y1. `tex` paints a floor material on the top. */
     | { t: 'prism'; pts: Point[]; y0: number; y1: number; tex?: { kind: string; color: string } }
+    /** A flat polygon of any orientation (roof slopes, gable ends), given by its corners, thickened `thick` meters to the side opposite `facing`. */
+    | { t: 'panel'; pts: [number, number, number][]; thick: number; facing: [number, number, number]; tex?: { kind: string; color: string } }
     /** A point light (a lamp that is switched on). */
     | { t: 'light'; x: number; y: number; z: number; intensity: number; dist: number }
   );
@@ -68,6 +70,11 @@ export function place(parts: Part[], px: number, pz: number, rot: number, dy = 0
   const at = (x: number, z: number) => ({ x: px + x * c - z * s, z: pz + x * s + z * c });
   return parts.map((p): Part => {
     if (p.t === 'prism') return { ...p, pts: p.pts.map((q) => ({ x: px + q.x * c - q.y * s, y: pz + q.x * s + q.y * c })), y0: p.y0 + dy, y1: p.y1 + dy };
+    if (p.t === 'panel') {
+      const at3 = (v: [number, number, number]): [number, number, number] => [px + v[0] * c - v[2] * s, v[1] + dy, pz + v[0] * s + v[2] * c];
+      const dir = (v: [number, number, number]): [number, number, number] => [v[0] * c - v[2] * s, v[1], v[0] * s + v[2] * c];
+      return { ...p, pts: p.pts.map(at3), facing: dir(p.facing) };
+    }
     const w = at(p.x, p.z);
     const moved = { ...p, x: w.x, y: p.y + dy, z: w.z };
     return 'ry' in moved ? { ...moved, ry: moved.ry - rot } : moved;
@@ -84,6 +91,8 @@ export function partsBounds(parts: Part[]) {
     if (p.t === 'light') continue;
     if (p.t === 'prism') {
       for (const q of p.pts) add(q.x, q.x, p.y0, p.y1, q.y, q.y);
+    } else if (p.t === 'panel') {
+      for (const q of p.pts) add(q[0], q[0], q[1] - p.thick, q[1], q[2], q[2]);
     } else if (p.t === 'box') {
       // box turned by ry: use the rotated half-extents
       const c = Math.abs(Math.cos(p.ry));

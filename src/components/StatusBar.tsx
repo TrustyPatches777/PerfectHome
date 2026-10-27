@@ -11,6 +11,7 @@ const HINTS: Record<string, string> = {
   text: 'Click where the label should go',
   note: 'Click where the sticky note should go · it is signed with your name and color',
   stairs: 'Click to place the stairs · R rotates · choose straight, L, U or spiral above · Esc cancels',
+  roof: 'Drag a box for the roof footprint (or click two corners) · or press "Fit to walls" above · choose the roof type above · Esc cancels',
   zone: 'Drag a box (or click two corners, then type 5x3 + Enter) · Polygon mode: click corners, double-click to finish · Esc cancels',
   strip: 'Click the points along the line · double-click or Enter to finish · Shift = 45° · Esc cancels',
 };

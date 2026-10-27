@@ -61,6 +61,7 @@ const KEY_OF_KIND: Record<ItemRef['kind'], keyof Design> = {
   zone: 'zones',
   strip: 'strips',
   stair: 'stairs',
+  roof: 'roofs',
   note: 'notes',
   guide: 'guides',
 };

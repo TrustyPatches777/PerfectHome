@@ -64,6 +64,10 @@ export function itemPoints(d: Design, ref: ItemRef): Point[] | null {
       const s = find(d.stairs, ref.id);
       return s ? rectCorners(s.x, s.y, s.w, s.d, s.rotation) : null;
     }
+    case 'roof': {
+      const r = find(d.roofs, ref.id);
+      return r ? rectCorners(r.x, r.y, r.w + 2 * r.overhang, r.d + 2 * r.overhang, r.rotation) : null;
+    }
     case 'label': {
       const l = find(d.labels, ref.id);
       if (!l) return null;
@@ -125,6 +129,7 @@ export function selectableRefs(d: Design, floor: string): ItemRef[] {
   add('strip', d.strips);
   add('furniture', d.furniture);
   add('stair', d.stairs);
+  add('roof', d.roofs);
   add('label', d.labels);
   add('dimension', d.dimensions);
   add('note', d.notes);
@@ -178,6 +183,11 @@ export function moveFromBase(d: Mutable, base: Design, ref: ItemRef, dx: number,
       });
     case 'stair':
       return set(d.stairs, base.stairs, (s, o) => {
+        s.x = o.x + dx;
+        s.y = o.y + dy;
+      });
+    case 'roof':
+      return set(d.roofs, base.roofs, (s, o) => {
         s.x = o.x + dx;
         s.y = o.y + dy;
       });
@@ -246,8 +256,9 @@ export function rotateAbout(d: Mutable, ref: ItemRef, deg: number, c: Point) {
     }
     case 'furniture':
     case 'stair':
+    case 'roof':
     case 'label': {
-      const item = (ref.kind === 'furniture' ? find(d.furniture, ref.id) : ref.kind === 'stair' ? find(d.stairs, ref.id) : find(d.labels, ref.id)) as
+      const item = (ref.kind === 'furniture' ? find(d.furniture, ref.id) : ref.kind === 'stair' ? find(d.stairs, ref.id) : ref.kind === 'roof' ? find(d.roofs, ref.id) : find(d.labels, ref.id)) as
         | { x: number; y: number; rotation: number }
         | undefined;
       if (item) {
@@ -327,6 +338,8 @@ export interface Clipboard {
   rooms: Design['rooms'];
   furniture: Design['furniture'];
   stairs: Design['stairs'];
+  /** Absent in clipboards made before roofs existed. */
+  roofs?: Design['roofs'];
   labels: Design['labels'];
   dimensions: Design['dimensions'];
   zones: Design['zones'];
@@ -337,7 +350,7 @@ export interface Clipboard {
 }
 
 export const clipboardSize = (c: Clipboard) =>
-  c.walls.length + c.rooms.length + c.furniture.length + c.stairs.length + c.labels.length + c.dimensions.length + c.zones.length + c.strips.length + c.notes.length;
+  c.walls.length + c.rooms.length + c.furniture.length + c.stairs.length + (c.roofs?.length ?? 0) + c.labels.length + c.dimensions.length + c.zones.length + c.strips.length + c.notes.length;
 
 export function copyRefs(d: Design, refs: ItemRef[]): Clipboard {
   const ids = (kind: ItemKind) => new Set(refs.filter((r) => r.kind === kind).map((r) => r.id));
@@ -356,6 +369,7 @@ export function copyRefs(d: Design, refs: ItemRef[]): Clipboard {
     rooms: pick(d.rooms, 'room'),
     furniture,
     stairs: pick(d.stairs, 'stair'),
+    roofs: pick(d.roofs, 'roof'),
     labels: pick(d.labels, 'label'),
     dimensions: pick(d.dimensions, 'dimension'),
     zones: pick(d.zones, 'zone'),
@@ -373,6 +387,7 @@ export function clipboardBounds(c: Clipboard): Bounds | null {
     ...c.rooms.map((x) => ({ kind: 'room' as const, id: x.id })),
     ...c.furniture.map((x) => ({ kind: 'furniture' as const, id: x.id })),
     ...c.stairs.map((x) => ({ kind: 'stair' as const, id: x.id })),
+    ...(c.roofs ?? []).map((x) => ({ kind: 'roof' as const, id: x.id })),
     ...c.labels.map((x) => ({ kind: 'label' as const, id: x.id })),
     ...c.dimensions.map((x) => ({ kind: 'dimension' as const, id: x.id })),
     ...c.zones.map((x) => ({ kind: 'zone' as const, id: x.id })),
@@ -383,7 +398,7 @@ export function clipboardBounds(c: Clipboard): Bounds | null {
 }
 
 function emptyShell() {
-  return { walls: [], openings: [], rooms: [], furniture: [], stairs: [], labels: [], dimensions: [], zones: [], strips: [], notes: [], custom: [], guides: [], layers: {} };
+  return { walls: [], openings: [], rooms: [], furniture: [], stairs: [], roofs: [], labels: [], dimensions: [], zones: [], strips: [], notes: [], custom: [], guides: [], layers: {} };
 }
 
 /**
@@ -430,6 +445,11 @@ export function pasteClipboard(d: Draft<Design>, clip: Clipboard, dx: number, dy
     d.stairs.push({ ...s, id, floor, x: s.x + dx, y: s.y + dy });
     added.push({ kind: 'stair', id });
   }
+  for (const r of clip.roofs ?? []) {
+    const id = newId();
+    d.roofs.push({ ...r, id, floor, x: r.x + dx, y: r.y + dy });
+    added.push({ kind: 'roof', id });
+  }
   for (const l of clip.labels) {
     const id = newId();
     d.labels.push({ ...l, id, floor, x: l.x + dx, y: l.y + dy });
@@ -464,6 +484,7 @@ export function removeRefs(d: Draft<Design>, refs: ItemRef[]) {
   d.strips = rm(d.strips, 'strip');
   d.furniture = rm(d.furniture, 'furniture');
   d.stairs = rm(d.stairs, 'stair');
+  d.roofs = rm(d.roofs, 'roof');
   d.labels = rm(d.labels, 'label');
   d.dimensions = rm(d.dimensions, 'dimension');
   d.notes = rm(d.notes, 'note');

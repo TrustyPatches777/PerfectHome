@@ -71,7 +71,7 @@ function at(parts: Part[], x: number, z: number, turns = 0): Part[] {
   const cs = Math.round(Math.cos(rot));
   const sn = Math.round(Math.sin(rot));
   return parts.map((p): Part => {
-    if (p.t === 'prism' || p.t === 'light') return p;
+    if (p.t === 'prism' || p.t === 'light' || p.t === 'panel') return p;
     const nx = p.x * cs - p.z * sn + x;
     const nz = p.x * sn + p.z * cs + z;
     const moved = { ...p, x: nx, z: nz };

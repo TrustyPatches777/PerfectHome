@@ -7,6 +7,9 @@ import { WALL_STYLE } from '../walls';
 import { newId, STRIP_KINDS, type Note, WALL_TYPES, WALL_TYPE_HEIGHT, WALL_TYPE_THICKNESS, ZONE_KINDS, type Wall, type WallType, type Furniture, type ItemRef, type Opening, type OpeningKind, type Room, type Strip, type StripKind, type TextLabel, type Zone, type ZoneKind } from '../model';
 import { STRIP_STYLES, ZONE_STYLES, polylineLength } from '../outdoor';
 import { STAIR_DEFAULTS, checkStair } from '../stairs';
+import { ROOF_KINDS, ROOF_MATERIALS, type Roof, type RoofKind, type RoofMaterial } from '../model';
+import { ROOF_MATERIAL_STYLES, ROOF_STYLES } from '../roofs';
+import { refitRoof, setRoofKind, setRoofMaterial, turnRoof } from '../roofActions';
 import { STAIR_KINDS, type Stair, type StairKind } from '../model';
 import { useDesign } from '../store/design';
 import { useOnFloor } from '../store/floor';
@@ -14,6 +17,8 @@ import { useUi } from '../store/ui';
 import { ColorField, NumberField, TextField } from './fields';
 import { GroupPanel } from './GroupPanel';
 import { MATERIAL_COLORS, MaterialPicker } from './MaterialPicker';
+
+const ROOF_SWATCHES = ['#b5523b', '#4b5563', '#7b8794', '#6b5b4a', '#c9a86a', '#6d9a5b', '#9ca3af', '#2f3a4a', '#8c3b2c'];
 
 const MATERIAL_SWATCHES = Object.values(MATERIAL_COLORS).concat(['#e8dcc8', '#8d6e4f', '#6b7280']);
 
@@ -27,6 +32,7 @@ const TITLES: Record<ItemRef['kind'], string> = {
   zone: 'Outdoor area',
   strip: 'Street / path / fence',
   stair: 'Stairs',
+  roof: 'Roof',
   note: 'Sticky note',
   guide: 'Guide',
 };
@@ -62,6 +68,7 @@ export function Properties() {
         {sel.kind === 'furniture' && <FurnitureProps id={sel.id} />}
         {sel.kind === 'zone' && <ZoneProps id={sel.id} />}
         {sel.kind === 'stair' && <StairProps id={sel.id} />}
+        {sel.kind === 'roof' && <RoofProps id={sel.id} />}
         {sel.kind === 'guide' && <GuideProps id={sel.id} />}
         {sel.kind === 'note' && <NoteProps id={sel.id} />}
         {sel.kind === 'strip' && <StripProps id={sel.id} />}
@@ -129,7 +136,7 @@ function WallProps({ id }: { id: string }) {
           }
         >
           {WALL_TYPES.map((t) => (
-            <option key={t} value={t}>
+            <option key={t} value={t} title={WALL_STYLE[t].hint}>
               {WALL_STYLE[t].label}
             </option>
           ))}
@@ -433,6 +440,76 @@ function StripProps({ id }: { id: string }) {
       <p className="stat" data-testid="strip-length">
         Length <strong>{formatLength(polylineLength(strip.points))}</strong>
       </p>
+    </>
+  );
+}
+
+function RoofProps({ id }: { id: string }) {
+  const roof = useDesign((s) => s.design.roofs.find((x) => x.id === id));
+  const floorName = useDesign((s) => s.design.floors.find((f) => f.id === roof?.floor)?.name ?? '');
+  if (!roof) return null;
+  const edit = (fn: (r: Roof) => void) =>
+    useDesign.getState().update((d) => {
+      const x = d.roofs.find((i) => i.id === id);
+      if (x) fn(x);
+    });
+  const flatRoof = roof.kind === 'flat';
+  return (
+    <>
+      <label className="field">
+        <span>Type</span>
+        <select value={roof.kind} data-testid="roof-kind" title={ROOF_STYLES[roof.kind].hint} onChange={(e) => setRoofKind(id, e.target.value as RoofKind)}>
+          {ROOF_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {ROOF_STYLES[k].label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="muted">{ROOF_STYLES[roof.kind].hint}. Sits on the walls of: {floorName}.</p>
+      <div className="row two">
+        {!flatRoof && <NumberField label="Slope" value={roof.pitch} unit="°" min={3} max={80} testId="roof-pitch" onCommit={(v) => edit((r) => void (r.pitch = v))} />}
+        <NumberField label="Overhang" value={roof.overhang} scale={100} unit="cm" min={0} max={300} testId="roof-overhang" onCommit={(v) => edit((r) => void (r.overhang = v))} />
+      </div>
+      <div className="row two">
+        <NumberField label="Length (ridge)" value={roof.w} scale={100} unit="cm" min={50} max={10000} testId="roof-w" onCommit={(v) => edit((r) => void (r.w = v))} />
+        <NumberField label="Width" value={roof.d} scale={100} unit="cm" min={50} max={10000} testId="roof-d" onCommit={(v) => edit((r) => void (r.d = v))} />
+      </div>
+      <div className="row two">
+        <NumberField label="Rotation" value={roof.rotation} unit="°" testId="roof-rotation" onCommit={(v) => edit((r) => void (r.rotation = ((v % 360) + 360) % 360))} />
+        <NumberField label="Thickness" value={roof.thickness} scale={100} unit="cm" min={3} max={80} testId="roof-thickness" onCommit={(v) => edit((r) => void (r.thickness = v))} />
+      </div>
+      <label className="field">
+        <span>Covering</span>
+        <select value={roof.material} data-testid="roof-material" onChange={(e) => setRoofMaterial(id, e.target.value as RoofMaterial)}>
+          {ROOF_MATERIALS.map((m) => (
+            <option key={m} value={m}>
+              {ROOF_MATERIAL_STYLES[m].label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <ColorField label="Color" value={roof.color} swatches={ROOF_SWATCHES} onChange={(c) => edit((r) => void (r.color = c))} />
+      {!flatRoof && (
+        <label className="check">
+          <input type="checkbox" checked={roof.chimney} data-testid="roof-chimney" onChange={(e) => edit((r) => void (r.chimney = e.target.checked))} />
+          Chimney
+        </label>
+      )}
+      {flatRoof && (
+        <label className="check">
+          <input type="checkbox" checked={roof.parapet} data-testid="roof-parapet" onChange={(e) => edit((r) => void (r.parapet = e.target.checked))} />
+          Low wall around the edge
+        </label>
+      )}
+      <div className="row">
+        <button onClick={() => refitRoof(id)} title="Resize and turn the roof to cover the walls of its floor" data-testid="roof-fit">
+          Fit to walls
+        </button>
+        <button onClick={() => turnRoof(id)} title="Turn the ridge a quarter turn" data-testid="roof-turn">
+          Turn ridge 90°
+        </button>
+      </div>
     </>
   );
 }

@@ -4,7 +4,9 @@ import { useUi } from '../store/ui';
 import { WALL_TYPES, WALL_TYPE_THICKNESS, type OpeningKind } from '../model';
 import { WALL_STYLE } from '../walls';
 import { STAIR_DEFAULTS } from '../stairs';
-import { STAIR_KINDS } from '../model';
+import { STAIR_KINDS, ROOF_KINDS, type RoofKind } from '../model';
+import { ROOF_STYLES } from '../roofs';
+import { addRoofFromWalls } from '../roofActions';
 import { STRIP_STYLES, ZONE_STYLES } from '../outdoor';
 import { NumberField } from './fields';
 
@@ -27,6 +29,7 @@ export function ToolOptions() {
   const windowKind = useUi((s) => s.windowKind);
   const wallType = useUi((s) => s.wallType);
   const stairKind = useUi((s) => s.stairKind);
+  const roofKind = useUi((s) => s.roofKind);
   const zoneKind = useUi((s) => s.zoneKind);
   const zoneShape = useUi((s) => s.zoneShape);
   const stripKind = useUi((s) => s.stripKind);
@@ -43,6 +46,7 @@ export function ToolOptions() {
               key={t}
               className={wallType === t ? 'active' : ''}
               data-testid={`wall-type-${t}`}
+              title={WALL_STYLE[t].hint}
               onClick={() => {
                 useUi.getState().setWallType(t);
                 useDesign.getState().update((d) => void (d.settings.wallThickness = WALL_TYPE_THICKNESS[t])); // each type has its usual thickness
@@ -122,6 +126,21 @@ export function ToolOptions() {
           </button>
         ))}
       </div>
+    );
+  } else if (tool === 'roof') {
+    body = (
+      <>
+        <select value={roofKind} aria-label="Roof type" data-testid="roof-tool-kind" onChange={(e) => useUi.getState().setRoofKind(e.target.value as RoofKind)}>
+          {ROOF_KINDS.map((k) => (
+            <option key={k} value={k} title={ROOF_STYLES[k].hint}>
+              {ROOF_STYLES[k].label}
+            </option>
+          ))}
+        </select>
+        <button onClick={() => addRoofFromWalls(roofKind)} title="A roof that covers the walls of this floor" data-testid="roof-fit-walls">
+          Fit to walls
+        </button>
+      </>
     );
   } else if (tool === 'zone') {
     body = (

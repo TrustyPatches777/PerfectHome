@@ -6,8 +6,9 @@
 import { CUSTOM_PREFIX, catalogLayer, furnitureHeight } from '../catalog';
 import { contentBounds } from '../bounds';
 import { wallArc, wallLength, wallPointAt, wallSolidSegments, type WallPoint } from '../geometry';
-import type { Design, Furniture, Opening, OpeningKind, Point, Stair, Wall, WallType, Zone } from '../model';
+import type { Design, Furniture, Opening, OpeningKind, Point, Roof, Stair, Wall, WallType, Zone } from '../model';
 import { STRIP_STYLES } from '../outdoor';
+import { faceNormal, roofBaseHeight, roofModel } from '../roofs';
 import { groundIndex } from '../shadows';
 import { box, cyl, place, prism, type Look, type Part } from './parts';
 import { SITS_ON_FURNITURE, furnitureParts } from './furniture3d';
@@ -22,6 +23,8 @@ export interface ChunkSpec {
 export interface BuildOptions {
   /** Hide every floor above this one (a cut-away view). */
   hideAbove?: string | null;
+  /** Show the roofs (default). */
+  showRoof?: boolean;
 }
 
 const rad = (deg: number) => (deg * Math.PI) / 180;
@@ -306,6 +309,28 @@ export function furnitureChunk(d: Design, f: Furniture, elev: number): Part[] {
   return place(parts, f.x, f.y, rad(f.rotation), elev + lift);
 }
 
+// ---- roofs ----------------------------------------------------------------------------------------------------------
+
+const BRICK = '#a1553c';
+
+/** A roof as panels and blocks in its own box, then moved onto the walls it covers. */
+export function roofParts(d: Design, r: Roof, elev: number): Part[] {
+  const m = roofModel(r);
+  const out: Part[] = [];
+  const up: [number, number, number] = [0, 1, 0];
+  for (const f of m.faces) {
+    if (f.kind === 'slope') out.push({ t: 'panel', pts: f.pts, thick: r.thickness, facing: up, color: r.color, tex: { kind: r.material, color: r.color } });
+    else {
+      const sx = Math.sign(f.pts[0][0]) || 1;
+      // a little lower than the roof, so the top edge of the wall hides under the roof instead of fighting with it
+      out.push({ t: 'panel', pts: f.pts.map((p) => [p[0], p[1] > 0.01 ? p[1] - r.thickness : p[1], p[2]] as [number, number, number]), thick: 0.2, facing: [sx, 0, 0], color: WALL_COLOR.exterior });
+    }
+  }
+  for (const b of m.blocks) out.push(box(b.x0, b.x1, b.y0, b.y1, b.z0, b.z1, b.kind === 'chimney' ? BRICK : b.kind === 'cap' ? '#6b7280' : WALL_COLOR.exterior));
+  void faceNormal;
+  return place(out, r.x, r.y, rad(r.rotation), elev + roofBaseHeight(d, r.floor));
+}
+
 // ---- the whole scene -------------------------------------------------------------------------------------------------------
 
 export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
@@ -313,6 +338,7 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
   const hiddenFrom = opts.hideAbove ? d.floors.findIndex((f) => f.id === opts.hideAbove) : -1;
   const visible = new Set(d.floors.filter((_, i) => hiddenFrom < 0 || i <= hiddenFrom).map((f) => f.id));
   const shown = (layer: keyof Design['layers']) => d.layers[layer].visible;
+  const activeIndex = hiddenFrom;
   const slab = slabThickness(d);
   const out: ChunkSpec[] = [];
 
@@ -345,6 +371,14 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
     if (!visible.has(s.floor) || !shown('structure')) continue;
     const e = elev.get(s.floor) ?? 0;
     out.push({ key: `stair:${s.id}`, deps: [s, e], make: () => place(stairParts(s), s.x, s.y, rad(s.rotation), e) });
+  }
+  for (const r of d.roofs) {
+    // a cut-away takes off the roof of the floor you are on, and everything above it
+    const index = d.floors.findIndex((f) => f.id === r.floor);
+    if (!visible.has(r.floor) || !shown('roofs') || opts.showRoof === false || (activeIndex >= 0 && index >= activeIndex)) continue;
+    const e = elev.get(r.floor) ?? 0;
+    const base = roofBaseHeight(d, r.floor);
+    out.push({ key: `roof:${r.id}`, deps: [r, e, base], make: () => roofParts(d, r, e) });
   }
   for (const f of d.furniture) {
     if (!visible.has(f.floor) || !shown(catalogLayer(f.type))) continue;
