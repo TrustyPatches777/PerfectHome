@@ -5,7 +5,7 @@
  * A roof lives in its own box: x along the ridge, z across it (the plan's y), y up from the top of the walls. The footprint is
  * w x d centered on the origin; `overhang` pushes the eaves out beyond it.
  */
-import { wallOutlinePoints } from './geometry';
+import { clipPolygon, wallOutlinePoints } from './geometry';
 import type { Design, Point, Roof, RoofKind, RoofMaterial } from './model';
 
 export const ROOF_STYLES: Record<RoofKind, { label: string; pitch: number; material: RoofMaterial; hint: string }> = {
@@ -85,7 +85,7 @@ function polyArea(p: V3[]): number {
 }
 
 /** The 3D shape of a roof (see the file comment for the axes). */
-export function roofModel(r: Pick<Roof, 'kind' | 'w' | 'd' | 'pitch' | 'overhang' | 'chimney' | 'parapet'>): RoofModel {
+export function roofModel(r: Pick<Roof, 'kind' | 'w' | 'd' | 'pitch' | 'overhang' | 'chimney' | 'parapet'> & { thickness?: number }): RoofModel {
   const tp = Math.tan(Math.min(80, Math.max(3, r.pitch)) * DEG);
   const hw = r.w / 2;
   const hd = r.d / 2;
@@ -100,17 +100,20 @@ export function roofModel(r: Pick<Roof, 'kind' | 'w' | 'd' | 'pitch' | 'overhang
 
   switch (r.kind) {
     case 'flat': {
-      slope([[-Hx, 0, -Hz], [-Hx, 0, Hz], [Hx, 0, Hz], [Hx, 0, -Hz]]);
+      // the slab rests ON the walls: its top is one thickness above the wall tops (a top level with them would flicker where they meet)
+      const y = Math.max(0, r.thickness ?? 0);
+      slope([[-Hx, y, -Hz], [-Hx, y, Hz], [Hx, y, Hz], [Hx, y, -Hz]]);
+      height = y;
       if (r.parapet) {
         const t = 0.15;
         const h = 0.4;
         blocks.push(
-          { kind: 'parapet', x0: -Hx, x1: Hx, y0: 0, y1: h, z0: -Hz, z1: -Hz + t },
-          { kind: 'parapet', x0: -Hx, x1: Hx, y0: 0, y1: h, z0: Hz - t, z1: Hz },
-          { kind: 'parapet', x0: -Hx, x1: -Hx + t, y0: 0, y1: h, z0: -Hz + t, z1: Hz - t },
-          { kind: 'parapet', x0: Hx - t, x1: Hx, y0: 0, y1: h, z0: -Hz + t, z1: Hz - t },
+          { kind: 'parapet', x0: -Hx, x1: Hx, y0: y, y1: y + h, z0: -Hz, z1: -Hz + t },
+          { kind: 'parapet', x0: -Hx, x1: Hx, y0: y, y1: y + h, z0: Hz - t, z1: Hz },
+          { kind: 'parapet', x0: -Hx, x1: -Hx + t, y0: y, y1: y + h, z0: -Hz + t, z1: Hz - t },
+          { kind: 'parapet', x0: Hx - t, x1: Hx, y0: y, y1: y + h, z0: -Hz + t, z1: Hz - t },
         );
-        height = h;
+        height = y + h;
       }
       break;
     }
@@ -423,6 +426,56 @@ export function roofUndersideLocal(roof: Roof, lx: number, lz: number): number |
     return p0[1] - (n[0] * (lx - p0[0]) + n[2] * (lz - p0[2])) / n[1] - roof.thickness;
   }
   return null;
+}
+
+/**
+ * The part(s) of an attic room where there is room under the roof: the floor of the attic is cut back where the roof comes down below it, so the
+ * edge of the floor never pokes out through the slopes. Pieces are convex per roof face. Without a pitched roof under the room it is whole.
+ */
+export function atticFloorPieces(d: Design, room: { floor: string; points: Point[] }): Point[][] {
+  const i = d.floors.findIndex((f) => f.id === room.floor);
+  if (i < 1 || !d.floors[i].attic) return [room.points];
+  const below = d.floors[i - 1].id;
+  const roofs = d.roofs.filter((r) => r.floor === below && r.kind !== 'flat');
+  if (!roofs.length) return [room.points];
+  const lift = d.settings.storeyHeight - roofBaseHeight(d, below);
+  const out: Point[][] = [];
+  for (const roof of roofs) {
+    const c = Math.cos((roof.rotation * Math.PI) / 180);
+    const s = Math.sin((roof.rotation * Math.PI) / 180);
+    for (const f of roofModel(roof).faces) {
+      if (f.kind !== 'slope') continue;
+      let n = faceNormal(f.pts);
+      if (n[1] < 0) n = [-n[0], -n[1], -n[2]];
+      if (n[1] < 1e-6) continue;
+      const p0 = f.pts[0];
+      // underside height at (x, z) = a + bx + cz
+      const b = -n[0] / n[1];
+      const cz = -n[2] / n[1];
+      const a = p0[1] - roof.thickness - b * p0[0] - cz * p0[2];
+      const height = (p: Point) => a + b * p.x + cz * p.y - lift;
+      let piece: Point[] = f.pts.map((p) => ({ x: p[0], y: p[2] }));
+      // keep what is at least as high as the floor (one half-plane, Sutherland–Hodgman)
+      const input = piece;
+      piece = [];
+      for (let j = 0; j < input.length; j++) {
+        const p = input[j];
+        const q = input[(j + 1) % input.length];
+        const hp = height(p);
+        const hq = height(q);
+        if (hp >= 0) piece.push(p);
+        if (hp >= 0 !== hq >= 0) {
+          const t = hp / (hp - hq);
+          piece.push({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t });
+        }
+      }
+      if (piece.length < 3) continue;
+      const plan = piece.map((p) => ({ x: roof.x + p.x * c - p.y * s, y: roof.y + p.x * s + p.y * c }));
+      const cut = clipPolygon(room.points, plan);
+      if (cut.length >= 3) out.push(cut);
+    }
+  }
+  return out;
 }
 
 /**

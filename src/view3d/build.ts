@@ -9,7 +9,7 @@ import { clipPolygon, faceSpan, isConvex, pointInPolygon, wallArc, wallCorners, 
 import type { Design, Furniture, Gate, Room, Opening, OpeningKind, Point, Roof, Skylight, Stair, Strip, Wall, WallType, Zone } from '../model';
 import { STRIP_STYLES, freeEdges, joinEdges, gateGeometry, gateSpans, pathMarks, solidSpans, stripColor } from '../outdoor';
 import { OPENING_HEAD, WINDOW_SPEC, isWindowKind } from '../windows';
-import { faceNormal, inFace, roofBaseHeight, roofModel, skylightPlacement, type RoofModel, type SkylightPlacement, type V3 } from '../roofs';
+import { atticClearance, atticFloorPieces, faceNormal, inFace, roofBaseHeight, roofModel, skylightPlacement, type RoofModel, type SkylightPlacement, type V3 } from '../roofs';
 import { roomSpec, skinSpec } from '../paintSpec';
 import { RAIL_HEIGHT_DEFAULT, RAIL_LOOKS, flatProfile, guardAvoid, reachesNextFloor, stairOutline } from '../stairs';
 import { railRun } from './stairs3d';
@@ -390,9 +390,38 @@ function wallChunk(d: Design, w: Wall, ops: Opening[], elev: number, corners: Wa
   const top = elev < -0.01 ? Math.max(elev + w.height, -0.03) : elev + w.height;
   const color = WALL_COLOR[w.type];
   const out: Part[] = [];
+  const attic = d.floors.find((f) => f.id === w.floor)?.attic;
   for (const [a, b] of wallSolidSegments(w, ops)) {
     if (b - a <= 0.005) continue;
-    out.push(prism(wallStrip(w, a, b, corners), wy0, top, color), ...skinPanels(w, a, b, wy0, top, corners));
+    if (!attic) {
+      out.push(prism(wallStrip(w, a, b, corners), wy0, top, color), ...skinPanels(w, a, b, wy0, top, corners));
+      continue;
+    }
+    // a wall in an attic ends under the roof: cut in short pieces, each as tall as the room is under the roof along it
+    const STEP = 0.05;
+    const n = Math.max(1, Math.ceil((b - a) / STEP));
+    const topAt = (s: number): number => {
+      const wp = wallPointAt(w, s);
+      let room = w.height;
+      for (const side of [-1, 0, 1]) {
+        const c = atticClearance(d, w.floor, { x: wp.p.x + wp.n.x * side * (w.thickness / 2), y: wp.p.y + wp.n.y * side * (w.thickness / 2) });
+        if (c !== null) room = Math.min(room, c);
+      }
+      return elev + room;
+    };
+    const pieces: { s0: number; s1: number; y: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      const s0 = a + ((b - a) * i) / n;
+      const s1 = a + ((b - a) * (i + 1)) / n;
+      const y = Math.min(topAt(s0), topAt((s0 + s1) / 2), topAt(s1));
+      const last = pieces[pieces.length - 1];
+      if (last && Math.abs(last.y - y) < 0.005) last.s1 = s1;
+      else pieces.push({ s0, s1, y });
+    }
+    for (const p of pieces) {
+      if (p.y - elev < 0.03) continue; // the roof comes down to the floor here
+      out.push(prism(wallStrip(w, p.s0, p.s1, corners), wy0, p.y, color), ...skinPanels(w, p.s0, p.s1, wy0, p.y, corners));
+    }
   }
   for (const o of ops) out.push(...openingParts(w, o, elev, top, wy0));
   return out;
@@ -922,7 +951,10 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
     const ops = opsByWall.get(w.id) ?? [];
     const corners = wallCorners(w, wallsOf(w.floor));
     // the corners are part of what the chunk looks like (a neighbor that moves changes them)
-    out.push({ key: `wall:${w.id}`, deps: [w, e, slab, JSON.stringify(corners), ...(w.paint && (w.paint.l?.finish === 'custom' || w.paint.r?.finish === 'custom') ? [opts.texVersion ?? 0] : []), ...ops], make: () => wallChunk(d, w, ops, e, corners) });
+    // a wall in an attic stops under the roof: it changes with the roof of the floor below
+    const atticIndex = d.floors.findIndex((f) => f.id === w.floor && f.attic);
+    const underRoof = atticIndex > 0 ? [...d.roofs.filter((r) => r.floor === d.floors[atticIndex - 1].id), d.settings.storeyHeight, roofBaseHeight(d, d.floors[atticIndex - 1].id)] : [];
+    out.push({ key: `wall:${w.id}`, deps: [w, e, slab, JSON.stringify(corners), ...underRoof, ...(w.paint && (w.paint.l?.finish === 'custom' || w.paint.r?.finish === 'custom') ? [opts.texVersion ?? 0] : []), ...ops], make: () => wallChunk(d, w, ops, e, corners) });
   }
   for (const r of d.rooms) {
     if (!visible.has(r.floor) || !shown('rooms')) continue;
@@ -931,11 +963,22 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
     // the stairs of the floor below come up through this floor: they leave a hole in it
     const at = d.floors.findIndex((f) => f.id === r.floor);
     const stairsBelow = at > 0 ? d.stairs.filter((st) => st.floor === d.floors[at - 1].id && reachesNextFloor(st, d.settings.storeyHeight)) : [];
-    out.push({ key: `room:${r.id}`, deps: [r, e, thick, ...stairsBelow, ...(r.material === 'custom' ? [opts.texVersion ?? 0] : [])], make: () => [prism(r.points, e - thick, e + 0.01, r.color, r.material !== 'plain' ? { kind: r.material, color: roomSpec(r) } : undefined, {}, stairHoles(r, stairsBelow))] });
+    const tex = r.material !== 'plain' ? { kind: r.material, color: roomSpec(r) } : undefined;
+    if (at > 0 && d.floors[at].attic) {
+      // the floor of an attic is cut back where the roof comes down below it, so its edge never pokes out through the slopes
+      const roofsBelow = d.roofs.filter((rf) => rf.floor === d.floors[at - 1].id);
+      out.push({
+        key: `room:${r.id}`,
+        deps: [r, e, thick, d.settings.storeyHeight, roofBaseHeight(d, d.floors[at - 1].id), ...roofsBelow, ...stairsBelow, ...(r.material === 'custom' ? [opts.texVersion ?? 0] : [])],
+        make: () => atticFloorPieces(d, r).map((pts) => prism(pts, e - thick, e + 0.01, r.color, tex, {}, stairHoles({ points: pts }, stairsBelow))),
+      });
+      continue;
+    }
+    out.push({ key: `room:${r.id}`, deps: [r, e, thick, ...stairsBelow, ...(r.material === 'custom' ? [opts.texVersion ?? 0] : [])], make: () => [prism(r.points, e - thick, e + 0.01, r.color, tex, {}, stairHoles(r, stairsBelow))] });
   }
   if (opts.showCeilings) {
     for (const r of d.rooms) {
-      if (!visible.has(r.floor) || !shown('rooms')) continue;
+      if (!visible.has(r.floor) || !shown('rooms') || d.floors.find((f) => f.id === r.floor)?.attic) continue; // the ceiling of an attic is the roof
       const e = elev.get(r.floor) ?? 0;
       const stairsHere = d.stairs.filter((st) => st.floor === r.floor && reachesNextFloor(st, d.settings.storeyHeight));
       out.push({ key: `ceil:${r.id}`, deps: [r, e, d.settings.storeyHeight, ...stairsHere], make: () => ceilingParts(d, r, e, stairsHere) });
