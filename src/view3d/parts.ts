@@ -35,7 +35,9 @@ export type Part = Look &
     /** A flat outline (plan coordinates) extruded from height y0 to y1. `tex` paints a floor material on the top. */
     | { t: 'prism'; pts: Point[]; y0: number; y1: number; tex?: { kind: string; color: string }; holes?: Point[][] }
     /** A flat polygon of any orientation (roof slopes, gable ends), given by its corners, thickened `thick` meters to the side opposite `facing`. */
-    | { t: 'panel'; pts: [number, number, number][]; thick: number; facing: [number, number, number]; tex?: { kind: string; color: string } }
+    | { t: 'panel'; pts: [number, number, number][]; thick: number; facing: [number, number, number]; tex?: { kind: string; color: string }; holes?: [number, number, number][][] }
+    /** A straight bar from a to b with a w x h rectangular cross-section (h stays vertical): handrails, cables. */
+    | { t: 'beam'; a: [number, number, number]; b: [number, number, number]; w: number; h: number }
     /** A point light (a lamp that is switched on). */
     | { t: 'light'; x: number; y: number; z: number; intensity: number; dist: number }
   );
@@ -65,6 +67,8 @@ export const ring = (x: number, y: number, z: number, R: number, tube: number, a
 
 export const prism = (pts: Point[], y0: number, y1: number, color: string, tex?: { kind: string; color: string }, o: Opt = {}, holes?: Point[][]): Part => ({ t: 'prism', pts, y0, y1, color, tex, ...o, ...(holes?.length ? { holes } : {}) });
 
+export const beam = (a: [number, number, number], b: [number, number, number], w: number, h: number, color: string, o: Opt = {}): Part => ({ t: 'beam', a, b, w, h, color, ...o });
+
 export const light = (x: number, y: number, z: number, color: string, intensity: number, dist: number): Part => ({ t: 'light', x, y, z, intensity, dist, color });
 
 /**
@@ -80,7 +84,11 @@ export function place(parts: Part[], px: number, pz: number, rot: number, dy = 0
     if (p.t === 'panel') {
       const at3 = (v: [number, number, number]): [number, number, number] => [px + v[0] * c - v[2] * s, v[1] + dy, pz + v[0] * s + v[2] * c];
       const dir = (v: [number, number, number]): [number, number, number] => [v[0] * c - v[2] * s, v[1], v[0] * s + v[2] * c];
-      return { ...p, pts: p.pts.map(at3), facing: dir(p.facing) };
+      return { ...p, pts: p.pts.map(at3), facing: dir(p.facing), ...(p.holes ? { holes: p.holes.map((h) => h.map(at3)) } : {}) };
+    }
+    if (p.t === 'beam') {
+      const at3 = (v: [number, number, number]): [number, number, number] => [px + v[0] * c - v[2] * s, v[1] + dy, pz + v[0] * s + v[2] * c];
+      return { ...p, a: at3(p.a), b: at3(p.b) };
     }
     const w = at(p.x, p.z);
     const moved = { ...p, x: w.x, y: p.y + dy, z: w.z };
@@ -100,6 +108,8 @@ export function partsBounds(parts: Part[]) {
       for (const q of p.pts) add(q.x, q.x, p.y0, p.y1, q.y, q.y);
     } else if (p.t === 'panel') {
       for (const q of p.pts) add(q[0], q[0], q[1] - p.thick, q[1], q[2], q[2]);
+    } else if (p.t === 'beam') {
+      add(Math.min(p.a[0], p.b[0]) - p.w / 2, Math.max(p.a[0], p.b[0]) + p.w / 2, Math.min(p.a[1], p.b[1]) - p.h / 2, Math.max(p.a[1], p.b[1]) + p.h / 2, Math.min(p.a[2], p.b[2]) - p.w / 2, Math.max(p.a[2], p.b[2]) + p.w / 2);
     } else if (p.t === 'box') {
       // box turned by ry: use the rotated half-extents
       const c = Math.abs(Math.cos(p.ry));

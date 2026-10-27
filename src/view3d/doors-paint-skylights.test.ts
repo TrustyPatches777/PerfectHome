@@ -94,7 +94,7 @@ describe('doors that open', () => {
     const { d } = house();
     d.openings.push(door('d1', 'n', 'door', 2, 1));
     const leaf = animated(chunk(d, 'wall:n'));
-    expect(leaf.length).toBe(2); // the leaf and the handle
+    expect(leaf.length).toBeGreaterThanOrEqual(2); // the leaf, its panels and the handle
     const a = leaf[0].anim!;
     if (a.kind !== 'swing') throw new Error();
     expect(a.door).toBe('d1');

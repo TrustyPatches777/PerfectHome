@@ -14,6 +14,7 @@ import { HelpDialog } from './components/HelpDialog';
 import { Dialogs } from './components/Dialogs';
 import { useShortcuts } from './hooks/useShortcuts';
 import { bootstrap } from './session';
+import { Splitter } from './components/Splitter';
 import { useUi } from './store/ui';
 
 // three.js is only downloaded when the 3D view is opened
@@ -24,6 +25,8 @@ export function App() {
   const toggleHelp = useCallback(() => setHelp((h) => !h), []);
   useShortcuts(toggleHelp);
   const view = useUi((s) => s.view);
+  const leftWidth = useUi((s) => s.leftWidth);
+  const rightWidth = useUi((s) => s.rightWidth);
   // Child effects (the canvas measuring itself) run first, so the loaded design is framed correctly.
   useEffect(() => bootstrap(), []);
 
@@ -32,10 +35,13 @@ export function App() {
       <TopBar onHelp={toggleHelp} />
       <div className="main">
         {view === '2d' && (
-          <aside className="sidebar left">
-            <ToolBar />
-            <PalettePanel />
-          </aside>
+          <>
+            <aside className="sidebar left" style={{ width: leftWidth }}>
+              <ToolBar />
+              <PalettePanel />
+            </aside>
+            <Splitter side="left" />
+          </>
         )}
         <div className="stage-area">
           {view === '2d' ? (
@@ -47,7 +53,8 @@ export function App() {
           )}
           <StatusBar />
         </div>
-        <aside className="sidebar right">
+        <Splitter side="right" />
+        <aside className="sidebar right" style={{ width: rightWidth }}>
           <FloorsPanel />
           {view === '2d' && <SunPanel />}
           {view === '2d' && <ChecksPanel />}

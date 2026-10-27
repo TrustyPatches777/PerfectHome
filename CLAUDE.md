@@ -26,11 +26,14 @@ src/distance.ts       closest points/distances between segments and polygon outl
 src/selection.ts      pure group operations: item bounds, move/rotate/align/distribute, copy/paste clipboard, remove, layer of an item
 src/catalog.ts        furniture catalog (~110 items incl. cars, garden, lamps, electrical, plumbing) + custom items registry,
                       heights for shadows, which layer an item lives on, wall-mounted and lamp flags
+src/walk.ts            walking in 3D: what blocks you (walls, shut doors, windows, furniture, rails, fences), the height of the ground under your feet
+                      (floors, stairs, pools, holes), attic headroom. Pure; scene.ts asks it every frame.
 src/fit.ts             furniture cannot stand in walls: SAT push-out, sweep along a drag, settleFurniture (called by store/design.ts update)
 src/shapes.ts         rectangles of walls, addRoomTo, shiftEdge (drag a side of a room/lawn), refitRooms (rooms follow their walls)
 src/roofs.ts          roofs: 3D shape (faces + blocks per kind), plan symbol, "fit to walls" (min-area rotated box), base height
 src/roofActions.ts    make/refit/turn roofs, kind and covering changes that keep a sensible look
-src/stairs.ts         stair drawings (straight/L/U/spiral) as pure instructions, walking length, comfort check
+src/stairs.ts         stair drawings (straight/L/U/spiral) as pure instructions, walking length, comfort check; stairSteps (the solid
+                      steps and their heights), stairOutline (the hole in the floor above), railPaths/guardEdges (railings)
 src/patterns.ts       procedural tile images (wall hatch, floor materials) for the canvas; svgExport has vector twins
 src/walls.ts, outdoor.ts   look/defaults of wall types (exterior/load-bearing is ONE type), wall coverings and paint colors, outdoor zones and strips
 src/typed.ts          parse typed lengths ("350", "2.4m", "3.5<45", "5x3")
@@ -147,8 +150,19 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
 - **Wall coverings**: `Wall.paint = { l?, r? }` (left/right face looking a->b). Plan: a thin stripe in the wall (`wallFaceLine`); 3D: thin
   panels a hair outside the face (`skinPanels`, textures `wall-<finish>` in view3d/wallTex.ts). Doors in 3D: parts carry `anim`
   (swing about the hinge, slide, lift); the viewer keeps open/closed state per opening id in memory only (not in the design).
+- **Floors above and below**: a stair on floor k comes up through floor k+1: its outline is cut out of that floor's rooms in 3D
+  (`stairHoles`) and out of the walkable surface. A roof sits on top of the highest floor of its stack: adding a floor above a roof asks
+  (attic under the roof / full floor, roof moves up), duplicating a floor moves the roof up. An **attic** (`Floor.attic`) is the space under
+  the roof of the floor below: its clearance is `atticClearance` (roof underside minus the floor), the plan shades the low parts, the plan
+  check flags furniture under them, and you cannot walk where the clearance is under 1.5 m. A basement's neighbour for the faint
+  underlay and snapping is the floor ABOVE it (`floorBelow`). The 3D ground is always there, with holes over basement rooms, pools and ponds.
+- **Walking** (`walk.ts`): the walker is a circle of 28 cm; closed doors and windows block, open doors and open passages do not; the
+  height under your feet is the highest surface within 55 cm above them (that is how stairs and floors work), otherwise you fall.
+  The world is rebuilt when the design or a door changes. Frame rate is low in tests: wait for the walker to stop instead of timing keys.
+- **Layout**: sidebar widths are UI state saved in `perfect-home:prefs`; the editing window takes the rest (`Splitter`).
 - **Skylights** (`design.skylights`, layer `roofs`) are placed by plan position and lie in whichever roof covers that point
-  (`skylightPlacement` finds the slope face and its frame); not on a roof = not drawn in 3D.
+  (`skylightPlacement` finds the slope face and its frame); not on a roof = not drawn in 3D. A skylight inside a roof face cuts a hole
+  in it (the panel has `holes`), so the sun comes in; the glass does not cast a shadow.
 - **Plan symbol = 3D model**: `footprint.test.ts` compares the plan symbol of every catalog item with its 3D model from above (grid
   overlap > 60%); schematic exceptions are listed there. A new recipe must match the symbol, including which end is which.
 - **Debug hook**: `window.__ph = { design, ui }` exposes both stores; Playwright tests read state through it.

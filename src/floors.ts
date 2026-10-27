@@ -18,25 +18,71 @@ export function activeFloor(): string {
   return floorIdOf(useDesign.getState().design, useUi.getState().activeFloor);
 }
 
-/** Add an empty floor directly above the active one ('above') or below everything ('basement'). */
+/**
+ * Add an empty floor directly above the active one ('above') or below everything ('basement'). A floor above one that has a roof
+ * would be inside that roof, so the person chooses: an attic under the roof, or a full floor with the roof moved up onto it.
+ */
 export function addFloor(where: 'above' | 'basement') {
+  if (where === 'above') {
+    const d = useDesign.getState().design;
+    const active = d.floors.find((f) => f.id === activeFloor())!;
+    if (active.attic) return useUi.getState().showToast('An attic is the top of the house: nothing goes above it.');
+    const roofs = d.roofs.filter((r) => r.floor === active.id);
+    if (roofs.length) {
+      const top = d.floors[d.floors.length - 1].id === active.id;
+      useUi.getState().setDialog({
+        type: 'floor-roof',
+        floorName: active.name,
+        canAttic: top && roofs.some((r) => r.kind !== 'flat'),
+        choose: (what) => {
+          useUi.getState().setDialog(null);
+          if (what === 'attic') addAttic();
+          else insertFloorAbove(true);
+        },
+      });
+      return;
+    }
+    return insertFloorAbove(false);
+  }
   const id = newId();
   useDesign.getState().update((draft) => {
-    if (where === 'basement') {
-      const basements = draft.floors.filter((f) => f.name.startsWith('Basement')).length;
-      draft.floors.unshift({ id, name: nextName(basements, true) });
-    } else {
-      const at = draft.floors.findIndex((f) => f.id === activeFloor());
-      const aboveGround = Math.max(0, draft.floors.length - draft.floors.filter((f) => f.name.startsWith('Basement')).length);
-      draft.floors.splice(at + 1, 0, { id, name: nextName(aboveGround, false) });
+    const basements = draft.floors.filter((f) => f.name.startsWith('Basement')).length;
+    draft.floors.unshift({ id, name: nextName(basements, true) });
+  });
+  useUi.getState().setActiveFloor(id);
+}
+
+/** A new floor above the active one. With `moveRoofs` the roofs (and their skylights) that were on the active floor move up onto it. */
+function insertFloorAbove(moveRoofs: boolean) {
+  const id = newId();
+  const from = activeFloor();
+  useDesign.getState().update((draft) => {
+    const at = draft.floors.findIndex((f) => f.id === from);
+    const aboveGround = Math.max(0, draft.floors.length - draft.floors.filter((f) => f.name.startsWith('Basement')).length);
+    draft.floors.splice(at + 1, 0, { id, name: nextName(aboveGround, false) });
+    if (moveRoofs) {
+      for (const r of draft.roofs) if (r.floor === from) r.floor = id;
+      for (const s of draft.skylights) if (s.floor === from) s.floor = id;
     }
   });
+  useUi.getState().setActiveFloor(id);
+}
+
+/** An attic above the top floor: the usable space under its roof. */
+export function addAttic() {
+  const d = useDesign.getState().design;
+  const top = d.floors[d.floors.length - 1];
+  if (top.attic) return useUi.getState().showToast('There is an attic already.');
+  if (!d.roofs.some((r) => r.floor === top.id && r.kind !== 'flat')) return useUi.getState().showToast('An attic needs a pitched roof on the top floor.');
+  const id = newId();
+  useDesign.getState().update((draft) => void draft.floors.push({ id, name: 'Attic', attic: true }));
   useUi.getState().setActiveFloor(id);
 }
 
 /** Copy everything on the active floor to a new floor above it (handy for stacking similar levels). */
 export function duplicateFloor() {
   const source = activeFloor();
+  if (useDesign.getState().design.floors.find((f) => f.id === source)?.attic) return useUi.getState().showToast('An attic cannot be copied: nothing goes above it.');
   const id = newId();
   useDesign.getState().update((d) => {
     const at = d.floors.findIndex((f) => f.id === source);
@@ -58,8 +104,9 @@ export function duplicateFloor() {
     copy(d.zones);
     copy(d.strips);
     copy(d.stairs);
-    copy(d.roofs);
-    copy(d.skylights);
+    // the roof stays on top of the stack: it moves up to the new floor instead of being copied
+    for (const r of d.roofs) if (r.floor === source) r.floor = id;
+    for (const s of d.skylights) if (s.floor === source) s.floor = id;
     copy(d.notes);
   });
   useUi.getState().setActiveFloor(id);

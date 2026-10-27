@@ -16,6 +16,7 @@ function house(): { d: Design; F: string } {
   return { d, F };
 }
 
+const chunkOf = (d: Design, key: string): Part[] => sceneChunks(d).find((c) => c.key === key)!.make();
 const prisms = (parts: Part[]) => parts.filter((p): p is Extract<Part, { t: 'prism' }> => p.t === 'prism');
 
 describe('placing parts', () => {
@@ -172,12 +173,22 @@ describe('floors and the rest of the property', () => {
     expect(keys(F)).toContain('wall:n');
   });
 
-  it('a basement sits below the garden and the ground slab is left out', () => {
+  it('a basement sits below the garden; the ground has a hole over its rooms, and the walls reach up to it', () => {
     const { d } = house();
     d.floors.unshift({ id: 'b', name: 'Basement' });
+    d.walls.push(wall('bw', 'b', 0, 0, 6, 0));
+    d.rooms.push({ id: 'br', floor: 'b', name: 'Cellar', color: '#ddd', material: 'plain', living: false, points: [{ x: 0.1, y: 0.1 }, { x: 5.9, y: 0.1 }, { x: 5.9, y: 3.9 }, { x: 0.1, y: 3.9 }] });
     const elev = floorElevations(d);
     expect(elev.get('b')).toBeCloseTo(-2.8);
-    expect(sceneChunks(d).some((c) => c.key === 'ground')).toBe(false);
+    const ground = chunkOf(d, 'ground')[0];
+    if (ground.t !== 'prism') throw new Error();
+    expect(ground.holes).toHaveLength(1);
+    const wallTop = prisms(chunkOf(d, 'wall:bw'))[0].y1;
+    expect(wallTop).toBeCloseTo(-0.03);
+    // with the basement switched off the ground is whole again
+    const without = sceneChunks(d, { hiddenFloors: ['b'] }).find((c) => c.key === 'ground')!.make()[0];
+    if (without.t !== 'prism') throw new Error();
+    expect(without.holes).toBeUndefined();
     d.floors.shift();
     expect(sceneChunks(d).some((c) => c.key === 'ground')).toBe(true);
   });

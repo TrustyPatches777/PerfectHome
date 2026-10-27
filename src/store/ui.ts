@@ -11,6 +11,7 @@ export type DialogState =
   | { type: 'areas' }
   | { type: 'print' }
   | { type: 'live' }
+  | { type: 'floor-roof'; floorName: string; canAttic: boolean; choose: (what: 'attic' | 'move') => void }
   | { type: 'identity'; then?: Point }
   | { type: 'custom-item'; editId: string | null; preset?: Partial<CustomItem> }
   | { type: 'confirm'; title: string; message: string; confirmLabel: string; onConfirm: () => void }
@@ -161,6 +162,14 @@ interface UiStore {
   /** Which kind of roof the Roof tool makes. */
   roofKind: RoofKind;
   setRoofKind: (k: RoofKind) => void;
+  /** Widths of the left and right sidebars in pixels (dragged by the splitters; remembered). */
+  leftWidth: number;
+  rightWidth: number;
+  setSidebarWidth: (side: 'left' | 'right', px: number) => void;
+  /** 3D: floors switched off in the view (ids). */
+  hiddenFloors: string[];
+  setFloorShown: (id: string, shown: boolean) => void;
+  showAllFloors: () => void;
   /** 3D: show the roofs. */
   showRoof3d: boolean;
   setShowRoof3d: (v: boolean) => void;
@@ -188,6 +197,12 @@ interface UiStore {
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
+
+export const SIDEBAR_WIDTH = { left: { min: 150, max: 460, def: 214 }, right: { min: 200, max: 560, def: 260 } };
+const clampWidth = (side: 'left' | 'right', v: unknown): number => {
+  const r = SIDEBAR_WIDTH[side];
+  return typeof v === 'number' && Number.isFinite(v) ? Math.min(r.max, Math.max(r.min, Math.round(v))) : r.def;
+};
 
 const PREFS_KEY = 'perfect-home:prefs';
 const prefs: Record<string, unknown> = (() => {
@@ -282,6 +297,9 @@ export const useUi = create<UiStore>((set) => ({
   me: loadIdentity(),
   setMe: (me) => set({ me }),
 
+  leftWidth: clampWidth('left', prefs.leftWidth),
+  rightWidth: clampWidth('right', prefs.rightWidth),
+  setSidebarWidth: (side, px) => set(side === 'left' ? { leftWidth: clampWidth('left', px) } : { rightWidth: clampWidth('right', px) }),
   showRulers: prefs.showRulers !== false,
   showGuides: prefs.showGuides !== false,
   showAllDims: prefs.showAllDims === true,
@@ -292,7 +310,7 @@ export const useUi = create<UiStore>((set) => ({
   panning: false,
   setPanning: (panning) => set({ panning }),
 
-  openingWidth: { door: 0.9, double: 1.6, french: 1.6, sliding: 1.8, window: 1.2, bay: 1.6, garage: 2.5, gap: 1.0 },
+  openingWidth: { door: 0.9, main: 1.0, garden: 0.9, double: 1.6, french: 1.6, sliding: 1.8, window: 1.2, bay: 1.6, garage: 2.5, gap: 1.0 },
   setOpeningWidth: (kind, w) => set((s) => ({ openingWidth: { ...s.openingWidth, [kind]: w } })),
   doorKind: 'door',
   setDoorKind: (doorKind) => set({ doorKind }),
@@ -305,6 +323,9 @@ export const useUi = create<UiStore>((set) => ({
   setPaint: (paintFinish, color) => set((s) => ({ paintFinish, paintColor: color ?? s.paintColor })),
   roofKind: 'gable',
   setRoofKind: (roofKind) => set({ roofKind }),
+  hiddenFloors: [],
+  setFloorShown: (id, shown) => set((s) => ({ hiddenFloors: shown ? s.hiddenFloors.filter((f) => f !== id) : [...s.hiddenFloors.filter((f) => f !== id), id] })),
+  showAllFloors: () => set({ hiddenFloors: [] }),
   showRoof3d: true,
   setShowRoof3d: (showRoof3d) => set({ showRoof3d }),
   stairKind: 'straight',
@@ -340,9 +361,9 @@ export const useIsMulti = () => useUi((s) => s.selected.length > 1);
 
 // Remember the view switches between visits.
 useUi.subscribe((s, prev) => {
-  if (s.showRulers === prev.showRulers && s.showGuides === prev.showGuides && s.showAllDims === prev.showAllDims) return;
+  if (s.showRulers === prev.showRulers && s.showGuides === prev.showGuides && s.showAllDims === prev.showAllDims && s.leftWidth === prev.leftWidth && s.rightWidth === prev.rightWidth) return;
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ showRulers: s.showRulers, showGuides: s.showGuides, showAllDims: s.showAllDims }));
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ showRulers: s.showRulers, showGuides: s.showGuides, showAllDims: s.showAllDims, leftWidth: s.leftWidth, rightWidth: s.rightWidth }));
   } catch {
     /* storage unavailable: the switches just reset next time */
   }

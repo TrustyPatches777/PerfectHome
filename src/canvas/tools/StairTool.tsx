@@ -34,7 +34,7 @@ export function StairTool() {
       const id = newId();
       const rise = useDesign.getState().design.settings.storeyHeight;
       useDesign.getState().update((d) => {
-        d.stairs.push({ id, floor: floorId(), kind, x: p.x, y: p.y, w: def.w, d: def.d, rotation, steps: def.steps, rise, flip: false });
+        d.stairs.push({ id, floor: floorId(), kind, x: p.x, y: p.y, w: def.w, d: def.d, rotation, steps: def.steps, rise, flip: false, railing: { style: 'wood', a: true, b: true } });
       });
       useUi.getState().setTool('select');
       useUi.getState().select({ kind: 'stair', id });

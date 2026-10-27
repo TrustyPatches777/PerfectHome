@@ -125,17 +125,16 @@ test('roofs follow their floor and their layer', async ({ page }) => {
   await page.evaluate(() => (window as any).__ph.design.getState().update((d: any) => void (d.layers.roofs.locked = false)));
   await expect(page.getByTestId('layers')).toContainText('Roofs');
 
-  // duplicating a floor copies its roof; deleting the floor removes it
+  // duplicating a floor puts the copy on top of the stack, and the roof moves up with it (it must stay the top of the house);
+  // deleting the floor with the roof removes it
   await page.getByTestId('tool-select').click();
   await page.getByRole('button', { name: 'Duplicate floor' }).click();
-  expect(await roofs(page)).toHaveLength(2);
+  expect(await roofs(page)).toHaveLength(1);
   const floors = (await design(page)).floors;
-  expect((await roofs(page)).map((x) => x.floor).sort()).toEqual([floors[0].id, floors[1].id].sort());
-  // the roof sits on its own floor: only that floor's plan shows it
-  await page.evaluate((id) => (window as any).__ph.ui.getState().setActiveFloor(id), floors[0].id);
+  expect((await roofs(page))[0].floor).toBe(floors[1].id);
   await page.getByRole('button', { name: 'Delete floor' }).click();
   await page.getByTestId('confirm-ok').click();
-  expect(await roofs(page)).toHaveLength(1);
+  expect(await roofs(page)).toHaveLength(0);
 });
 
 const ROOF_LOOKS = ['gable', 'hip', 'flat', 'shed', 'gambrel', 'mansard'] as const;

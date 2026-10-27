@@ -107,6 +107,19 @@ export function refitRoof(id: string): boolean {
   return true;
 }
 
+/** Put a roof (and the skylights in it) on the walls of another floor. */
+export function moveRoofToFloor(id: string, floor: string) {
+  const d0 = useDesign.getState().design;
+  const roof = d0.roofs.find((r) => r.id === id);
+  if (!roof || roof.floor === floor) return;
+  const mine = new Set(d0.skylights.filter((s) => s.floor === roof.floor && skylightPlacement(d0.roofs, s.floor, s)?.roof.id === id).map((s) => s.id));
+  useDesign.getState().update((d) => {
+    const r = d.roofs.find((x) => x.id === id);
+    if (r) r.floor = floor;
+    for (const s of d.skylights) if (mine.has(s.id)) s.floor = floor;
+  });
+}
+
 /** Turn the ridge a quarter turn (the roof's sides swap). */
 export function turnRoof(id: string) {
   edit(id, (r) => {

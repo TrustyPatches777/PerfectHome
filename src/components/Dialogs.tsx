@@ -21,6 +21,7 @@ export function Dialogs() {
   if (dialog.type === 'areas') return <AreaDialog />;
   if (dialog.type === 'print') return <PrintDialog />;
   if (dialog.type === 'live') return <LiveDialog />;
+  if (dialog.type === 'floor-roof') return <FloorRoofDialog dialog={dialog} />;
   if (dialog.type === 'identity') return <IdentityDialog then={dialog.then} />;
   if (dialog.type === 'custom-item') return <CustomItemDialog editId={dialog.editId} preset={dialog.preset} />;
   return <ConflictDialog dialog={dialog} />;
@@ -89,6 +90,32 @@ function ConflictDialog({ dialog }: { dialog: Extract<DialogState, { type: 'link
           </button>
           <button className="primary" onClick={() => choose(true)} data-testid="open-shared">
             Open the shared design
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A new floor above a floor with a roof: the roof is in the way. */
+function FloorRoofDialog({ dialog }: { dialog: Extract<DialogState, { type: 'floor-roof' }> }) {
+  const close = () => useUi.getState().setDialog(null);
+  return (
+    <div className="modal-backdrop" onMouseDown={close}>
+      <div className="modal" role="dialog" aria-label="Floor above a roof" onMouseDown={(e) => e.stopPropagation()} data-testid="floor-roof-dialog">
+        <h2>“{dialog.floorName}” has a roof</h2>
+        <p>A new floor above would stand inside that roof. What should happen?</p>
+        <div className="column-buttons">
+          {dialog.canAttic && (
+            <button className="primary" onClick={() => dialog.choose('attic')} data-testid="floor-roof-attic">
+              Add an attic under the roof
+            </button>
+          )}
+          <button className={dialog.canAttic ? '' : 'primary'} onClick={() => dialog.choose('move')} data-testid="floor-roof-move">
+            Add a full floor and move the roof up onto it
+          </button>
+          <button onClick={close} data-testid="floor-roof-cancel">
+            Cancel
           </button>
         </div>
       </div>

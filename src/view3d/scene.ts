@@ -8,7 +8,8 @@ import { patternFor, type PatternKind } from '../patterns';
 import type { Design } from '../model';
 import { darkness, goldenHour, type SunPosition } from '../sun';
 import { faceNormal } from '../roofs';
-import { sceneChunks, sceneExtent, type BuildOptions } from './build';
+import { buildWalkWorld, type WalkWorld } from '../walk';
+import { floorElevations, sceneChunks, sceneExtent, type BuildOptions } from './build';
 import { roofImage } from './roofTex';
 import type { Anim, Part } from './parts';
 
@@ -56,6 +57,12 @@ export class Scene3D {
   private extent = { cx: 0, cz: 0, radius: 8, top: 3 };
   private dark = 0;
   private floorY = 0;
+  /** What stops you and where the ground is, built when you start walking and after the design or a door changes. */
+  private design: Design | null = null;
+  private walkWorld: WalkWorld | null = null;
+  /** Height of your feet; you climb stairs and drop into holes. */
+  private feetY = 0;
+  private fall = 0;
 
   // walking
   mode: 'orbit' | 'walk' = 'orbit';
@@ -155,6 +162,8 @@ export class Scene3D {
 
   /** Bring the meshes in line with the design: only chunks whose inputs changed are rebuilt. */
   setDesign(d: Design, opts: BuildOptions & { floorElevation?: number }) {
+    this.design = d;
+    this.walkWorld = null;
     const specs = sceneChunks(d, opts);
     const keep = new Set(specs.map((s) => s.key));
     for (const [key, b] of this.built) {
@@ -261,13 +270,15 @@ export class Scene3D {
   }
 
   /** A flat polygon in space, thickened away from the side it faces. */
-  private panelGeometry(pts: [number, number, number][], thick: number, facing: [number, number, number]) {
+  private panelGeometry(pts: [number, number, number][], thick: number, facing: [number, number, number], holes: [number, number, number][][] = []) {
     let n = new THREE.Vector3(...faceNormal(pts));
     if (n.dot(new THREE.Vector3(...facing)) < 0) n = n.negate();
     const o = new THREE.Vector3(...pts[0]);
     const u = new THREE.Vector3(...pts[1]).sub(o).normalize();
     const v = new THREE.Vector3().crossVectors(n, u);
-    const shape = new THREE.Shape(pts.map((p) => new THREE.Vector2(new THREE.Vector3(...p).sub(o).dot(u), new THREE.Vector3(...p).sub(o).dot(v))));
+    const flat = (p: [number, number, number]) => new THREE.Vector2(new THREE.Vector3(...p).sub(o).dot(u), new THREE.Vector3(...p).sub(o).dot(v));
+    const shape = new THREE.Shape(pts.map(flat));
+    for (const h of holes) if (h.length >= 3) shape.holes.push(new THREE.Path(h.map(flat)));
     const g = new THREE.ExtrudeGeometry(shape, { depth: Math.max(0.005, thick), bevelEnabled: false });
     g.translate(0, 0, -Math.max(0.005, thick));
     g.applyMatrix4(new THREE.Matrix4().makeBasis(u, v, n).setPosition(o));
@@ -320,7 +331,25 @@ export class Scene3D {
         if (p.pts.length < 3) return null;
         const tex = p.tex ? this.roofTexture(p.tex.kind, p.tex.color) : null;
         const top = tex ? new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 }) : mat;
-        mesh = new THREE.Mesh(this.panelGeometry(p.pts, p.thick, p.facing), tex ? [top, mat] : mat);
+        mesh = new THREE.Mesh(this.panelGeometry(p.pts, p.thick, p.facing, p.holes), tex ? [top, mat] : mat);
+        break;
+      }
+      case 'beam': {
+        const a = new THREE.Vector3(...p.a);
+        const b = new THREE.Vector3(...p.b);
+        const dir = b.clone().sub(a);
+        const len = dir.length();
+        if (len < 1e-6) return null;
+        dir.normalize();
+        // the bar's own up stays as vertical as it can
+        let up = new THREE.Vector3(0, 1, 0).sub(dir.clone().multiplyScalar(dir.y));
+        if (up.lengthSq() < 1e-6) up = new THREE.Vector3(1, 0, 0);
+        up.normalize();
+        const side = new THREE.Vector3().crossVectors(dir, up);
+        mesh = new THREE.Mesh(this.geo.box, mat);
+        mesh.scale.set(len, p.h, p.w);
+        mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(dir, up, side));
+        mesh.position.copy(a.add(b).multiplyScalar(0.5));
         break;
       }
       case 'prism': {
@@ -427,7 +456,7 @@ export class Scene3D {
   /** Stand somewhere on the floor and look in a direction (tests): `yaw` 0 looks towards +z, pi towards -z (the top of the plan). */
   walkTo(x: number, z: number, yaw: number, pitch = 0) {
     this.setMode('walk', { x, z });
-    this.camera.position.set(x, this.floorY + EYE, z);
+    this.stand(x, z);
     this.yaw = yaw;
     this.pitch = pitch;
     this.applyLook();
@@ -463,7 +492,7 @@ export class Scene3D {
 
   setMode(mode: 'orbit' | 'walk', at?: { x: number; z: number }) {
     if (mode === this.mode) {
-      if (mode === 'walk' && at) this.camera.position.set(at.x, this.floorY + EYE, at.z);
+      if (mode === 'walk' && at) this.stand(at.x, at.z, true);
       return;
     }
     this.mode = mode;
@@ -472,7 +501,7 @@ export class Scene3D {
       this.saved = { pos: this.camera.position.clone(), target: this.controls.target.clone() };
       this.controls.enabled = false;
       const p = at ?? { x: this.extent.cx, z: this.extent.cz };
-      this.camera.position.set(p.x, this.floorY + EYE, p.z);
+      this.stand(p.x, p.z, true); // a free place near it: the middle of a room can be under a table
       this.yaw = Math.PI; // looking towards -z, the top of the plan
       this.pitch = 0;
       this.applyLook();
@@ -495,6 +524,42 @@ export class Scene3D {
     this.camera.lookAt(this.camera.position.clone().add(look));
   }
 
+  private getWorld(): WalkWorld | null {
+    if (!this.walkWorld && this.design) this.walkWorld = buildWalkWorld(this.design, new Set(this.openDoors()), floorElevations(this.design));
+    return this.walkWorld;
+  }
+
+  /** Climb or fall to the ground under your feet. */
+  private settleFeet(dt: number) {
+    const p = this.camera.position;
+    const target = this.getWorld()?.heightAt(p.x, p.z, this.feetY) ?? this.floorY;
+    if (target > this.feetY + 1e-4) {
+      this.feetY = Math.min(target, this.feetY + 7 * dt);
+      this.fall = 0;
+      this.dirty = true;
+    } else if (target < this.feetY - 1e-4) {
+      this.fall += 14 * dt;
+      this.feetY = Math.max(target, this.feetY - this.fall * dt);
+      if (this.feetY === target) this.fall = 0;
+      this.dirty = true;
+    } else this.fall = 0;
+  }
+
+  /** Stand at a place on the floor you are looking at. */
+  private stand(x: number, z: number, anywhere = false) {
+    if (anywhere) {
+      const spot = this.getWorld()?.freeSpot(x, z, this.floorY + 0.01);
+      if (spot) {
+        x = spot.x;
+        z = spot.z;
+      }
+    }
+    this.camera.position.set(x, 0, z);
+    this.feetY = this.getWorld()?.heightAt(x, z, this.floorY + 0.01) ?? this.floorY;
+    this.fall = 0;
+    this.camera.position.y = this.feetY + EYE;
+  }
+
   private walk(dt: number) {
     const k = this.keys;
     const fwd = (k.has('w') || k.has('arrowup') ? 1 : 0) - (k.has('s') || k.has('arrowdown') ? 1 : 0);
@@ -508,12 +573,22 @@ export class Scene3D {
       const speed = (k.has('shift') ? 5 : 2) * dt;
       const fx = -Math.sin(this.yaw);
       const fz = Math.cos(this.yaw);
-      this.camera.position.x += (fx * fwd + -fz * side) * speed;
-      this.camera.position.z += (fz * fwd + fx * side) * speed;
+      const dx = (fx * fwd + -fz * side) * speed;
+      const dz = (fz * fwd + fx * side) * speed;
+      const world = this.getWorld();
+      if (world) {
+        const r = world.move(this.camera.position.x, this.camera.position.z, this.feetY, dx, dz);
+        this.camera.position.x = r.x;
+        this.camera.position.z = r.z;
+      } else {
+        this.camera.position.x += dx;
+        this.camera.position.z += dz;
+      }
       this.dirty = true;
     }
+    this.settleFeet(dt);
     if (this.dirty) {
-      this.camera.position.y = this.floorY + EYE;
+      this.camera.position.y = this.feetY + EYE;
       this.applyLook();
       this.updateLamps();
     }
@@ -532,6 +607,7 @@ export class Scene3D {
     const s = this.doors.get(id) ?? { t: 0, target: 0 as 0 | 1 };
     s.target = s.target === 1 ? 0 : 1;
     this.doors.set(id, s);
+    this.walkWorld = null; // an open door can be walked through
     this.dirty = true;
   }
 
@@ -648,6 +724,7 @@ export class Scene3D {
       target: this.controls.target.toArray(),
       shadows: this.sunLight.castShadow,
       doorsOpen: this.openDoors().length,
+      feet: this.feetY,
       dark: this.dark,
       filled: content / (80 * 50),
     };

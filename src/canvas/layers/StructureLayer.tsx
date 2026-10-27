@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Group, Line, Rect, Shape } from 'react-konva';
-import type { Opening, Wall } from '../../model';
+import { isSingleDoor, type Opening, type Wall } from '../../model';
 import { doorGeometry, wallArc, wallPointAt, wallSolidSegments } from '../../geometry';
 import { patternFillProps, patternFor } from '../../patterns';
 import { WALL_STYLE, wallFaceLine } from '../../walls';
@@ -10,7 +10,9 @@ import { useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
 import { pressItem } from '../press';
 import { SELECT_COLOR } from '../style';
-import { stairShapes } from '../../stairs';
+import { railPaths, stairShapes } from '../../stairs';
+
+const RAIL_PLAN = { none: '#000', wood: '#a5835a', metal: '#4b5563', glass: '#38bdf8', cable: '#9ca3af' } as const;
 import { StairShapes } from './StairShapes';
 import { useFloorId } from '../../store/floor';
 import { useIsMulti } from '../../store/ui';
@@ -102,7 +104,7 @@ export function OpeningShape({ wall, opening, selected, ghost }: { wall: Wall; o
 
   // Door leaves: one for a single door, two half-width leaves hinged on opposite jambs for double and French doors.
   const leaves: Opening[] =
-    kind === 'door'
+    isSingleDoor(kind)
       ? [opening]
       : kind === 'double' || kind === 'french'
         ? [
@@ -172,7 +174,7 @@ export function OpeningShape({ wall, opening, selected, ghost }: { wall: Wall; o
             <Rect x={x1 - w * 0.57} y={t / 2 - t * 0.42} width={w * 0.55} height={t * 0.3} fill={GLASS} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
           </>
         )}
-        {(kind === 'door' || kind === 'double' || kind === 'french' || kind === 'garage' || kind === 'gap') && (
+        {(isSingleDoor(kind) || kind === 'double' || kind === 'french' || kind === 'garage' || kind === 'gap') && (
           <>
             {kind === 'garage' && (
               <>
@@ -258,6 +260,7 @@ export function StructureLayer() {
         >
           <Rect width={s.w} height={s.d} fill="rgba(0,0,0,0.001)" />
           <StairShapes shapes={stairShapes(s)} />
+          {s.railing && (['a', 'b'] as const).filter((k) => s.railing![k]).map((k) => <Line key={k} points={railPaths(s)[k].flatMap((p) => [p.x, p.y])} stroke={RAIL_PLAN[s.railing!.style]} strokeWidth={0.05} lineCap="round" lineJoin="round" listening={false} />)}
           {multi && stairIds.has(s.id) && <Rect width={s.w} height={s.d} stroke={SELECT_COLOR} strokeWidth={2.5} strokeScaleEnabled={false} listening={false} />}
         </Group>
       ))}

@@ -71,7 +71,7 @@ function at(parts: Part[], x: number, z: number, turns = 0): Part[] {
   const cs = Math.round(Math.cos(rot));
   const sn = Math.round(Math.sin(rot));
   return parts.map((p): Part => {
-    if (p.t === 'prism' || p.t === 'light' || p.t === 'panel') return p;
+    if (p.t === 'prism' || p.t === 'light' || p.t === 'panel' || p.t === 'beam') return p;
     const nx = p.x * cs - p.z * sn + x;
     const nz = p.x * sn + p.z * cs + z;
     const moved = { ...p, x: nx, z: nz };
@@ -190,7 +190,7 @@ const sofaOf = (seats: number): Recipe => ({ hw, hd, h, c }) => {
 
 /** Mirror a model left to right (x -> -x). */
 function mirrorX(parts: Part[]): Part[] {
-  return parts.map((p) => (p.t === 'prism' || p.t === 'light' || p.t === 'panel' ? p : { ...p, x: -p.x, ...('ry' in p ? { ry: -p.ry } : {}) }));
+  return parts.map((p) => (p.t === 'prism' || p.t === 'light' || p.t === 'panel' || p.t === 'beam' ? p : { ...p, x: -p.x, ...('ry' in p ? { ry: -p.ry } : {}) }));
 }
 
 /** The corner sofa as it is drawn on the plan: the chaise is at the LEFT end, at the front. */
@@ -664,6 +664,48 @@ const carOf = (cabinFrom: number, cabinTo: number, roof: number): Recipe => ({ h
   return out;
 };
 
+/**
+ * A Porsche 911 Turbo: a low, wide body with swollen rear hips, a fastback roof with raked glass, a rear wing, wide wheels with
+ * calipers, round headlights and a light bar across the tail. The front of the car is +x.
+ */
+const porsche: Recipe = ({ hw, hd, c }) => {
+  const dark = '#111827';
+  const glassC = '#1b2735';
+  const out: Part[] = [
+    // underbody, then a smooth body made of long ellipsoids: nose, middle, tail, and the hips over the rear wheels
+    box(-hw + 0.4, hw - 0.5, 0.12, 0.2, -hd + 0.3, hd - 0.3, dark),
+    ball(0, 0.44, 0, hw * 0.95, 0.24, hd * 0.9, c),
+    ball(hw * 0.6, 0.43, 0, hw * 0.4, 0.17, hd * 0.8, c),
+    ball(-hw * 0.5, 0.58, 0, hw * 0.5, 0.24, hd * 0.88, c),
+    ball(-hw * 0.52, 0.55, hd - 0.28, 0.62, 0.26, 0.3, c), ball(-hw * 0.52, 0.55, -hd + 0.28, 0.62, 0.26, 0.3, c),
+    ball(hw * 0.52, 0.52, hd - 0.26, 0.5, 0.22, 0.27, c), ball(hw * 0.52, 0.52, -hd + 0.26, 0.5, 0.22, 0.27, c),
+    // the cabin: a dark glass canopy under a body-colored roof, sloping down to the tail
+    ball(-0.15, 0.84, 0, 1.05, 0.34, 0.62, glassC),
+    ball(-0.4, 0.98, 0, 0.82, 0.22, 0.55, c),
+    ball(-1.15, 0.78, 0, 0.55, 0.16, 0.5, c),
+    // front splitter and air intake
+    box(hw - 0.2, hw - 0.02, 0.18, 0.4, -hd + 0.3, hd - 0.3, dark),
+    box(hw - 0.35, hw - 0.18, 0.3, 0.38, -0.5, 0.5, '#374151'),
+    // mirrors, side intakes
+    box(0.35, 0.5, 0.78, 0.86, hd - 0.36, hd - 0.2, c), box(0.35, 0.5, 0.78, 0.86, -hd + 0.2, -hd + 0.36, c),
+    box(-1.0, -0.5, 0.4, 0.58, hd - 0.2, hd - 0.12, dark), box(-1.0, -0.5, 0.4, 0.58, -hd + 0.12, -hd + 0.2, dark),
+    // rear wing on two posts, light bar across the tail, exhausts
+    box(-hw + 0.08, -hw + 0.52, 1.02, 1.07, -0.82, 0.82, dark), box(-hw + 0.22, -hw + 0.28, 0.74, 1.02, 0.5, 0.56, dark), box(-hw + 0.22, -hw + 0.28, 0.74, 1.02, -0.56, -0.5, dark),
+    box(-hw + 0.02, -hw + 0.07, 0.62, 0.7, -0.75, 0.75, '#ef4444', { glow: true }),
+    rod(-hw + 0.1, 0.3, 0.32, 0.2, 0.05, 'x', '#cbd5e1'), rod(-hw + 0.1, 0.3, -0.32, 0.2, 0.05, 'x', '#cbd5e1'),
+    // round headlights
+    rod(hw - 0.32, 0.6, 0.55, 0.12, 0.11, 'x', '#fff8d6', { glow: true }), rod(hw - 0.32, 0.6, -0.55, 0.12, 0.11, 'x', '#fff8d6', { glow: true }),
+  ];
+  // wheels: tyre, rim, brake disc and a red caliper (the rear ones wider)
+  for (const [x, w] of [[hw * 0.56, 0.3], [-hw * 0.55, 0.36]] as const) {
+    for (const sgn of [-1, 1]) {
+      const z = sgn * (hd - 0.2);
+      out.push(rod(x, 0.35, z, w, 0.35, 'z', '#0b0f14'), rod(x, 0.35, z + sgn * (w / 2 + 0.005), 0.02, 0.25, 'z', '#d1d5db'), rod(x, 0.35, z + sgn * (w / 2 + 0.012), 0.02, 0.1, 'z', '#6b7280'), rod(x, 0.35, z - sgn * 0.02, 0.04, 0.2, 'z', '#9ca3af'), box(x + 0.02, x + 0.16, 0.38, 0.5, z - sgn * 0.08, z - sgn * 0.02, '#dc2626'));
+    }
+  }
+  return out;
+};
+
 const van: Recipe = ({ hw, hd, c }) => {
   const out = carOf(0.62, 0.9, 1.5)({ hw, hd, c } as Ctx);
   return [...out, box(-hw, hw * 0.4, 0.82, 2.0, -hd + 0.06, hd - 0.06, c)];
@@ -731,7 +773,7 @@ export const RECIPES: Record<string, Recipe> = {
   'pipe-stack': ({ hw, ceil }) => [cyl(0, 0, 0, ceil, hw * 0.45, '#9ca3af')],
   tree: treeOf(1), 'tree-small': treeOf(1), 'tree-large': treeOf(1.1), bush, 'flower-pot': flowerPot, 'raised-bed': raisedBed, shed, greenhouse, bbq,
   'patio-set': patioSet, lounger, parasol, trampoline, sandbox, pool, 'hot-tub': hotTub, 'fire-pit': firePit, 'garden-bench': gardenBench, 'rain-barrel': rainBarrel,
-  car: carOf(0.18, 0.62, 1.38), 'car-small': carOf(0.2, 0.66, 1.36), suv: carOf(0.14, 0.7, 1.65), van, motorbike, bicycle, parking, bins, 'ev-charger': evCharger,
+  car: carOf(0.18, 0.62, 1.38), porsche, 'car-small': carOf(0.2, 0.66, 1.36), suv: carOf(0.14, 0.7, 1.65), van, motorbike, bicycle, parking, bins, 'ev-charger': evCharger,
   stairs: stairsItem,
 };
 

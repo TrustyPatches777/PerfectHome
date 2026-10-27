@@ -14,9 +14,16 @@ export function useFloorId(): string {
   return useDesign((s) => floorIdOf(s.design, active));
 }
 
-/** The floor directly below `id`, or null on the lowest floor. */
+export const isBasement = (f: { name: string }) => /^basement/i.test(f.name);
+
+/**
+ * The floor to line things up with: the one directly below `id`; for a basement the one directly above it (it has nothing below,
+ * and its walls have to match the ground floor's); null when there is none.
+ */
 export function floorBelow(design: Design, id: string): string | null {
   const i = design.floors.findIndex((f) => f.id === id);
+  if (i < 0) return null;
+  if (isBasement(design.floors[i])) return design.floors[i + 1]?.id ?? null;
   return i > 0 ? design.floors[i - 1].id : null;
 }
 

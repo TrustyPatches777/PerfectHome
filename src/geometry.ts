@@ -134,13 +134,18 @@ export function wallOutlinePoints(w: Wall): Point[] {
 /** A wall as convex pieces (one rectangle for a straight wall, one short rectangle per step of a curved wall), for collision tests. */
 export function wallPieces(w: Wall): Point[][] {
   const h = w.thickness / 2;
+  return wallRangePieces(w, -h, wallLength(w) + h);
+}
+
+/** The same for the part of a wall between two distances along it. */
+export function wallRangePieces(w: Wall, s0: number, s1: number): Point[][] {
+  const h = w.thickness / 2;
   const arc = wallArc(w);
-  const steps = arc ? Math.max(6, Math.ceil(Math.abs(arc.sweep) / (Math.PI / 24))) : 1;
-  const L = wallLength(w);
+  const steps = arc ? Math.max(1, Math.ceil((Math.abs(arc.sweep) * ((s1 - s0) / arc.length)) / (Math.PI / 24))) : 1;
   const outer: Point[] = [];
   const inner: Point[] = [];
   for (let i = 0; i <= steps; i++) {
-    const wp = wallPointAt(w, -h + ((L + 2 * h) * i) / steps);
+    const wp = wallPointAt(w, s0 + ((s1 - s0) * i) / steps);
     outer.push({ x: wp.p.x + wp.n.x * h, y: wp.p.y + wp.n.y * h });
     inner.push({ x: wp.p.x - wp.n.x * h, y: wp.p.y - wp.n.y * h });
   }
@@ -526,4 +531,46 @@ export function formatLength(m: number): string {
 
 export function formatArea(m2: number): string {
   return `${(Math.round(m2 * 100) / 100).toFixed(2)} m²`;
+}
+
+/** True when the polygon turns the same way at every corner. */
+export function isConvex(pts: Point[]): boolean {
+  let sign = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    const c = pts[(i + 2) % pts.length];
+    const cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+    if (Math.abs(cross) < 1e-9) continue;
+    if (sign === 0) sign = Math.sign(cross);
+    else if (Math.sign(cross) !== sign) return false;
+  }
+  return true;
+}
+
+/** The part of `subject` inside the CONVEX polygon `clip` (Sutherland–Hodgman). Empty when they do not meet. */
+export function clipPolygon(subject: Point[], clip: Point[]): Point[] {
+  let area = 0;
+  for (let i = 0; i < clip.length; i++) area += clip[i].x * clip[(i + 1) % clip.length].y - clip[(i + 1) % clip.length].x * clip[i].y;
+  const orient = area >= 0 ? 1 : -1;
+  let out = subject;
+  for (let i = 0; i < clip.length && out.length; i++) {
+    const a = clip[i];
+    const b = clip[(i + 1) % clip.length];
+    const side = (p: Point) => orient * ((b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x));
+    const input = out;
+    out = [];
+    for (let j = 0; j < input.length; j++) {
+      const p = input[j];
+      const q = input[(j + 1) % input.length];
+      const sp = side(p);
+      const sq = side(q);
+      if (sp >= 0) out.push(p);
+      if (sp >= 0 !== sq >= 0) {
+        const t = sp / (sp - sq);
+        out.push({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t });
+      }
+    }
+  }
+  return out.length >= 3 ? out : [];
 }

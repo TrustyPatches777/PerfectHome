@@ -18,6 +18,7 @@ export default function View3D() {
   const walking = useUi((s) => s.walking);
   const shadows = useUi((s) => s.shadows3d);
   const showRoof = useUi((s) => s.showRoof3d);
+  const hiddenFloors = useUi((s) => s.hiddenFloors);
   const invertLook = useUi((s) => s.invertLook);
   const hour = useUi((s) => s.timeOfDay);
   const playing = useUi((s) => s.sunPlaying);
@@ -33,7 +34,7 @@ export default function View3D() {
     const d = useDesign.getState().design;
     const ui = useUi.getState();
     const f = floorIdOf(d, ui.activeFloor);
-    s.setDesign(d, { hideAbove: ui.cutaway ? f : null, showRoof: ui.showRoof3d, floorElevation: floorElevations(d).get(f) ?? 0 });
+    s.setDesign(d, { hideAbove: ui.cutaway ? f : null, showRoof: ui.showRoof3d, hiddenFloors: ui.hiddenFloors, floorElevation: floorElevations(d).get(f) ?? 0 });
     s.setSun({ sun: sunPosition(d.site.lat, d.site.month, d.site.day, ui.timeOfDay), north: d.site.north, shadows: ui.shadows3d });
     s.resetView();
     s.onFar = () => useUi.getState().showToast('Walk closer to open that door.');
@@ -48,8 +49,8 @@ export default function View3D() {
 
   // the design (or which floors to show) changed
   useEffect(() => {
-    scene?.setDesign(design, { hideAbove: cutaway ? floor : null, showRoof, floorElevation: elevation });
-  }, [scene, design, floor, cutaway, showRoof, elevation]);
+    scene?.setDesign(design, { hideAbove: cutaway ? floor : null, showRoof, hiddenFloors, floorElevation: elevation });
+  }, [scene, design, floor, cutaway, showRoof, hiddenFloors, elevation]);
 
   // sun and time of day
   useEffect(() => {
@@ -125,6 +126,17 @@ export default function View3D() {
             <input type="checkbox" checked={invertLook} onChange={(e) => ui.setInvertLook(e.target.checked)} data-testid="view3d-invert" />
             Invert up/down
           </label>
+        )}
+        {design.floors.length > 1 && (
+          <div className="floor-toggles" role="group" aria-label="Floors shown" data-testid="floor-toggles">
+            <span className="muted">Floors</span>
+            {[...design.floors].reverse().map((f) => (
+              <label key={f.id} className="check" title={`Show or hide ${f.name}`}>
+                <input type="checkbox" checked={!hiddenFloors.includes(f.id)} onChange={(e) => ui.setFloorShown(f.id, e.target.checked)} data-testid={`floor-shown-${f.name}`} />
+                {f.name}
+              </label>
+            ))}
+          </div>
         )}
         {design.floors.length > 1 && (
           <label className="check" title="Hide the floors above the one you are on, to see inside">

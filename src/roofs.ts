@@ -361,7 +361,7 @@ export function roofAt(roofs: Roof[], floor: string, p: Point): Roof | null {
   return null;
 }
 
-const inFace = (pts: V3[], x: number, z: number): boolean => {
+export const inFace = (pts: V3[], x: number, z: number): boolean => {
   let inside = false;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
     const a = pts[i];
@@ -384,6 +384,8 @@ export interface SkylightPlacement {
   u: V3;
   /** A flat roof: the skylight is a raised box instead of lying in the surface. */
   flat: boolean;
+  /** Index of the face of the roof model it lies on. */
+  face: number;
 }
 
 /** Find the roof under a skylight and the slope it lies on. Null when it is not on a roof (or only on the overhang of a flat edge). */
@@ -392,18 +394,51 @@ export function skylightPlacement(roofs: Roof[], floor: string, p: Point): Skyli
   if (!roof) return null;
   const l = toLocal(roof, p);
   const model = roofModel(roof);
-  for (const f of model.faces) {
+  for (const [fi, f] of model.faces.entries()) {
     if (f.kind !== 'slope' || !inFace(f.pts, l.x, l.y)) continue;
     let n = faceNormal(f.pts);
     if (n[1] < 0) n = [-n[0], -n[1], -n[2]];
     const p0 = f.pts[0];
     const y = p0[1] - (n[0] * (l.x - p0[0]) + n[2] * (l.y - p0[2])) / n[1];
-    if (n[1] > 0.9999) return { roof, lx: l.x, lz: l.y, y, n: [0, 1, 0], t: [1, 0, 0], u: [0, 0, -1], flat: true };
+    if (n[1] > 0.9999) return { roof, lx: l.x, lz: l.y, y, n: [0, 1, 0], t: [1, 0, 0], u: [0, 0, -1], flat: true, face: fi };
     const t: V3 = [-n[2], 0, n[0]];
     const tl = Math.hypot(t[0], t[2]) || 1;
     const tt: V3 = [t[0] / tl, 0, t[2] / tl];
     const u: V3 = [-tt[2] * n[1], tt[2] * n[0] - tt[0] * n[2], tt[0] * n[1]]; // t x n: up the slope
-    return { roof, lx: l.x, lz: l.y, y, n, t: tt, u, flat: false };
+    return { roof, lx: l.x, lz: l.y, y, n, t: tt, u, flat: false, face: fi };
   }
   return null;
+}
+
+// ---- attics: how much room there is under a roof ----------------------------------------------------------------------------
+
+/** Height of the underside of a roof above the top of its walls, at a point of the roof's own box (inside its footprint), or null outside it. */
+export function roofUndersideLocal(roof: Roof, lx: number, lz: number): number | null {
+  if (Math.abs(lx) > roof.w / 2 + 1e-9 || Math.abs(lz) > roof.d / 2 + 1e-9) return null;
+  for (const f of roofModel(roof).faces) {
+    if (f.kind !== 'slope' || !inFace(f.pts, lx, lz)) continue;
+    let n = faceNormal(f.pts);
+    if (n[1] < 0) n = [-n[0], -n[1], -n[2]];
+    const p0 = f.pts[0];
+    return p0[1] - (n[0] * (lx - p0[0]) + n[2] * (lz - p0[2])) / n[1] - roof.thickness;
+  }
+  return null;
+}
+
+/**
+ * Standing height in the attic at a plan point: from the attic floor up to the underside of the roof of the floor below. Null where there is no
+ * roof (or the floor is not an attic). Zero where the roof comes down to the floor.
+ */
+export function atticClearance(d: Design, atticFloor: string, p: Point): number | null {
+  const i = d.floors.findIndex((f) => f.id === atticFloor);
+  if (i < 1 || !d.floors[i].attic) return null;
+  const below = d.floors[i - 1].id;
+  const roof = roofAt(d.roofs, below, p);
+  if (!roof) return null;
+  const l = toLocal(roof, p);
+  const under = roofUndersideLocal(roof, l.x, l.y);
+  if (under === null) return null;
+  // the attic floor lies a little above the top of the walls (the thickness of the floor between the storeys)
+  const lift = d.settings.storeyHeight - roofBaseHeight(d, below);
+  return Math.max(0, under - lift);
 }

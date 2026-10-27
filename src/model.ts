@@ -38,6 +38,8 @@ export const LAYERS_WITH_ITEMS: LayerId[] = LAYER_IDS.filter((l) => l !== 'shado
 export interface Floor {
   id: string;
   name: string;
+  /** An attic: the usable space under the roof of the floor below (its ceiling is that roof). */
+  attic?: boolean;
 }
 
 export interface LayerState {
@@ -88,8 +90,11 @@ export interface Wall {
  * door = single door with swing arc, double = two leaves, french = double door with glass, sliding = sliding
  * door, window, bay = bay window projecting outwards, garage = wide overhead door, gap = open passage.
  */
-export type OpeningKind = 'door' | 'double' | 'french' | 'sliding' | 'window' | 'bay' | 'garage' | 'gap';
-export const OPENING_KINDS: OpeningKind[] = ['door', 'double', 'french', 'sliding', 'window', 'bay', 'garage', 'gap'];
+export type OpeningKind = 'door' | 'main' | 'garden' | 'double' | 'french' | 'sliding' | 'window' | 'bay' | 'garage' | 'gap';
+export const OPENING_KINDS: OpeningKind[] = ['door', 'main', 'garden', 'double', 'french', 'sliding', 'window', 'bay', 'garage', 'gap'];
+
+/** One leaf, hinged on one side: an interior door, the main (front) door, or a garden door. */
+export const isSingleDoor = (k: OpeningKind): boolean => k === 'door' || k === 'main' || k === 'garden';
 
 /** A door, window or other opening cut into a wall. */
 export interface Opening {
@@ -146,6 +151,16 @@ export interface Furniture {
 /** A staircase. Position is its center; `d` runs along the walking direction. */
 export type StairKind = 'straight' | 'l' | 'u' | 'spiral';
 export const STAIR_KINDS: StairKind[] = ['straight', 'l', 'u', 'spiral'];
+/** What the railing of a staircase is made of. */
+export type RailStyle = 'none' | 'wood' | 'metal' | 'glass' | 'cable';
+export const RAIL_STYLES: RailStyle[] = ['none', 'wood', 'metal', 'glass', 'cable'];
+/** `a` and `b` are the two sides of the staircase (see `railPaths` in stairs.ts): each can have a rail. */
+export interface Railing {
+  style: RailStyle;
+  a: boolean;
+  b: boolean;
+}
+
 export interface Stair {
   id: string;
   floor: string;
@@ -160,6 +175,8 @@ export interface Stair {
   rise: number;
   /** L/U stairs: turn the other way. */
   flip: boolean;
+  /** Absent = no railing. */
+  railing?: Railing;
 }
 
 /**
@@ -468,7 +485,7 @@ export function parseDesign(input: unknown): Design {
 
   // Floors: designs made before floors existed have none; everything then lives on one "Ground floor".
   const floors: Floor[] = [];
-  for (const f of list<Floor>(input.floors, (o) => ({ id: str(o.id, newId(), 20), name: str(o.name, 'Floor', 60) }))) {
+  for (const f of list<Floor>(input.floors, (o) => ({ id: str(o.id, newId(), 20), name: str(o.name, 'Floor', 60), ...(o.attic === true ? { attic: true } : {}) }))) {
     if (!floors.some((x) => x.id === f.id)) floors.push(f);
   }
   if (!floors.length) floors.push({ id: newId(), name: 'Ground floor' });
@@ -597,6 +614,7 @@ export function parseDesign(input: unknown): Design {
       steps: Math.round(num(o.steps, 14, 2, 60)),
       rise: num(o.rise, 2.8, 0.2, 10),
       flip: o.flip === true,
+      ...(isObj(o.railing) && RAIL_STYLES.includes(o.railing.style as RailStyle) && o.railing.style !== 'none' ? { railing: { style: o.railing.style as RailStyle, a: o.railing.a !== false, b: o.railing.b !== false } } : {}),
     })),
     roofs: list<Roof>(input.roofs, (o) => ({
       id: str(o.id, newId(), 20),

@@ -294,6 +294,15 @@ export const CATALOG: CatalogItem[] = [
   // ---- Garage & cars
   { type: 'car', label: 'Car', category: 'Garage & cars', w: 4.5, d: 1.9, color: '#9db4d6', shapes: carShapes(0.32) },
   { type: 'car-small', label: 'Small car', category: 'Garage & cars', w: 3.6, d: 1.7, color: '#e8b46a', shapes: carShapes(0.3) },
+  {
+    type: 'porsche', label: 'Porsche 911 Turbo', category: 'Garage & cars', w: 4.55, d: 1.95, color: '#c8102e',
+    shapes: [
+      R(0, 0, 1, 1, 'body', 0.42),
+      R(0.13, 0.0, 0.17, 0.07, 'dark', 0.3), R(0.66, 0.0, 0.17, 0.07, 'dark', 0.3), R(0.13, 0.93, 0.17, 0.07, 'dark', 0.3), R(0.66, 0.93, 0.17, 0.07, 'dark', 0.3),
+      R(0.5, 0.17, 0.16, 0.66, 'dark', 0.25), R(0.27, 0.2, 0.23, 0.6, 'light', 0.3), R(0.18, 0.22, 0.09, 0.56, 'dark', 0.25),
+      R(0.9, 0.1, 0.05, 0.2, 'white', 0.5), R(0.9, 0.7, 0.05, 0.2, 'white', 0.5), R(0.01, 0.15, 0.03, 0.7, 'dark', 0.4), R(0.03, 0.06, 0.1, 0.88, 'dark', 0.2),
+    ],
+  },
   { type: 'suv', label: 'SUV', category: 'Garage & cars', w: 4.8, d: 2.0, color: '#6b7280', shapes: carShapes(0.4) },
   { type: 'van', label: 'Van', category: 'Garage & cars', w: 5.4, d: 2.0, color: '#e5e7eb', shapes: carShapes(0.52) },
   {
@@ -529,7 +538,7 @@ const HEIGHT: Record<string, number> = {
   rug: 0.01, parking: 0.01, stairs: 1.5, bed: 0.5, 'bed-double': 0.55, 'bed-single': 0.5, 'bed-king': 0.55, 'bunk-bed': 1.6, chair: 0.9,
   'office-chair': 1.0, 'bar-stool': 0.75, 'coffee-table': 0.45, 'table-round': 0.75, 'dining-table': 0.75, 'dining-set-4': 0.75, 'dining-set-6': 0.75,
   radiator: 0.6, aquarium: 1.2, pouf: 0.4, 'side-table': 0.5, bathtub: 0.6, toilet: 0.8, 'bath-sink': 0.85, washer: 0.85, dryer: 0.85, 'water-heater': 1.5,
-  car: 1.5, 'car-small': 1.45, suv: 1.8, van: 2.1, motorbike: 1.1, bicycle: 1.0, bins: 1.1, 'ev-charger': 1.4,
+  car: 1.5, porsche: 1.3, 'car-small': 1.45, suv: 1.8, van: 2.1, motorbike: 1.1, bicycle: 1.0, bins: 1.1, 'ev-charger': 1.4,
   tree: 6, 'tree-small': 3, 'tree-large': 10, bush: 0.9, 'flower-pot': 0.4, 'raised-bed': 0.5, shed: 2.4, greenhouse: 2.5, bbq: 1.0, 'patio-set': 0.75,
   lounger: 0.4, parasol: 2.4, trampoline: 0.9, sandbox: 0.3, pool: 0, 'hot-tub': 0.8, 'fire-pit': 0.4, 'garden-bench': 0.8, 'rain-barrel': 1.0,
 };

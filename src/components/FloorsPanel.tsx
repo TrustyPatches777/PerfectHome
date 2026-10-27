@@ -1,6 +1,6 @@
-import { addFloor, deleteFloor, duplicateFloor, renameFloor } from '../floors';
+import { addAttic, addFloor, deleteFloor, duplicateFloor, renameFloor } from '../floors';
 import { useDesign } from '../store/design';
-import { useFloorId } from '../store/floor';
+import { floorBelow, isBasement, useFloorId } from '../store/floor';
 import { useUi } from '../store/ui';
 
 /** The list of floors (highest first) with add / duplicate / rename / delete for the active one. */
@@ -9,7 +9,11 @@ export function FloorsPanel() {
   const active = useFloorId();
   const underlay = useUi((s) => s.showUnderlay);
   const current = floors.find((f) => f.id === active)!;
-  const hasBelow = floors[0].id !== active;
+  const hasBelow = !!floorBelow(useDesign.getState().design, active);
+  const basement = isBasement(current);
+  const top = floors[floors.length - 1];
+  const roofs = useDesign((s) => s.design.roofs);
+  const canAttic = !top.attic && roofs.some((r) => r.floor === top.id && r.kind !== 'flat');
 
   return (
     <div className="panel" data-testid="floors">
@@ -41,6 +45,11 @@ export function FloorsPanel() {
         </button>
       </div>
       <div className="row">
+        <button onClick={addAttic} disabled={!canAttic} title={canAttic ? 'Use the space under the roof of the top floor' : 'An attic needs a pitched roof on the top floor (and only one attic)'} data-testid="add-attic">
+          + Attic
+        </button>
+      </div>
+      <div className="row">
         <button onClick={duplicateFloor} title="Copy everything on this floor to a new floor above" data-testid="duplicate-floor">
           Duplicate floor
         </button>
@@ -56,7 +65,7 @@ export function FloorsPanel() {
           onChange={(e) => useUi.getState().setShowUnderlay(e.target.checked)}
           data-testid="underlay-toggle"
         />
-        Show the floor below faintly
+        {basement ? 'Show the floor above faintly' : 'Show the floor below faintly'}
       </label>
     </div>
   );

@@ -2,9 +2,10 @@ import { useMemo } from 'react';
 import { Arrow, Group, Line, Rect } from 'react-konva';
 import { shade } from '../../catalog';
 import type { Roof, Skylight } from '../../model';
-import { roofPlan, skylightPlacement } from '../../roofs';
+import { roofBaseHeight, roofPlan, roofUndersideLocal, skylightPlacement } from '../../roofs';
+import { Shape } from 'react-konva';
 import { useDesign } from '../../store/design';
-import { useOnFloor } from '../../store/floor';
+import { useFloorId, useOnFloor } from '../../store/floor';
 import { useSelectedIds, useUi } from '../../store/ui';
 import { pressItem } from '../press';
 import { input } from '../input';
@@ -68,6 +69,38 @@ function SkylightShape({ sky, roofs, selected }: { sky: Skylight; roofs: Roof[];
   );
 }
 
+/**
+ * Seen from the attic: the roof above, with the parts where you cannot stand up shaded (red: under 1 m of room, yellow: under
+ * 1.8 m). Not clickable: the roof belongs to the floor below.
+ */
+function AtticRoof({ roof, lift }: { roof: Roof; lift: number }) {
+  const plan = useMemo(() => roofPlan(roof), [roof.kind, roof.w, roof.d, roof.pitch, roof.overhang]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stroke = shade(roof.color, -0.15);
+  return (
+    <Group x={roof.x} y={roof.y} rotation={roof.rotation} listening={false}>
+      <Shape
+        sceneFunc={(ctx) => {
+          const cell = 0.2;
+          for (let x = -roof.w / 2; x < roof.w / 2; x += cell) {
+            for (let z = -roof.d / 2; z < roof.d / 2; z += cell) {
+              const under = roofUndersideLocal(roof, x + cell / 2, z + cell / 2);
+              if (under === null) continue;
+              const room = under - lift;
+              if (room >= 1.8) continue;
+              ctx.setAttr('fillStyle', room < 1 ? 'rgba(239,68,68,0.28)' : 'rgba(250,204,21,0.22)');
+              ctx.fillRect(x, z, cell + 0.005, cell + 0.005);
+            }
+          }
+        }}
+      />
+      <Line points={flat(plan.footprint)} closed stroke={stroke} strokeWidth={1} opacity={0.5} dash={[2, 4]} strokeScaleEnabled={false} />
+      {plan.lines.map((l, i) => (
+        <Line key={i} points={flat(l)} stroke={stroke} strokeWidth={1.25} opacity={0.7} strokeScaleEnabled={false} />
+      ))}
+    </Group>
+  );
+}
+
 /** Roofs of the floor you are on (a roof belongs to the floor whose walls carry it). */
 export function RoofLayer() {
   const roofs = useOnFloor((d) => d.roofs);
@@ -77,9 +110,18 @@ export function RoofLayer() {
   const skylights = useOnFloor((d) => d.skylights);
   const allRoofs = useDesign((s) => s.design.roofs);
   const skyIds = useSelectedIds('skylight');
+  const design = useDesign((s) => s.design);
+  const active = useFloorId();
   if (!layer.visible) return null;
+  // in an attic the roof of the floor below is the ceiling: show it, and where it is too low to stand
+  const at = design.floors.findIndex((f) => f.id === active);
+  const atticRoofs = at > 0 && design.floors[at].attic ? design.roofs.filter((r) => r.floor === design.floors[at - 1].id) : [];
+  const lift = atticRoofs.length ? design.settings.storeyHeight - roofBaseHeight(design, design.floors[at - 1].id) : 0;
   return (
     <Group listening={tool === 'select' && !layer.locked}>
+      {atticRoofs.map((r) => (
+        <AtticRoof key={`attic-${r.id}`} roof={r} lift={lift} />
+      ))}
       {roofs.map((r) => (
         <RoofShape key={r.id} roof={r} selected={ids.has(r.id)} />
       ))}

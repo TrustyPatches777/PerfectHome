@@ -1,4 +1,5 @@
 import { CUSTOM_PREFIX, catalogItem, FURNITURE_COLORS, furnitureHeight } from '../catalog';
+import { isSingleDoor } from '../model';
 import { deleteSelection, duplicateSelection, isLayerLocked } from '../actions';
 import { setWallLength } from '../canvas/editing';
 import { FLOOR_COLORS } from '../canvas/style';
@@ -10,11 +11,13 @@ import { STRIP_STYLES, ZONE_STYLES, polylineLength } from '../outdoor';
 import { STAIR_DEFAULTS, checkStair } from '../stairs';
 import { ROOF_KINDS, ROOF_MATERIALS, type Roof, type RoofKind, type RoofMaterial } from '../model';
 import { ROOF_MATERIAL_STYLES, ROOF_STYLES } from '../roofs';
-import { refitRoof, setRoofKind, setRoofMaterial, turnRoof } from '../roofActions';
+import { moveRoofToFloor, refitRoof, setRoofKind, setRoofMaterial, turnRoof } from '../roofActions';
 import { SKYLIGHT_SIZES } from '../roofActions';
 import { skylightPlacement } from '../roofs';
 import type { Skylight } from '../model';
-import { STAIR_KINDS, type Stair, type StairKind } from '../model';
+import { RAIL_STYLES, STAIR_KINDS, type RailStyle, type Stair, type StairKind } from '../model';
+
+const RAIL_LABELS: Record<RailStyle, string> = { none: 'None', wood: 'Wooden balusters', metal: 'Metal bars', glass: 'Glass panels', cable: 'Steel cables' };
 import { useDesign } from '../store/design';
 import { useOnFloor } from '../store/floor';
 import { useUi } from '../store/ui';
@@ -43,7 +46,9 @@ const TITLES: Record<ItemRef['kind'], string> = {
 };
 
 const OPENING_TYPES: [OpeningKind, string][] = [
-  ['door', 'Door'],
+  ['door', 'Interior door'],
+  ['main', 'Main (front) door'],
+  ['garden', 'Garden door'],
   ['double', 'Double door'],
   ['french', 'French door'],
   ['sliding', 'Sliding door'],
@@ -263,12 +268,12 @@ function OpeningProps({ id }: { id: string }) {
           else edit((o) => void (o.pos = pos));
         }}
       />
-      {(opening.kind === 'door' || opening.kind === 'double') && (
+      {(isSingleDoor(opening.kind) || opening.kind === 'double') && (
         <div className="row">
           <button onClick={() => edit((o) => void (o.swing = o.swing === 1 ? -1 : 1))} data-testid="flip-swing">
             Flip swing
           </button>
-          {opening.kind === 'door' && (
+          {isSingleDoor(opening.kind) && (
             <button onClick={() => edit((o) => void (o.hinge = o.hinge === 'a' ? 'b' : 'a'))} data-testid="flip-hinge">
               Flip hinge
             </button>
@@ -481,7 +486,7 @@ function StripProps({ id }: { id: string }) {
 
 function RoofProps({ id }: { id: string }) {
   const roof = useDesign((s) => s.design.roofs.find((x) => x.id === id));
-  const floorName = useDesign((s) => s.design.floors.find((f) => f.id === roof?.floor)?.name ?? '');
+  const floors = useDesign((s) => s.design.floors);
   if (!roof) return null;
   const edit = (fn: (r: Roof) => void) =>
     useDesign.getState().update((d) => {
@@ -501,7 +506,17 @@ function RoofProps({ id }: { id: string }) {
           ))}
         </select>
       </label>
-      <p className="muted">{ROOF_STYLES[roof.kind].hint}. Sits on the walls of: {floorName}.</p>
+      <p className="muted">{ROOF_STYLES[roof.kind].hint}.</p>
+      <label className="field">
+        <span>Sits on the walls of</span>
+        <select value={roof.floor} data-testid="roof-floor" onChange={(e) => moveRoofToFloor(id, e.target.value)}>
+          {floors.filter((f) => !f.attic).map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      </label>
       <div className="row two">
         {!flatRoof && <NumberField label="Slope" value={roof.pitch} unit="°" min={3} max={80} testId="roof-pitch" onCommit={(v) => edit((r) => void (r.pitch = v))} />}
         <NumberField label="Overhang" value={roof.overhang} scale={100} unit="cm" min={0} max={300} testId="roof-overhang" onCommit={(v) => edit((r) => void (r.overhang = v))} />
@@ -610,6 +625,40 @@ function StairProps({ id }: { id: string }) {
         <NumberField label="Total rise" value={stair.rise} scale={100} unit="cm" min={20} max={1000} testId="stair-rise" onCommit={(v) => edit((s) => void (s.rise = v))} />
       </div>
       <NumberField label="Rotation" value={stair.rotation} unit="°" testId="stair-rotation" onCommit={(v) => edit((s) => void (s.rotation = ((v % 360) + 360) % 360))} />
+      <label className="field">
+        <span>Railing</span>
+        <select
+          value={stair.railing?.style ?? 'none'}
+          data-testid="stair-railing"
+          onChange={(e) =>
+            edit((s) => {
+              const style = e.target.value as RailStyle;
+              if (style === 'none') delete s.railing;
+              else s.railing = { style, a: s.railing?.a ?? true, b: s.railing?.b ?? true };
+            })
+          }
+        >
+          {RAIL_STYLES.map((r) => (
+            <option key={r} value={r}>
+              {RAIL_LABELS[r]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {stair.railing && (
+        <div className="row">
+          <label className="check">
+            <input type="checkbox" checked={stair.railing.a} data-testid="stair-rail-a" onChange={(e) => edit((s) => void (s.railing && (s.railing.a = e.target.checked)))} />
+            {stair.kind === 'straight' ? 'Left rail' : 'Outer rail'}
+          </label>
+          {stair.kind !== 'spiral' && (
+            <label className="check">
+              <input type="checkbox" checked={stair.railing.b} data-testid="stair-rail-b" onChange={(e) => edit((s) => void (s.railing && (s.railing.b = e.target.checked)))} />
+              {stair.kind === 'straight' ? 'Right rail' : 'Inner rail'}
+            </label>
+          )}
+        </div>
+      )}
       <p className={check.ok ? 'ok' : 'notice'} data-testid="stair-check">
         Step height {(check.riser * 100).toFixed(1)} cm · tread {(check.going * 100).toFixed(0)} cm. {check.message}
       </p>

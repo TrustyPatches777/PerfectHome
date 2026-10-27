@@ -13,7 +13,9 @@ import { STRIP_STYLES, ZONE_STYLES } from '../outdoor';
 import { NumberField } from './fields';
 
 const DOOR_KINDS: { kind: Exclude<OpeningKind, 'window' | 'bay'>; label: string }[] = [
-  { kind: 'door', label: 'Door' },
+  { kind: 'door', label: 'Interior' },
+  { kind: 'main', label: 'Main door' },
+  { kind: 'garden', label: 'Garden door' },
   { kind: 'double', label: 'Double' },
   { kind: 'french', label: 'French' },
   { kind: 'sliding', label: 'Sliding' },

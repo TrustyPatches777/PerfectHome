@@ -5,14 +5,14 @@ area, then furnish them. Share the design as a link: everything is inside the li
 
 ## What it can do
 
-- **Drawing:** walls (four types, straight or curved; a whole rectangle with its room in one drag; drag a wall sideways and the walls and room follow; drag the side of a room, lawn or pond), wall paint and coverings (brick, stone, wood, tiles...), doors (single, double, French, sliding, garage), windows and bay windows, open passages, stairs (straight, L, U, spiral), rooms that detect themselves from the walls, with floor materials and area. Type exact lengths while drawing.
+- **Drawing:** walls (four types, straight or curved; a whole rectangle with its room in one drag; drag a wall sideways and the walls and room follow; drag the side of a room, lawn or pond), wall paint and coverings (brick, stone, wood, tiles...), doors (single, double, French, sliding, garage), windows and bay windows, open passages, stairs (straight, L, U, spiral) with wooden, metal, glass or cable railings that cut a stairwell into the floor above, interior, main and garden doors, rooms that detect themselves from the walls, with floor materials and area. Type exact lengths while drawing.
 - **Furniture** (it cannot be put or dragged into walls): ~110 symbols in real sizes (rooms, kitchen, bathroom, utility, cars, garden, lamps, electrical and plumbing symbols that snap to walls) and your own custom pieces. Multi-select, copy/paste, align and distribute.
 - **Whole property:** several floors (the one below shows faintly), garden, driveway, street, fence, hedge, plot boundary.
 - **Light:** sun and shadows for any time of day and date, evening light with glowing lamps, a compass.
 - **Checks and numbers:** a plan check (doors that cannot open, furniture in walls, narrow passages), an area table with living area and plot coverage and distances to the boundary, rulers, guides, and "show all dimensions".
 - **Working together:** a **live session** (Live button): send the link and you both edit the same design at the same time, seeing each other's mouse pointer, with undo that only takes back your own changes. No server: the browsers connect directly. Also sticky notes with a color per person on their own layer, layers you can hide or lock, share links (a snapshot), autosave.
-- **Roofs:** gable, hip, flat (with an edge wall), shed, gambrel and mansard roofs on any floor, with slope, overhang, covering, color, a chimney and skylights. "Fit to walls" makes one that covers the house.
-- **3D:** switch to 3D (key 3) to orbit around the house or walk through it, clicking doors to open and close them, with furniture models, sun and shadows for any time of day, lamps at night, a cut-away that hides the upper floors, and a button to save the picture.
+- **Roofs:** gable, hip, flat (with an edge wall), shed, gambrel and mansard roofs on any floor, with slope, overhang, covering, color, a chimney and skylights that cut through the roof. Attics under the roof. "Fit to walls" makes one that covers the house.
+- **3D:** switch to 3D (key 3) to orbit around the house or walk through it, clicking doors to open and close them, walking with collisions (walls, furniture, shut doors) and up and down the stairs, switching floors on and off, with furniture models, sun and shadows for any time of day, lamps at night, a cut-away that hides the upper floors, and a button to save the picture.
 - **Output:** PNG, SVG, JSON, and printing at true scale (or save as PDF) on A4/A3/A2/Letter.
 
 ## Using it

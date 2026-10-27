@@ -140,11 +140,11 @@ test('the house shows in 3D, can be viewed from above, orbited, cut away and wal
   expect(walk.camera[1]).toBeCloseTo(1.6, 1);
   const start = walk.camera.slice();
   await page.getByTestId('view3d-canvas').focus();
-  await page.keyboard.down('w');
-  await page.waitForTimeout(500);
-  await page.keyboard.up('w');
-  const moved = (await stats(page)).camera;
-  expect(Math.hypot(moved[0] - start[0], moved[2] - start[2])).toBeGreaterThan(0.2);
+  // (the start is right in front of the TV unit now: furniture stops you, so go sideways)
+  await page.keyboard.down('d');
+  // the walker moves with the frame rate, which is slow on a test machine: wait until it has gone a little way
+  await expect.poll(async () => { const c = (await stats(page)).camera; return Math.hypot(c[0] - start[0], c[2] - start[2]); }, { timeout: 20_000 }).toBeGreaterThan(0.2);
+  await page.keyboard.up('d');
   await page.screenshot({ path: 'e2e/.results/m22-walk.png' });
   await page.keyboard.press('Escape');
   await expect.poll(async () => (await stats(page)).mode).toBe('orbit');

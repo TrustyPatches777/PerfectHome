@@ -2,13 +2,15 @@
  * "Check plan": finds things that will not work in real life. Pure analysis of a design, so it can be tested;
  * the canvas draws the markers and the panel lists the messages.
  */
+import { isSingleDoor } from './model';
 import { catalogItem, catalogLayer, furnitureHeight } from './catalog';
 import { doorGeometry, polygonArea, polygonsOverlap, wallOutlinePoints } from './geometry';
 import type { Design, ItemRef, Point } from './model';
 import { rectCorners } from './selection';
+import { atticClearance } from './roofs';
 import { furnitureFootprint } from './shadows';
 
-export type IssueKind = 'door-blocked' | 'door-collision' | 'in-wall' | 'narrow-gap';
+export type IssueKind = 'door-blocked' | 'door-collision' | 'in-wall' | 'narrow-gap' | 'low-ceiling' | 'roof-in-the-way';
 
 export interface Issue {
   /** Stable key for lists. */
@@ -26,7 +28,7 @@ export interface Issue {
 
 export const DEFAULT_MIN_PASSAGE = 0.7;
 
-const DOORS = new Set(['door', 'double', 'french']);
+const DOORS = new Set(['door', 'main', 'garden', 'double', 'french']);
 
 interface Obstacle {
   ref: ItemRef;
@@ -62,10 +64,10 @@ function swings(d: Design, floor: string) {
   for (const o of d.openings) {
     const wall = walls.get(o.wallId);
     if (!wall || !DOORS.has(o.kind)) continue;
-    const leaves = o.kind === 'door' ? [o] : [{ ...o, pos: o.pos - o.width / 4, width: o.width / 2, hinge: 'a' as const }, { ...o, pos: o.pos + o.width / 4, width: o.width / 2, hinge: 'b' as const }];
+    const leaves = isSingleDoor(o.kind) ? [o] : [{ ...o, pos: o.pos - o.width / 4, width: o.width / 2, hinge: 'a' as const }, { ...o, pos: o.pos + o.width / 4, width: o.width / 2, hinge: 'b' as const }];
     for (const leaf of leaves) {
       const g = doorGeometry(wall, leaf, 8);
-      out.push({ id: o.id, name: o.kind === 'door' ? 'a door' : 'a double door', poly: [g.hinge, ...g.arc], ref: { kind: 'opening', id: o.id } });
+      out.push({ id: o.id, name: isSingleDoor(o.kind) ? 'a door' : 'a double door', poly: [g.hinge, ...g.arc], ref: { kind: 'opening', id: o.id } });
     }
   }
   return out;
@@ -146,6 +148,27 @@ export function findIssues(d: Design, floor: string, minPassage = DEFAULT_MIN_PA
         break;
       }
     }
+  }
+
+  // 2b. in an attic: furniture taller than the room under the roof
+  if (d.floors.find((f) => f.id === floor)?.attic) {
+    for (const o of things) {
+      if (o.ref.kind !== 'furniture') continue;
+      const heights = o.poly.map((p) => atticClearance(d, floor, p)).filter((h): h is number => h !== null);
+      const low = heights.length ? Math.min(...heights) : null;
+      if (low !== null && low < o.height - 0.01) {
+        issues.push({ id: `low:${o.ref.id}`, kind: 'low-ceiling', message: `${o.name[0].toUpperCase()}${o.name.slice(1)} is taller than the roof above it (${cm(low)} of room, it needs ${cm(o.height)}).`, at: centerOf(o.poly), polygon: o.poly, refs: [o.ref] });
+      }
+    }
+  }
+
+  // 2c. a roof that a higher floor stands inside
+  const index = d.floors.findIndex((f) => f.id === floor);
+  for (const r of d.roofs.filter((x) => x.floor === floor)) {
+    const box = rectCorners(r.x, r.y, r.w, r.d, r.rotation);
+    const higher = d.floors.slice(index + 1).filter((f) => !f.attic).map((f) => f.id);
+    const hit = d.rooms.some((x) => higher.includes(x.floor) && polygonsOverlap(box, x.points)) || d.walls.some((w) => higher.includes(w.floor) && !w.bulge && polygonsOverlap(box, wallOutlinePoints(w)));
+    if (hit) issues.push({ id: `roofway:${r.id}`, kind: 'roof-in-the-way', message: 'A higher floor stands inside the roof of this floor. Move the roof up (select it, then "Sits on floor") or remove it.', at: { x: r.x, y: r.y }, polygon: box, refs: [{ kind: 'roof', id: r.id }] });
   }
 
   // 3. gaps that are too narrow to walk through (big, tall things facing each other, or a wall)

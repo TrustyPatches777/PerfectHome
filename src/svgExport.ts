@@ -3,6 +3,7 @@
  * This is a second renderer of the plan, next to the Konva canvas: when a drawing changes on the canvas
  * (a new opening type, a new symbol kind...), update it here too. The svgExport tests help catch drift.
  */
+import { isSingleDoor } from './model';
 import { catalogItem, catalogLayer, fillColor, shade } from './catalog';
 import { contentBounds } from './bounds';
 import { autoDimensions } from './dims';
@@ -10,7 +11,7 @@ import { doorGeometry, formatArea, labelPoint, niceLength, polygonArea, wallArc,
 import type { Design, FloorMaterial, Furniture, Opening, Point, Wall } from './model';
 import { samplePolyline, STRIP_STYLES } from './outdoor';
 import { roofPlan } from './roofs';
-import { stairShapes } from './stairs';
+import { railPaths, stairShapes } from './stairs';
 import { WALL_STYLE, wallFaceLine } from './walls';
 
 export interface SvgOptions {
@@ -97,7 +98,7 @@ function openingSvg(wall: Wall, o: Opening): string {
   const line = (a: number, b: number, c: number, d: number, extra = '') => `<line x1="${n(a)}" y1="${n(b)}" x2="${n(c)}" y2="${n(d)}" stroke="${stroke}" stroke-width="1" ${hairline} ${extra}/>`;
   let local = '';
   let world = '';
-  const leaves = o.kind === 'door' ? [o] : o.kind === 'double' || o.kind === 'french' ? [{ ...o, pos: o.pos - w / 4, width: w / 2, hinge: 'a' as const }, { ...o, pos: o.pos + w / 4, width: w / 2, hinge: 'b' as const }] : [];
+  const leaves = isSingleDoor(o.kind) ? [o] : o.kind === 'double' || o.kind === 'french' ? [{ ...o, pos: o.pos - w / 4, width: w / 2, hinge: 'a' as const }, { ...o, pos: o.pos + w / 4, width: w / 2, hinge: 'b' as const }] : [];
   for (const leaf of leaves) {
     const g = doorGeometry(wall, leaf, 12);
     world += `<polyline points="${pts(g.arc)}" fill="none" stroke="${stroke}" stroke-width="1" stroke-dasharray="4 3" ${hairline}/>`;
@@ -214,7 +215,8 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
           return `<polyline points="${flat(sh.pts)}" fill="none" stroke="#475569" stroke-width="1" stroke-linejoin="round" ${hairline}/>`;
         })
         .join('');
-      body.push(`<g transform="translate(${n(s.x)} ${n(s.y)}) rotate(${n(s.rotation)}) translate(${n(-s.w / 2)} ${n(-s.d / 2)})">${inner}</g>`);
+      const rails = s.railing ? (['a', 'b'] as const).filter((k) => s.railing![k]).map((k) => `<polyline points="${railPaths(s)[k].map((p) => `${n(p.x)},${n(p.y)}`).join(' ')}" fill="none" stroke="${{ none: '#000', wood: '#a5835a', metal: '#4b5563', glass: '#38bdf8', cable: '#9ca3af' }[s.railing!.style]}" stroke-width="0.05" stroke-linecap="round"/>`).join('') : '';
+      body.push(`<g transform="translate(${n(s.x)} ${n(s.y)}) rotate(${n(s.rotation)}) translate(${n(-s.w / 2)} ${n(-s.d / 2)})">${inner}${rails}</g>`);
     }
   }
   // room names after the walls so they stay readable
