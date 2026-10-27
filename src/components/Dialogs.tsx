@@ -8,6 +8,7 @@ import { useDesign } from '../store/design';
 import { ColorField, NumberField, TextField } from './fields';
 import { SymbolIcon } from './FurniturePalette';
 import { AreaDialog } from './AreaDialog';
+import { FindDialog, RoomsDialog, SnapshotsDialog } from './EditDialogs';
 import { PrintDialog } from './PrintDialog';
 import { LiveDialog } from './LiveDialog';
 import { useUi, type DialogState } from '../store/ui';
@@ -19,6 +20,9 @@ export function Dialogs() {
   if (dialog.type === 'share') return <ShareDialog url={dialog.url} copied={dialog.copied} long={dialog.long} />;
   if (dialog.type === 'confirm') return <ConfirmDialog dialog={dialog} />;
   if (dialog.type === 'areas') return <AreaDialog />;
+  if (dialog.type === 'find') return <FindDialog />;
+  if (dialog.type === 'rooms') return <RoomsDialog />;
+  if (dialog.type === 'snapshots') return <SnapshotsDialog />;
   if (dialog.type === 'print') return <PrintDialog />;
   if (dialog.type === 'live') return <LiveDialog />;
   if (dialog.type === 'floor-roof') return <FloorRoofDialog dialog={dialog} />;

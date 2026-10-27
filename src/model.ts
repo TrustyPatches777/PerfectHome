@@ -40,6 +40,18 @@ export interface Floor {
   name: string;
   /** An attic: the usable space under the roof of the floor below (its ceiling is that roof). */
   attic?: boolean;
+  /** A picture to trace on this floor (the picture itself stays on this device; see trace.ts). */
+  trace?: Trace;
+}
+
+/** Where a tracing picture lies on the plan: its middle, its width in meters (the height follows its shape), turn and see-through-ness. */
+export interface Trace {
+  x: number;
+  y: number;
+  w: number;
+  rotation: number;
+  opacity: number;
+  visible: boolean;
 }
 
 export interface LayerState {
@@ -108,6 +120,13 @@ export interface Opening {
   swing: 1 | -1;
   /** Which jamb the door is hinged on. */
   hinge: 'a' | 'b';
+  /** Height of the bottom of the glass above the floor (windows) and of the top of the opening (the lintel), overriding the kind's usual. */
+  sill?: number;
+  head?: number;
+  /** Round-topped (an arch up to the head). */
+  arch?: boolean;
+  /** Color of the frame. */
+  frame?: string;
 }
 
 export type FloorMaterial = 'plain' | 'wood' | 'parquet' | 'tile' | 'carpet' | 'stone' | 'concrete';
@@ -126,7 +145,15 @@ export interface Room {
   points: Point[];
   /** A point inside the room, used to re-detect the outline from the walls. Absent for hand-drawn rooms. */
   seed?: Point;
+  /** What the room is for: drives the plan check and shows in the area table. */
+  type?: RoomType;
+  /** Height of the ceiling in meters (absent = the storey's usual). */
+  ceiling?: number;
 }
+
+export type RoomType = 'bedroom' | 'living' | 'kitchen' | 'dining' | 'bathroom' | 'toilet' | 'hall' | 'office' | 'storage' | 'garage' | 'other';
+export const ROOM_TYPES: RoomType[] = ['bedroom', 'living', 'kitchen', 'dining', 'bathroom', 'toilet', 'hall', 'office', 'storage', 'garage', 'other'];
+export const ROOM_TYPE_LABEL: Record<RoomType, string> = { bedroom: 'Bedroom', living: 'Living room', kitchen: 'Kitchen', dining: 'Dining room', bathroom: 'Bathroom', toilet: 'Toilet', hall: 'Hall / corridor', office: 'Office', storage: 'Storage', garage: 'Garage', other: 'Other' };
 
 export interface Furniture {
   id: string;
@@ -149,8 +176,8 @@ export interface Furniture {
 }
 
 /** A staircase. Position is its center; `d` runs along the walking direction. */
-export type StairKind = 'straight' | 'l' | 'u' | 'spiral';
-export const STAIR_KINDS: StairKind[] = ['straight', 'l', 'u', 'spiral'];
+export type StairKind = 'straight' | 'landing' | 'l' | 'winder' | 'u' | 'spiral' | 'ladder';
+export const STAIR_KINDS: StairKind[] = ['straight', 'landing', 'l', 'winder', 'u', 'spiral', 'ladder'];
 /** What the railing of a staircase is made of. */
 export type RailStyle = 'none' | 'wood' | 'metal' | 'glass' | 'cable' | 'bars' | 'solid';
 export const RAIL_STYLES: RailStyle[] = ['none', 'wood', 'metal', 'bars', 'glass', 'cable', 'solid'];
@@ -197,6 +224,8 @@ export interface Stair {
   /** Color of the treads, overriding the material's; `bodyColor` the same for risers and side beams. */
   color?: string;
   bodyColor?: string;
+  /** Steps in the first flight of a stair with a turn or a landing (absent = shared out by length). */
+  firstFlight?: number;
 }
 
 /**
@@ -356,6 +385,13 @@ export interface Strip {
   surface?: PathSurface;
 }
 
+/** Things that move, rotate and copy as one. Openings are never in a group (they belong to their wall). */
+export interface Group {
+  id: string;
+  name: string;
+  refs: ItemRef[];
+}
+
 export interface Settings {
   /** Snap step in meters. */
   gridStep: number;
@@ -388,6 +424,8 @@ export interface Design {
   notes: Note[];
   guides: Guide[];
   custom: CustomItem[];
+  /** Absent in older designs. */
+  groups: Group[];
   site: Site;
 }
 
@@ -459,6 +497,7 @@ export function createDesign(): Design {
     notes: [],
     guides: [],
     custom: [],
+    groups: [],
     site: { ...DEFAULT_SITE },
   };
 }
@@ -527,7 +566,12 @@ export function parseDesign(input: unknown): Design {
 
   // Floors: designs made before floors existed have none; everything then lives on one "Ground floor".
   const floors: Floor[] = [];
-  for (const f of list<Floor>(input.floors, (o) => ({ id: str(o.id, newId(), 20), name: str(o.name, 'Floor', 60), ...(o.attic === true ? { attic: true } : {}) }))) {
+  for (const f of list<Floor>(input.floors, (o) => ({
+    id: str(o.id, newId(), 20),
+    name: str(o.name, 'Floor', 60),
+    ...(o.attic === true ? { attic: true } : {}),
+    ...(isObj(o.trace) ? { trace: { x: num(o.trace.x, 0), y: num(o.trace.y, 0), w: num(o.trace.w, 10, 0.1, 500), rotation: num(o.trace.rotation, 0, -3600, 3600), opacity: num(o.trace.opacity, 0.5, 0.05, 1), visible: o.trace.visible !== false } } : {}),
+  }))) {
     if (!floors.some((x) => x.id === f.id)) floors.push(f);
   }
   if (!floors.length) floors.push({ id: newId(), name: 'Ground floor' });
@@ -573,6 +617,10 @@ export function parseDesign(input: unknown): Design {
             width: num(o.width, 0.9, 0.2, 5),
             swing: o.swing === -1 ? -1 : 1,
             hinge: o.hinge === 'b' ? 'b' : 'a',
+            ...(typeof o.sill === 'number' ? { sill: num(o.sill, 0.9, 0, 5) } : {}),
+            ...(typeof o.head === 'number' ? { head: num(o.head, 2.1, 0.3, 6) } : {}),
+            ...(o.arch === true ? { arch: true } : {}),
+            ...(typeof o.frame === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(o.frame) ? { frame: o.frame } : {}),
           }
         : null,
     ),
@@ -588,6 +636,8 @@ export function parseDesign(input: unknown): Design {
         living: o.living !== false,
         points: pts,
         seed: isObj(o.seed) ? point(o.seed) : undefined,
+        ...(ROOM_TYPES.includes(o.type as RoomType) ? { type: o.type as RoomType } : {}),
+        ...(typeof o.ceiling === 'number' ? { ceiling: num(o.ceiling, 2.5, 1.5, 12) } : {}),
       };
     }),
     furniture: list<Furniture>(input.furniture, (o) => ({
@@ -685,6 +735,7 @@ export function parseDesign(input: unknown): Design {
       ...(STAIR_MATERIALS.includes(o.material as StairMaterial) && o.material !== 'concrete' ? { material: o.material as StairMaterial } : {}),
       ...(typeof o.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(o.color) ? { color: o.color } : {}),
       ...(typeof o.bodyColor === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(o.bodyColor) ? { bodyColor: o.bodyColor } : {}),
+      ...(typeof o.firstFlight === 'number' ? { firstFlight: Math.round(num(o.firstFlight, 8, 1, 59)) } : {}),
     })),
     roofs: list<Roof>(input.roofs, (o) => ({
       id: str(o.id, newId(), 20),
@@ -727,6 +778,10 @@ export function parseDesign(input: unknown): Design {
       axis: o.axis === 'y' ? 'y' : 'x',
       pos: num(o.pos, 0),
     })),
+    groups: list<Group>(input.groups, (o) => {
+      const refs = (Array.isArray(o.refs) ? o.refs : []).filter((r): r is Json => isObj(r) && typeof r.id === 'string' && typeof r.kind === 'string').map((r) => ({ kind: r.kind as ItemKind, id: r.id as string })).filter((r) => r.kind !== 'opening' && r.kind !== 'guide');
+      return refs.length >= 2 ? { id: str(o.id, newId(), 20), name: str(o.name, 'Group', 60), refs } : null;
+    }),
     custom: list<CustomItem>(input.custom, (o) => ({
       id: str(o.id, newId(), 20),
       label: str(o.label, 'My item', 60),

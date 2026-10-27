@@ -14,6 +14,8 @@ import { TextTool } from '../tools/TextTool';
 import { ZoneTool } from '../tools/ZoneTool';
 import { StripTool } from '../tools/StripTool';
 import { GateTool } from '../tools/GateTool';
+import { StretchTool } from '../tools/StretchTool';
+import { SplitRoomTool } from '../tools/SplitRoomTool';
 import { StairTool } from '../tools/StairTool';
 import { RoofTool } from '../tools/RoofTool';
 import { PaintTool } from '../tools/PaintTool';
@@ -129,6 +131,8 @@ export function OverlayLayer() {
       {tool === 'zone' && <ZoneTool />}
       {tool === 'strip' && <StripTool />}
       {tool === 'gate' && <GateTool />}
+      {tool === 'stretch' && <StretchTool />}
+      {tool === 'split-room' && <SplitRoomTool />}
       {tool === 'stairs' && <StairTool />}
       {tool === 'roof' && <RoofTool />}
       {tool === 'paint' && <PaintTool />}

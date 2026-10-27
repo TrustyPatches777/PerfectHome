@@ -201,7 +201,7 @@ describe('new item types and defaults', () => {
       v: 1,
       walls: [{ id: 'w', a: { x: 0, y: 0 }, b: { x: 1, y: 0 }, type: 'adamantium', height: -4, bulge: 'lots' }],
       rooms: [{ points: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }], material: 'lava' }],
-      stairs: [{ kind: 'ladder', steps: 9999, rise: 'tall' }],
+      stairs: [{ kind: 'escalator', steps: 9999, rise: 'tall' }],
       guides: [{ axis: 'z', pos: 'x' }],
       custom: [{ shape: 'blob', w: -1 }],
       site: { lat: 400, month: 99 },

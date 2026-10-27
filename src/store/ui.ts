@@ -5,11 +5,16 @@ import { setNotifier } from './notice';
 import type { CustomItem, Design, ItemKind, ItemRef, OpeningKind, Point, RoofKind, StairKind, StripKind, WallFinish, WallType, ZoneKind } from '../model';
 import { STRIP_DEFAULT_WIDTH, type GateKind, type PathSurface } from '../model';
 import type { WindowKind } from '../windows';
+import type { Bounds } from '../geometry';
+import type { DesignDiff } from '../snapshots';
 
 /** A modal question or message. Rendered by components/Dialogs.tsx. */
 export type DialogState =
   | { type: 'share'; url: string; copied: boolean; long: boolean }
   | { type: 'areas' }
+  | { type: 'find' }
+  | { type: 'rooms' }
+  | { type: 'snapshots' }
   | { type: 'print' }
   | { type: 'live' }
   | { type: 'floor-roof'; floorName: string; canAttic: boolean; choose: (what: 'attic' | 'move') => void }
@@ -20,7 +25,7 @@ export type DialogState =
 
 import { DEFAULT_PRINT, type PrintOptions } from '../printLayout';
 
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'gate' | 'stairs' | 'roof' | 'skylight' | 'paint' | 'note';
+export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'gate' | 'stairs' | 'roof' | 'skylight' | 'paint' | 'note' | 'stretch' | 'split-room';
 
 /** Camera: screen = world * zoom + (x, y). `zoom` is pixels per meter. */
 export interface Viewport {
@@ -177,6 +182,23 @@ interface UiStore {
   /** 3D: show the roofs. */
   showRoof3d: boolean;
   setShowRoof3d: (v: boolean) => void;
+  /** The tracing picture: bumped when it is replaced (so the canvas loads it again), and whether it is being dragged. */
+  traceVersion: number;
+  bumpTrace: () => void;
+  traceMove: boolean;
+  setTraceMove: (v: boolean) => void;
+  /** The differences between the plan and a snapshot, drawn on the plan while comparing. */
+  compare: { name: string; diff: DesignDiff } | null;
+  setCompare: (c: { name: string; diff: DesignDiff } | null) => void;
+  /** The Stretch tool: the box that has been drawn (a second drag inside it pulls what is in it). */
+  stretchBox: Bounds | null;
+  setStretchBox: (b: Bounds | null) => void;
+  /** The room the Split tool is cutting (you draw the line next). */
+  splitRoomId: string | null;
+  setSplitRoomId: (id: string | null) => void;
+  /** Bumped when the saved templates change, so the palette redraws. */
+  templatesVersion: number;
+  bumpTemplates: () => void;
   /** The Gate tool: which kind of gate and how wide; and what the next footpath is made of. */
   gateKind: GateKind;
   setGateKind: (k: GateKind) => void;
@@ -274,6 +296,18 @@ export const useUi = create<UiStore>((set) => ({
   zoneShape: 'rect',
   stripKind: 'road',
   stripWidth: { ...STRIP_DEFAULT_WIDTH },
+  traceVersion: 0,
+  bumpTrace: () => set((s) => ({ traceVersion: s.traceVersion + 1 })),
+  traceMove: false,
+  setTraceMove: (traceMove) => set({ traceMove }),
+  compare: null,
+  setCompare: (compare) => set({ compare }),
+  stretchBox: null,
+  setStretchBox: (stretchBox) => set({ stretchBox }),
+  splitRoomId: null,
+  setSplitRoomId: (splitRoomId) => set({ splitRoomId }),
+  templatesVersion: 0,
+  bumpTemplates: () => set((s) => ({ templatesVersion: s.templatesVersion + 1 })),
   gateKind: 'single',
   setGateKind: (gateKind) => set({ gateKind }),
   gateWidth: 1.2,

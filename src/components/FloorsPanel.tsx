@@ -2,6 +2,7 @@ import { addAttic, addFloor, deleteFloor, duplicateFloor, renameFloor } from '..
 import { useDesign } from '../store/design';
 import { floorBelow, isBasement, useFloorId } from '../store/floor';
 import { useUi } from '../store/ui';
+import { FloorTools } from './FloorTools';
 
 /** The list of floors (highest first) with add / duplicate / rename / delete for the active one. */
 export function FloorsPanel() {
@@ -67,6 +68,7 @@ export function FloorsPanel() {
         />
         {basement ? 'Show the floor above faintly' : 'Show the floor below faintly'}
       </label>
+      <FloorTools />
     </div>
   );
 }

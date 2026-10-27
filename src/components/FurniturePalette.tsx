@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { deleteTemplate, loadTemplates, placeTemplate } from '../actions';
 import { CATEGORIES, allCatalog, fillColor, type CatalogItem } from '../catalog';
 import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
@@ -29,6 +30,9 @@ export function FurniturePalette() {
   const custom = useDesign((s) => s.design.custom); // re-render when custom items change
   const catalog = allCatalog();
   const tool = useUi((s) => s.tool);
+  const templatesVersion = useUi((s) => s.templatesVersion);
+  const templates = loadTemplates();
+  void templatesVersion;
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<Set<string>>(new Set(['My items', 'Bedroom', 'Living']));
   const q = query.trim().toLowerCase();
@@ -48,6 +52,23 @@ export function FurniturePalette() {
           + New
         </button>
       </div>
+      {templates.length > 0 && !q && (
+        <section data-testid="templates">
+          <h5>Templates</h5>
+          <div className="templates">
+            {templates.map((t) => (
+              <span className="template" key={t.id}>
+                <button onClick={() => placeTemplate(t.id)} title="Place this arrangement (click, it appears at the cursor)" data-testid="template-place">
+                  {t.name}
+                </button>
+                <button className="x" onClick={() => deleteTemplate(t.id)} aria-label={`Delete the template ${t.name}`} title="Delete this template">
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
       {CATEGORIES.map((cat) => {
         const items = catalog.filter((c) => c.category === cat && (!q || c.label.toLowerCase().includes(q)));
         if (!items.length) return null;

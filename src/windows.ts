@@ -8,6 +8,9 @@ export type WindowKind = 'window' | 'casement' | 'sash' | 'picture' | 'bay' | 'h
 export const WINDOW_KINDS: WindowKind[] = ['window', 'casement', 'sash', 'picture', 'bay', 'highwin', 'floorwin'];
 export const isWindowKind = (k: OpeningKind): k is WindowKind => (WINDOW_KINDS as string[]).includes(k);
 
+/** Heights of the top of each opening above the floor, in meters (a lintel set on the opening itself overrides it). */
+export const OPENING_HEAD: Record<OpeningKind, number> = { door: 2.05, main: 2.3, garden: 2.1, double: 2.1, french: 2.15, sliding: 2.15, garage: 2.2, gap: 2.1, window: 2.1, bay: 2.1, casement: 2.1, sash: 2.15, picture: 2.2, highwin: 2.25, floorwin: 2.3 };
+
 export interface WindowSpec {
   label: string;
   /** Short label for the tool options strip. */

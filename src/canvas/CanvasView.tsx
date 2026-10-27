@@ -16,6 +16,8 @@ import { NotesLayer } from './layers/NotesLayer';
 import { RoofLayer } from './layers/RoofLayer';
 import { OutdoorLayer } from './layers/OutdoorLayer';
 import { Underlay } from './layers/Underlay';
+import { TraceLayer } from './layers/TraceLayer';
+import { CompareLayer } from './layers/CompareLayer';
 import { FloorSwitcher } from '../components/FloorSwitcher';
 import { OverlayLayer } from './layers/OverlayLayer';
 import { ScaleBar } from '../components/ScaleBar';
@@ -159,6 +161,7 @@ export function CanvasView() {
       >
         <GridLayer />
         <Layer>
+          <TraceLayer />
           <Underlay />
           <OutdoorLayer />
           <RoomsLayer />
@@ -169,6 +172,7 @@ export function CanvasView() {
           <AutoDimensions />
           <StickyLayer />
           <ChecksLayer />
+          <CompareLayer />
         </Layer>
         <LightingLayer />
         <OverlayLayer />

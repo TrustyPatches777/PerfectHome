@@ -30,6 +30,12 @@ src/catalog.ts        furniture catalog (~110 items incl. cars, garden, lamps, e
 src/walk.ts            walking in 3D: what blocks you (walls, shut doors, windows, furniture, rails, fences), the height of the ground under your feet
                       (floors, stairs, pools, holes), attic headroom. Pure; scene.ts asks it every frame.
 src/fit.ts             furniture cannot stand in walls: SAT push-out, sweep along a drag, settleFurniture (called by store/design.ts update)
+src/mirror.ts         mirror items / a whole floor left-right or top-bottom (rotations, swings, paint faces, gates, stair flip all follow)
+src/wallEdit.ts       split, join, meet-at-a-corner, offset/thicken keeping a face, chamfer/round a corner, parallel/square, even spacing of openings
+src/resize.ts         scale a floor (positions only, things keep their size), stretch a box of the plan (stretchFromBase: from an untouched copy)
+src/roomEdit.ts       merge two rooms that share boundary (polygon union by cancelling shared edges), split a room along a line
+src/find.ts           find items by name/kind (Ctrl+F dialog); src/snapshots.ts named copies of the design in localStorage + diffDesigns (compare)
+src/trace.ts          the picture to trace on a floor: pixels in localStorage ONLY (not in links), placement in Floor.trace
 src/shapes.ts         rectangles of walls, addRoomTo, shiftEdge (drag a side of a room/lawn), refitRooms (rooms follow their walls)
 src/roofs.ts          roofs: 3D shape (faces + blocks per kind), plan symbol, "fit to walls" (min-area rotated box), base height
 src/roofActions.ts    make/refit/turn roofs, kind and covering changes that keep a sensible look
@@ -149,6 +155,16 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
 - **Left sidebar**: tools (a scrolling box) and the furniture list share the column; `ui.toolsHeight` is dragged with the bar between them (remembered).
   Thin items (radiators, sockets) only get the two handles at the ends of their long side, or a press on them would resize them.
 - **Wall-mounted items** (`catalog.wallMounted`) snap flat onto the wall face under the cursor when PLACED (FurnitureTool) and when DRAGGED alone (press.ts).
+- **Groups** are `design.groups` (`{id, name, refs}`, never openings): `pressItem` selects a whole group (`selectWithGroup`), `removeRefs` takes
+  deleted items out of their groups, Ctrl+G / Ctrl+Shift+G. A template is a saved clipboard (`perfect-home:templates`, this browser only) that is
+  pasted as a new group. **Mirroring** turns positions, rotations, swings and faces over, but not what is INSIDE an asymmetric piece of furniture.
+- **Rooms** may have a `type` (drives plan-check "no window"/"too small") and a `ceiling`; the area table shows both and the volume.
+  Openings may carry `sill`, `head` (lintel), `arch` (stepped half circle in 3D) and `frame` (color): `openingParts` in build.ts handles all four.
+- **Stairs** also come as 'landing' (a deep step half way), 'winder' (three wedge steps in the corner) and 'ladder' (no steps to stand on; a hatch above),
+  and `firstFlight` sets the steps in the first flight (`flightSplit` is the one place that works out the split).
+- **Tracing picture and snapshots live in the browser, not in the design**: a link carries `Floor.trace` (where it lies) but not the pixels.
+- **Zustand v5 gotcha**: a selector that returns a NEW array/object every time (`s.design.openings.filter(...)`) re-renders forever and the panel
+  disappears; select the stable list and filter in the component.
 - **Typed lengths**: drawing tools call `useTypedInput(active, onSubmit)` BEFORE their own key handler.
 - **Windows file writes**: when scripting edits of source files from a shell, retry on `OSError` (rare transient EINVAL), and never
   chain `npm test; git commit` with `;` - use `&&`.

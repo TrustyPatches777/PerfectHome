@@ -13,9 +13,12 @@ export type StairShape =
 /** Starting size and number of steps for each kind (a normal storey of 2.8 m needs about 16 steps of 17.5 cm). */
 export const STAIR_DEFAULTS: Record<StairKind, { w: number; d: number; steps: number; label: string }> = {
   straight: { w: 1.0, d: 4.0, steps: 16, label: 'Straight' },
-  l: { w: 2.4, d: 2.4, steps: 16, label: 'L-shaped' },
+  landing: { w: 1.0, d: 4.6, steps: 16, label: 'Straight with a landing' },
+  l: { w: 2.4, d: 2.4, steps: 16, label: 'L-shaped (landing)' },
+  winder: { w: 2.4, d: 2.4, steps: 16, label: 'L-shaped (winders)' },
   u: { w: 2.2, d: 3.0, steps: 16, label: 'U-shaped' },
   spiral: { w: 1.6, d: 1.6, steps: 14, label: 'Spiral' },
+  ladder: { w: 0.5, d: 0.8, steps: 10, label: 'Ladder / loft hatch' },
 };
 
 /** Radius of the pole in the middle of a spiral staircase. */
@@ -37,17 +40,55 @@ const arrow = (pts: Point[]): StairShape[] => {
 
 /** Width of one flight in L and U stairs. */
 function flightWidth(kind: StairKind, w: number, d: number): number {
-  if (kind === 'l') return Math.min(w, d) / 2;
+  if (kind === 'l' || kind === 'winder') return Math.min(w, d) / 2;
   return Math.min((w - 0.1) / 2, d / 2); // u: two flights with a 10 cm well between them
 }
 
-export function stairShapes(stair: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'flip'>): StairShape[] {
+const clampInt = (v: number, lo: number, hi: number) => Math.min(Math.max(lo, hi), Math.max(lo, Math.round(v)));
+
+/**
+ * How many steps are in the first and in the second flight of a stair with a turn or a landing. The turn itself (the landing, or the
+ * three winders) is not counted. `firstFlight` overrides the share by length.
+ */
+export function flightSplit(s: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'firstFlight'>): [number, number] {
+  const n = Math.max(2, s.steps);
+  const turn = s.kind === 'winder' ? 3 : s.kind === 'ladder' ? 0 : 1;
+  const total = Math.max(2, n - turn);
+  let first: number;
+  if (s.kind === 'u' || s.kind === 'landing') first = s.firstFlight ?? Math.floor(total / 2);
+  else {
+    const f = flightWidth(s.kind, s.w, s.d);
+    const legA = s.d - f;
+    const legB = s.w - f;
+    first = s.firstFlight ?? Math.round((total * legA) / (legA + legB));
+  }
+  const a = clampInt(first, 1, total - 1);
+  return [a, Math.max(1, total - a)];
+}
+
+/** The three wedge-shaped steps that turn a winder stair round its inner corner (in the box, climbing towards y = 0). */
+function winderWedges(f: number): Point[][] {
+  const hit = (deg: number): Point => {
+    const c = Math.cos((deg * Math.PI) / 180);
+    const sn = Math.sin((deg * Math.PI) / 180);
+    const t = Math.min(c < -1e-9 ? f / -c : Infinity, sn < -1e-9 ? f / -sn : Infinity);
+    return { x: f + c * t, y: f + sn * t };
+  };
+  const pivot = { x: f, y: f };
+  return [
+    [pivot, { x: 0, y: f }, hit(210)],
+    [pivot, hit(210), { x: 0, y: 0 }, hit(240)],
+    [pivot, hit(240), { x: f, y: 0 }],
+  ];
+}
+
+export function stairShapes(stair: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'flip' | 'firstFlight'>): StairShape[] {
   const { kind, w, d, steps } = stair;
   const n = Math.max(2, steps);
   const out: StairShape[] = [];
   // mirrored stairs: build for flip = false, then mirror x
   const mirror = (shapes: StairShape[]): StairShape[] =>
-    stair.flip && (kind === 'l' || kind === 'u')
+    stair.flip && (kind === 'l' || kind === 'u' || kind === 'winder')
       ? shapes.map((s) => {
           if (s.t === 'ellipse') return { ...s, cx: w - s.cx };
           return { ...s, pts: s.pts.map((v, i) => (i % 2 === 0 ? w - v : v)) };
@@ -57,6 +98,34 @@ export function stairShapes(stair: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'f
   if (kind === 'straight') {
     out.push({ t: 'poly', pts: [0, 0, w, 0, w, d, 0, d], fill: true });
     for (let i = 1; i < n; i++) out.push({ t: 'line', pts: [0, (d * i) / n, w, (d * i) / n] });
+    out.push(...arrow([{ x: w / 2, y: d - 0.2 }, { x: w / 2, y: 0.25 }]));
+    return out;
+  }
+
+  if (kind === 'ladder') {
+    out.push({ t: 'poly', pts: [0, 0, w, 0, w, d, 0, d], fill: true });
+    const rungs = Math.max(3, n);
+    for (let i = 1; i < rungs; i++) out.push({ t: 'line', pts: [0.03, (d * i) / rungs, w - 0.03, (d * i) / rungs] });
+    out.push(...arrow([{ x: w / 2, y: d - 0.1 }, { x: w / 2, y: 0.12 }]));
+    return out;
+  }
+
+  if (kind === 'landing') {
+    const landing = Math.min(w, d * 0.4);
+    const [n1, n2] = flightSplit(stair);
+    const g = (d - landing) / (n1 + n2);
+    out.push({ t: 'poly', pts: [0, 0, w, 0, w, d, 0, d], fill: true });
+    let y = d;
+    for (let i = 0; i < n1; i++) {
+      y -= g;
+      out.push({ t: 'line', pts: [0, y, w, y] });
+    }
+    out.push({ t: 'line', pts: [0, y - landing, w, y - landing] });
+    y -= landing;
+    for (let i = 1; i < n2; i++) {
+      y -= g;
+      out.push({ t: 'line', pts: [0, y, w, y] });
+    }
     out.push(...arrow([{ x: w / 2, y: d - 0.2 }, { x: w / 2, y: 0.25 }]));
     return out;
   }
@@ -82,30 +151,27 @@ export function stairShapes(stair: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'f
   }
 
   const f = flightWidth(kind, w, d);
-  if (kind === 'l') {
-    // enter at the bottom of the left leg, turn right on the landing at the top-left corner
+  if (kind === 'l' || kind === 'winder') {
+    // enter at the bottom of the left leg, turn right at the top-left corner (on a landing, or on three winders)
     out.push({ t: 'poly', pts: [0, 0, w, 0, w, f, f, f, f, d, 0, d], fill: true });
     const legA = d - f;
     const legB = w - f;
-    const nA = Math.max(1, Math.round(((n - 1) * legA) / (legA + legB)));
-    const nB = Math.max(1, n - 1 - nA);
+    const [nA, nB] = flightSplit(stair);
     for (let i = 1; i < nA + (nB ? 1 : 0); i++) out.push({ t: 'line', pts: [0, f + (legA * i) / (nA + 1), f, f + (legA * i) / (nA + 1)] });
     for (let i = 1; i <= nB; i++) out.push({ t: 'line', pts: [f + (legB * i) / (nB + 1), 0, f + (legB * i) / (nB + 1), f] });
     out.push({ t: 'line', pts: [0, f, f, f] }); // landing edge
     out.push({ t: 'line', pts: [f, 0, f, f] });
+    if (kind === 'winder') for (const wedge of winderWedges(f).slice(0, 2)) out.push({ t: 'line', pts: [wedge[0].x, wedge[0].y, wedge[2].x, wedge[2].y] });
     out.push(...arrow([{ x: f / 2, y: d - 0.2 }, { x: f / 2, y: f / 2 }, { x: w - 0.25, y: f / 2 }]));
     return mirror(out);
   }
 
   // u: up the left flight, across the landing at the top, and the right flight comes back down
   out.push({ t: 'poly', pts: [0, 0, w, 0, w, d, w - f, d, w - f, f, f, f, f, d, 0, d], fill: true });
-  const nFlight = Math.max(1, Math.round((n - 1) / 2));
   const run = d - f;
-  for (let i = 1; i <= nFlight; i++) {
-    const y = f + (run * i) / (nFlight + 1);
-    out.push({ t: 'line', pts: [0, y, f, y] });
-    out.push({ t: 'line', pts: [w - f, y, w, y] });
-  }
+  const [up, down] = flightSplit(stair);
+  for (let i = 1; i <= up; i++) out.push({ t: 'line', pts: [0, f + (run * i) / (up + 1), f, f + (run * i) / (up + 1)] });
+  for (let i = 1; i <= down; i++) out.push({ t: 'line', pts: [w - f, f + (run * i) / (down + 1), w, f + (run * i) / (down + 1)] });
   out.push({ t: 'line', pts: [0, f, w, f] });
   out.push(...arrow([{ x: f / 2, y: d - 0.2 }, { x: f / 2, y: f / 2 }, { x: w - f / 2, y: f / 2 }, { x: w - f / 2, y: d - 0.3 }]));
   return mirror(out);
@@ -114,10 +180,10 @@ export function stairShapes(stair: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'f
 /** Length of the line you walk along (the middle of the stair), used to work out the depth of one step. */
 export function walkingLength(stair: Pick<Stair, 'kind' | 'w' | 'd'>): number {
   const { kind, w, d } = stair;
-  if (kind === 'straight') return d;
+  if (kind === 'straight' || kind === 'landing' || kind === 'ladder') return d;
   if (kind === 'spiral') return Math.PI * Math.min(w, d) * 0.62 * 1.5; // a 270° walk at 62% of the radius
   const f = flightWidth(kind, w, d);
-  if (kind === 'l') return d - f / 2 + (w - f / 2);
+  if (kind === 'l' || kind === 'winder') return d - f / 2 + (w - f / 2);
   return 2 * (d - f / 2) + (w - f);
 }
 
@@ -133,6 +199,7 @@ export interface StairCheck {
 
 export function checkStair(stair: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'rise'>): StairCheck {
   const riser = stair.rise / Math.max(1, stair.steps);
+  if (stair.kind === 'ladder') return { riser, going: 0, blondel: 0, ok: riser <= 0.32, message: riser <= 0.32 ? 'A ladder: steep, for lofts and the odd visit only.' : 'The rungs are more than 32 cm apart. Add rungs.' };
   // a stair with n steps has n-1 treads between the first and last riser (the top step is the next floor)
   const going = walkingLength(stair) / Math.max(1, stair.kind === 'spiral' ? stair.steps : stair.steps - 1);
   const blondel = 2 * riser + going;
@@ -147,11 +214,11 @@ export function checkStair(stair: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'ri
 
 // ---- the solid steps, the stairwell and the railings (used by the 3D view and by walking) ---------------------------------------
 
-type Shape = Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'rise' | 'flip'>;
+type Shape = Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'rise' | 'flip' | 'firstFlight'>;
 
 const rectPoly = (x0: number, x1: number, y0: number, y1: number): Point[] => [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
 const mirrorPts = (pts: Point[], w: number): Point[] => pts.map((p) => ({ x: w - p.x, y: p.y }));
-const mirrored = (s: Pick<Stair, 'kind' | 'flip'>) => s.flip && (s.kind === 'l' || s.kind === 'u');
+const mirrored = (s: Pick<Stair, 'kind' | 'flip'>) => s.flip && (s.kind === 'l' || s.kind === 'u' || s.kind === 'winder');
 
 /** One step of a staircase seen from above, and how high its top is above the floor the stair starts on. Coordinates are in the stair's box (0..w, 0..d), climbing towards y = 0. */
 export interface StairStep {
@@ -167,8 +234,26 @@ export function stairSteps(s: Shape): StairStep[] {
   const out: StairStep[] = [];
   const block = (x0: number, x1: number, y0: number, y1: number, level: number) => out.push({ poly: rectPoly(x0, x1, y0, y1), top: (rise * level) / n });
 
-  if (kind === 'straight') {
+  if (kind === 'ladder') {
+    return []; // nothing to walk on: a ladder is climbed, and the hole above is a hatch
+  } else if (kind === 'straight') {
     for (let i = 0; i < n; i++) block(0, w, d - ((i + 1) * d) / n, d - (i * d) / n, i + 1);
+  } else if (kind === 'landing') {
+    const landing = Math.min(w, d * 0.4);
+    const [n1, n2] = flightSplit(s);
+    const g = (d - landing) / (n1 + n2);
+    let y = d;
+    let level = 0;
+    for (let i = 0; i < n1; i++) {
+      block(0, w, y - g, y, ++level);
+      y -= g;
+    }
+    block(0, w, y - landing, y, ++level);
+    y -= landing;
+    for (let i = 0; i < n2; i++) {
+      block(0, w, y - g, y, ++level);
+      y -= g;
+    }
   } else if (kind === 'spiral') {
     const r = Math.min(w, d) / 2;
     const pole = spiralPole(w, d);
@@ -180,19 +265,19 @@ export function stairSteps(s: Shape): StairStep[] {
       for (let k = 4; k >= 0; k--) poly.push({ x: w / 2 + Math.cos(a0 + ((a1 - a0) * k) / 4) * pole, y: d / 2 + Math.sin(a0 + ((a1 - a0) * k) / 4) * pole });
       out.push({ poly, top: (rise * (i + 1)) / n, thin: true });
     }
-  } else if (kind === 'l') {
+  } else if (kind === 'l' || kind === 'winder') {
     const f = flightWidth(kind, w, d);
     const legA = d - f;
     const legB = w - f;
-    const nA = Math.max(1, Math.round(((n - 1) * legA) / (legA + legB)));
-    const nB = Math.max(1, n - 1 - nA);
+    const [nA, nB] = flightSplit(s);
     for (let i = 0; i < nA; i++) block(0, f, d - ((i + 1) * legA) / nA, d - (i * legA) / nA, i + 1);
-    block(0, f, 0, f, nA + 1);
-    for (let j = 0; j < nB; j++) block(f + (j * legB) / nB, f + ((j + 1) * legB) / nB, 0, f, nA + 2 + j);
+    if (kind === 'l') block(0, f, 0, f, nA + 1);
+    else winderWedges(f).forEach((poly, k) => out.push({ poly, top: (rise * (nA + 1 + k)) / n }));
+    const first = kind === 'l' ? nA + 2 : nA + 4;
+    for (let j = 0; j < nB; j++) block(f + (j * legB) / nB, f + ((j + 1) * legB) / nB, 0, f, first + j);
   } else {
     const f = flightWidth(kind, w, d);
-    const up = Math.max(1, Math.floor((n - 1) / 2));
-    const down = Math.max(1, n - 1 - up);
+    const [up, down] = flightSplit(s);
     const run = d - f;
     for (let i = 0; i < up; i++) block(0, f, d - ((i + 1) * run) / up, d - (i * run) / up, i + 1);
     block(0, w, 0, f, up + 1);
@@ -226,13 +311,13 @@ export function stairTopAt(s: Shape, p: Point, eps = 0, steps: StairStep[] = sta
 export function stairOutline(s: Shape): Point[] {
   const { kind, w, d } = s;
   let pts: Point[];
-  if (kind === 'straight') pts = rectPoly(0, w, 0, d);
+  if (kind === 'straight' || kind === 'landing' || kind === 'ladder') pts = rectPoly(0, w, 0, d);
   else if (kind === 'spiral') {
     const r = Math.min(w, d) / 2;
     pts = Array.from({ length: 24 }, (_, i) => ({ x: w / 2 + Math.cos((i * 2 * Math.PI) / 24) * r, y: d / 2 + Math.sin((i * 2 * Math.PI) / 24) * r }));
   } else {
     const f = flightWidth(kind, w, d);
-    const flat = kind === 'l' ? [0, 0, w, 0, w, f, f, f, f, d, 0, d] : [0, 0, w, 0, w, d, w - f, d, w - f, f, f, f, f, d, 0, d];
+    const flat = kind === 'l' || kind === 'winder' ? [0, 0, w, 0, w, f, f, f, f, d, 0, d] : [0, 0, w, 0, w, d, w - f, d, w - f, f, f, f, f, d, 0, d];
     pts = flat.reduce<Point[]>((acc, v, i) => (i % 2 ? acc : [...acc, { x: v, y: flat[i + 1] }]), []);
   }
   return mirrored(s) ? mirrorPts(pts, w) : pts;
@@ -249,10 +334,11 @@ export function railPaths(s: Shape): { a: Point[]; b: Point[] } {
   const P = (x: number, y: number): Point => ({ x, y });
   let a: Point[];
   let b: Point[] = [];
-  if (kind === 'straight') {
+  if (kind === 'ladder') return { a: [], b: [] };
+  if (kind === 'straight' || kind === 'landing') {
     a = [P(m, d - e), P(m, e)];
     b = [P(w - m, d - e), P(w - m, e)];
-  } else if (kind === 'l') {
+  } else if (kind === 'l' || kind === 'winder') {
     const f = flightWidth(kind, w, d);
     a = [P(m, d - e), P(m, m), P(w - e, m)];
     b = [P(f - m, d - e), P(f - m, f - m), P(w - e, f - m)];
@@ -334,11 +420,11 @@ export function guardEdges(s: Shape): [Point, Point][] {
   const { kind, w, d } = s;
   const un: Shape = { ...s, flip: false };
   const outline = stairOutline(un);
-  const f = kind === 'l' || kind === 'u' ? flightWidth(kind, w, d) : 0;
+  const f = kind === 'l' || kind === 'u' || kind === 'winder' ? flightWidth(kind, w, d) : 0;
   const r = Math.min(w, d) / 2;
   const exit = (m: Point) => {
-    if (kind === 'straight') return m.y < 0.05;
-    if (kind === 'l') return m.x > w - 0.05 && m.y < f + 0.05;
+    if (kind === 'straight' || kind === 'landing' || kind === 'ladder') return m.y < 0.05;
+    if (kind === 'l' || kind === 'winder') return m.x > w - 0.05 && m.y < f + 0.05;
     if (kind === 'u') return m.y > d - 0.05 && m.x > w - f - 0.05;
     return m.y < d / 2 - r * 0.9 && Math.abs(m.x - w / 2) < r * 0.5;
   };

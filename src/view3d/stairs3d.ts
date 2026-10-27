@@ -15,6 +15,24 @@ const bboxOf = (poly: Point[]) => {
   return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
 };
 
+/** A rectangle with its sides along the axes (a block of steps is one; a wedge of a winder is not). */
+const isRect = (poly: Point[]) => poly.length === 4 && poly.every((p, i) => Math.abs(p.x - poly[(i + 1) % 4].x) < 1e-9 || Math.abs(p.y - poly[(i + 1) % 4].y) < 1e-9);
+
+/** A ladder leaning through the hatch: two rails that stand a little above the floor upstairs, and rungs. */
+function ladderParts(s: Shape, color: string): Part[] {
+  const { w, d, rise } = s;
+  const n = Math.max(3, s.steps);
+  const x = w / 2 - 0.04;
+  const top = rise + 0.8;
+  const zAt = (h: number) => d / 2 - (d * h) / rise;
+  const out: Part[] = [-x, x].map((px) => beam([px, 0, zAt(0)], [px, top, zAt(top)], 0.04, 0.05, color));
+  for (let i = 1; i <= n; i++) {
+    const h = (rise * i) / n - 0.05;
+    out.push(box(-x, x, h - 0.015, h + 0.015, zAt(h) - 0.015, zAt(h) + 0.015, color));
+  }
+  return out;
+}
+
 /** A step that is a landing (wide both ways) rather than a tread of a flight. */
 const isLanding = (poly: Point[]) => {
   const b = bboxOf(poly);
@@ -35,6 +53,7 @@ export function stairParts(s: Shape): Part[] {
   const lookOpt = look.glass ? { glass: true } : {};
   const centered = (poly: Point[]) => poly.map((p) => ({ x: p.x - w / 2, y: p.y - d / 2 }));
   const steps = stairSteps(s);
+  if (s.kind === 'ladder') return ladderParts(s, tread === '#e5e7eb' ? '#a5835a' : tread);
 
   for (const st of steps) {
     const poly = centered(st.poly);
@@ -44,7 +63,7 @@ export function stairParts(s: Shape): Part[] {
     }
     if (build === 'closed') {
       const b = bboxOf(poly);
-      out.push(box(b.x0, b.x1, 0, st.top - 0.04, b.y0, b.y1, body));
+      out.push(isRect(poly) ? box(b.x0, b.x1, 0, st.top - 0.04, b.y0, b.y1, body) : prism(poly, 0, st.top - 0.04, body));
       out.push(prism(poly, st.top - 0.04, st.top, tread, tex, lookOpt));
     } else if (isLanding(poly)) {
       out.push(prism(poly, st.top - riser, st.top - 0.04, body));

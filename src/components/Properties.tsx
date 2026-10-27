@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { CUSTOM_PREFIX, catalogItem, FURNITURE_COLORS, furnitureHeight } from '../catalog';
-import { isSingleDoor } from '../model';
-import { deleteSelection, duplicateSelection, isLayerLocked } from '../actions';
+import { ROOM_TYPES, ROOM_TYPE_LABEL, isSingleDoor, type RoomType } from '../model';
+import { deleteSelection, duplicateSelection, isLayerLocked, mirrorSelection, reshapeWall, selectAllLike, spaceWallOpenings, splitWallAt } from '../actions';
 import { setWallLength } from '../canvas/editing';
 import { FLOOR_COLORS } from '../canvas/style';
 import { clampOpeningPos, detectRoom, dist, formatArea, formatLength, openingOverlaps, polygonArea, wallLength } from '../geometry';
@@ -9,7 +10,8 @@ import { WALL_FINISHES, type WallFinish } from '../model';
 import { newId, STRIP_KINDS, type Note, WALL_TYPES, WALL_TYPE_HEIGHT, WALL_TYPE_THICKNESS, ZONE_KINDS, type Wall, type WallType, type Furniture, type ItemRef, type Opening, type OpeningKind, type Room, type Strip, type StripKind, type TextLabel, type Zone, type ZoneKind } from '../model';
 import { PATH_SURFACES, STRIP_STYLES, ZONE_STYLES, gateSpans, polylineLength } from '../outdoor';
 import { GATE_KINDS, PATH_SURFACE_KINDS, type GateKind, type PathSurface } from '../model';
-import { RAIL_HEIGHT_DEFAULT, RAIL_LOOKS, STAIR_BUILD_LABEL, STAIR_DEFAULTS, STAIR_LOOKS, checkStair, stairColors } from '../stairs';
+import { RAIL_HEIGHT_DEFAULT, RAIL_LOOKS, STAIR_BUILD_LABEL, STAIR_DEFAULTS, STAIR_LOOKS, checkStair, flightSplit, stairColors } from '../stairs';
+import { OPENING_HEAD, WINDOW_SPEC, isWindowKind } from '../windows';
 import { ROOF_KINDS, ROOF_MATERIALS, type Roof, type RoofKind, type RoofMaterial } from '../model';
 import { ROOF_MATERIAL_STYLES, ROOF_STYLES } from '../roofs';
 import { moveRoofToFloor, refitRoof, setRoofKind, setRoofMaterial, turnRoof } from '../roofActions';
@@ -91,6 +93,23 @@ export function Properties() {
         {sel.kind === 'dimension' && <DimensionProps id={sel.id} />}
         <div className="row actions">
           {sel.kind !== 'opening' && sel.kind !== 'guide' && sel.kind !== 'note' && (
+            <>
+              <button onClick={() => mirrorSelection('x')} title="Turn it over left-right (H)" data-testid="mirror-x">
+                Mirror ⇆
+              </button>
+              <button onClick={() => mirrorSelection('y')} title="Turn it over top-bottom (Shift+H)" data-testid="mirror-y">
+                Mirror ⇅
+              </button>
+            </>
+          )}
+          {sel.kind !== 'guide' && (
+            <button onClick={() => selectAllLike(sel)} title="Select everything of the same kind on this floor" data-testid="select-like">
+              Select all like this
+            </button>
+          )}
+        </div>
+        <div className="row actions">
+          {sel.kind !== 'opening' && sel.kind !== 'guide' && sel.kind !== 'note' && (
             <button onClick={duplicateSelection} title="Ctrl+D" data-testid="duplicate">
               Duplicate
             </button>
@@ -126,6 +145,7 @@ function Summary() {
 
 function WallProps({ id }: { id: string }) {
   const wall = useDesign((s) => s.design.walls.find((w) => w.id === id));
+  const [keep, setKeep] = useState<'l' | 'r' | 'middle'>('middle');
   if (!wall) return null;
   const edit = (fn: (w: Wall) => void) =>
     useDesign.getState().update((d) => {
@@ -158,7 +178,7 @@ function WallProps({ id }: { id: string }) {
         </select>
       </label>
       <div className="row two">
-        <NumberField label="Thickness" value={wall.thickness} scale={100} unit="cm" min={2} max={100} testId="wall-thickness" onCommit={(v) => edit((w) => void (w.thickness = v))} />
+        <NumberField label="Thickness" value={wall.thickness} scale={100} unit="cm" min={2} max={100} testId="wall-thickness" onCommit={(v) => reshapeWall(id, { thickness: v, keep })} />
         <NumberField label="Height" value={wall.height} scale={100} unit="cm" min={10} max={3000} testId="wall-height" onCommit={(v) => edit((w) => void (w.height = v))} />
       </div>
       {curved ? (
@@ -189,6 +209,7 @@ function WallProps({ id }: { id: string }) {
         </button>
       )}
       <p className="muted">Drag the filled dot in the middle of a selected wall to bend it.</p>
+      <WallTools wall={wall} keep={keep} setKeep={setKeep} />
       {(['l', 'r'] as const).map((side) => {
         const skin = wall.paint?.[side];
         return (
@@ -218,6 +239,68 @@ function WallProps({ id }: { id: string }) {
           </div>
         );
       })}
+    </>
+  );
+}
+
+const FRAME_SWATCHES = ['#f8fafc', '#6b4a2f', '#1f2937', '#9ca3af', '#7c2d12', '#1e3a5f'];
+
+/** The cutting, moving and spacing tools of one wall. */
+function WallTools({ wall, keep, setKeep }: { wall: Wall; keep: 'l' | 'r' | 'middle'; setKeep: (k: 'l' | 'r' | 'middle') => void }) {
+  const all = useDesign((s) => s.design.openings);
+  const openings = all.filter((o) => o.wallId === wall.id);
+  const L = wallLength(wall);
+  return (
+    <>
+      <label className="field">
+        <span>When the thickness changes, this stays put</span>
+        <select value={keep} onChange={(e) => setKeep(e.target.value as 'l' | 'r' | 'middle')} data-testid="wall-keep">
+          <option value="middle">The middle of the wall</option>
+          <option value="l">The left face (so the wall grows to the right)</option>
+          <option value="r">The right face (so the wall grows to the left)</option>
+        </select>
+      </label>
+      <NumberField label="Move sideways (to the right: +)" value={0} scale={100} unit="cm" min={-2000} max={2000} testId="wall-offset" onCommit={(v) => v && reshapeWall(wall.id, { offset: v })} />
+      <div className="row">
+        <button onClick={() => splitWallAt(wall.id, L / 2)} title="Cut this wall in two, in the middle" data-testid="wall-split-mid">
+          Cut in two
+        </button>
+        {openings.length > 1 && (
+          <button onClick={() => spaceWallOpenings(wall.id)} title="Equal gaps between its doors and windows and to the ends of the wall" data-testid="wall-space">
+            Space its openings evenly
+          </button>
+        )}
+      </div>
+      <NumberField label="Cut at (cm from the start)" value={Math.round(L * 50) / 100} scale={100} unit="cm" min={5} max={Math.max(10, L * 100 - 5)} testId="wall-split-at" onCommit={(v) => splitWallAt(wall.id, v)} />
+    </>
+  );
+}
+
+/** Heights of a door or window (sill and lintel), an arched top and the color of its frame. */
+function OpeningHeights({ opening, edit }: { opening: Opening; edit: (fn: (o: Opening) => void) => void }) {
+  const window = isWindowKind(opening.kind) && opening.kind !== 'bay';
+  const solid = opening.kind !== 'gap' && opening.kind !== 'garage';
+  return (
+    <>
+      {window && <NumberField label="Sill height (bottom of the glass)" value={opening.sill ?? WINDOW_SPEC[opening.kind as keyof typeof WINDOW_SPEC].sill} scale={100} unit="cm" min={0} max={250} testId="opening-sill" onCommit={(v) => edit((o) => void (o.sill = v))} />}
+      <NumberField label="Top of the opening (lintel)" value={opening.head ?? OPENING_HEAD[opening.kind]} scale={100} unit="cm" min={60} max={400} testId="opening-head" onCommit={(v) => edit((o) => void (o.head = v))} />
+      {(opening.sill !== undefined || opening.head !== undefined) && (
+        <button onClick={() => edit((o) => { delete o.sill; delete o.head; })} data-testid="opening-heights-reset">
+          Back to the usual heights
+        </button>
+      )}
+      {solid && (
+        <label className="check">
+          <input type="checkbox" checked={!!opening.arch} data-testid="opening-arch" onChange={(e) => edit((o) => (e.target.checked ? void (o.arch = true) : void delete o.arch))} />
+          Round-topped (an arch)
+        </label>
+      )}
+      {solid && <ColorField label="Frame color" value={opening.frame ?? '#f8fafc'} swatches={FRAME_SWATCHES} onChange={(c) => edit((o) => void (o.frame = c))} />}
+      {opening.frame && (
+        <button onClick={() => edit((o) => void delete o.frame)} data-testid="opening-frame-reset">
+          Plain white frame
+        </button>
+      )}
     </>
   );
 }
@@ -272,6 +355,7 @@ function OpeningProps({ id }: { id: string }) {
           else edit((o) => void (o.pos = pos));
         }}
       />
+      <OpeningHeights opening={opening} edit={edit} />
       {(isSingleDoor(opening.kind) || opening.kind === 'double') && (
         <div className="row">
           <button onClick={() => edit((o) => void (o.swing = o.swing === 1 ? -1 : 1))} data-testid="flip-swing">
@@ -304,6 +388,21 @@ function RoomProps({ id }: { id: string }) {
   return (
     <>
       <TextField label="Name" value={room.name} testId="room-name" onChange={(v) => edit((r) => void (r.name = v))} />
+      <label className="field">
+        <span>What is it for?</span>
+        <select value={room.type ?? ''} data-testid="room-type" onChange={(e) => edit((r) => (e.target.value ? void (r.type = e.target.value as RoomType) : void delete r.type))}>
+          <option value="">Not said</option>
+          {ROOM_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {ROOM_TYPE_LABEL[t]}
+            </option>
+          ))}
+        </select>
+      </label>
+      <NumberField label="Ceiling height" value={room.ceiling ?? 2.5} scale={100} unit="cm" min={150} max={1200} testId="room-ceiling" onCommit={(v) => edit((r) => void (r.ceiling = v))} />
+      <button onClick={() => { useUi.getState().setSplitRoomId(id); useUi.getState().setTool('split-room'); useUi.getState().setSplitRoomId(id); }} title="Draw a line through the room to cut it in two" data-testid="room-split">
+        Split this room…
+      </button>
       <MaterialPicker
         value={room.material}
         color={room.color}
@@ -778,6 +877,9 @@ function StairProps({ id }: { id: string }) {
         <NumberField label="Steps" value={stair.steps} min={2} max={60} testId="stair-steps" onCommit={(v) => edit((s) => void (s.steps = Math.round(v)))} />
         <NumberField label="Total rise" value={stair.rise} scale={100} unit="cm" min={20} max={1000} testId="stair-rise" onCommit={(v) => edit((s) => void (s.rise = v))} />
       </div>
+      {(stair.kind === 'l' || stair.kind === 'winder' || stair.kind === 'u' || stair.kind === 'landing') && (
+        <NumberField label="Steps in the first flight" value={flightSplit(stair)[0]} min={1} max={58} testId="stair-first-flight" onCommit={(v) => edit((s) => void (s.firstFlight = Math.round(v)))} />
+      )}
       <NumberField label="Rotation" value={stair.rotation} unit="°" testId="stair-rotation" onCommit={(v) => edit((s) => void (s.rotation = ((v % 360) + 360) % 360))} />
       <label className="field">
         <span>Railing</span>

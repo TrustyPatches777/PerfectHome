@@ -3,7 +3,6 @@ import { catalogItem } from '../catalog';
 import { useUi } from '../store/ui';
 import { WALL_TYPES, WALL_TYPE_THICKNESS, type OpeningKind } from '../model';
 import { WALL_STYLE } from '../walls';
-import { STAIR_DEFAULTS } from '../stairs';
 import { STAIR_KINDS, ROOF_KINDS, type RoofKind } from '../model';
 import { ROOF_STYLES } from '../roofs';
 import { WALL_FINISHES, type WallFinish } from '../model';
@@ -12,6 +11,7 @@ import { SKYLIGHT_SIZES, addRoofFromWalls } from '../roofActions';
 import { PATH_SURFACES, STRIP_STYLES, ZONE_STYLES } from '../outdoor';
 import { GATE_KINDS, PATH_SURFACE_KINDS, type PathSurface } from '../model';
 
+const STAIR_SHORT = { straight: 'Straight', landing: 'Landing', l: 'L', winder: 'Winder', u: 'U', spiral: 'Spiral', ladder: 'Ladder' } as const;
 const GATE_LABEL = { single: 'Single', double: 'Double', sliding: 'Sliding' } as const;
 import { WINDOW_KINDS, WINDOW_SPEC, type WindowKind } from '../windows';
 import { NumberField } from './fields';
@@ -154,7 +154,7 @@ export function ToolOptions() {
       <div className="segmented" role="group" aria-label="Stair type">
         {STAIR_KINDS.map((k) => (
           <button key={k} className={stairKind === k ? 'active' : ''} onClick={() => useUi.getState().setStairKind(k)} data-testid={`stair-kind-${k}`}>
-            {STAIR_DEFAULTS[k].label}
+            {STAIR_SHORT[k]}
           </button>
         ))}
       </div>

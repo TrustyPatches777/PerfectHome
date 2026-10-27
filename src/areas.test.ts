@@ -114,7 +114,7 @@ describe('area report', () => {
     expect(text).toContain('Living area: 57.33 m²');
     expect(text).toContain('Side 4 (30.00 m long): house is 4.90 m away');
     const csv = reportToCsv(r);
-    expect(csv.split('\r\n')[0]).toBe('Floor,Room,Area (m2),Living area');
+    expect(csv.split('\r\n')[0]).toBe('Floor,Room,Area (m2),Living area,Type,Ceiling (m),Volume (m3)');
     expect(csv).toContain('Ground floor,"Garage, double",38.22,no');
     expect(csv).toContain('1st floor,Bedroom,19.11,yes');
   });

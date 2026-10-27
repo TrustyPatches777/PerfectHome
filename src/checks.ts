@@ -2,15 +2,16 @@
  * "Check plan": finds things that will not work in real life. Pure analysis of a design, so it can be tested;
  * the canvas draws the markers and the panel lists the messages.
  */
-import { isSingleDoor } from './model';
+import { ROOM_TYPE_LABEL, isSingleDoor, type Room } from './model';
+import { isWindowKind } from './windows';
 import { catalogItem, catalogLayer, furnitureHeight } from './catalog';
-import { doorGeometry, polygonArea, polygonsOverlap, wallOutlinePoints } from './geometry';
+import { doorGeometry, labelPoint, polygonArea, polygonsOverlap, wallOutlinePoints, wallPointAt } from './geometry';
 import type { Design, ItemRef, Point } from './model';
 import { rectCorners } from './selection';
 import { atticClearance } from './roofs';
 import { furnitureFootprint } from './shadows';
 
-export type IssueKind = 'door-blocked' | 'door-collision' | 'in-wall' | 'narrow-gap' | 'low-ceiling' | 'roof-in-the-way';
+export type IssueKind = 'door-blocked' | 'door-collision' | 'in-wall' | 'narrow-gap' | 'low-ceiling' | 'roof-in-the-way' | 'no-window' | 'small-room';
 
 export interface Issue {
   /** Stable key for lists. */
@@ -200,7 +201,53 @@ export function findIssues(d: Design, floor: string, minPassage = DEFAULT_MIN_PA
       if (polygonArea(w.poly) > 0.3) gap(big[i].poly, w.poly, big[i].name, 'the wall', [big[i].ref]);
     }
   }
+
+  // 4. rooms by what they are for
+  for (const r of d.rooms.filter((x) => x.floor === floor && x.type)) {
+    const name = r.name || ROOM_TYPE_LABEL[r.type!];
+    const at = labelPoint(r.points);
+    if (LIGHT_ROOMS.has(r.type!) && !hasDaylight(d, r)) {
+      issues.push({ id: `nowindow:${r.id}`, kind: 'no-window', message: `${name} (${ROOM_TYPE_LABEL[r.type!].toLowerCase()}) has no window or glass door.`, at, polygon: r.points, refs: [{ kind: 'room', id: r.id }] });
+    }
+    const area = polygonArea(r.points);
+    const least = MIN_AREA[r.type!];
+    if (least && area < least) {
+      issues.push({ id: `small:${r.id}`, kind: 'small-room', message: `${name} is only ${area.toFixed(1)} m²: a ${ROOM_TYPE_LABEL[r.type!].toLowerCase()} should be at least ${least} m².`, at, polygon: r.points, refs: [{ kind: 'room', id: r.id }] });
+    }
+    if (r.ceiling !== undefined && r.ceiling < 2.2 && r.type !== 'storage') {
+      issues.push({ id: `ceiling:${r.id}`, kind: 'low-ceiling', message: `${name} has a ceiling of only ${cm(r.ceiling)}: rooms to live in need at least 220 cm.`, at, polygon: r.points, refs: [{ kind: 'room', id: r.id }] });
+    }
+  }
   return dedupe(issues);
+}
+
+/** Rooms that need daylight, and the least floor area of a room of each kind. */
+const LIGHT_ROOMS = new Set(['bedroom', 'living', 'kitchen', 'dining', 'office']);
+const MIN_AREA: Partial<Record<NonNullable<Room['type']>, number>> = { bedroom: 7, kitchen: 5, bathroom: 2.5, living: 12 };
+const GLASS_DOORS = new Set(['french', 'sliding', 'garden']);
+
+/** Is there a window or glass door in a wall of the room? (Close to its outline: the opening's wall is part of the room's boundary.) */
+function hasDaylight(d: Design, room: Room): boolean {
+  const near = (p: Point) => {
+    let best = Infinity;
+    for (let i = 0; i < room.points.length; i++) {
+      const a = room.points[i];
+      const b = room.points[(i + 1) % room.points.length];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+      best = Math.min(best, Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t)));
+    }
+    return best;
+  };
+  for (const o of d.openings) {
+    if (!isWindowKind(o.kind) && !GLASS_DOORS.has(o.kind)) continue;
+    const w = d.walls.find((x) => x.id === o.wallId);
+    if (!w || w.floor !== room.floor) continue;
+    if (near(wallPointAt(w, o.pos).p) <= w.thickness / 2 + 0.35) return true;
+  }
+  return false;
 }
 
 function dedupe(list: Issue[]): Issue[] {

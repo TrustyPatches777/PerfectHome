@@ -8,7 +8,7 @@ import { contentBounds } from '../bounds';
 import { clipPolygon, faceSpan, isConvex, pointInPolygon, wallArc, wallCorners, wallLength, wallPointAt, wallSegmentOutline, wallSolidSegments, type WallCorners, type WallPoint } from '../geometry';
 import type { Design, Furniture, Gate, Opening, OpeningKind, Point, Roof, Skylight, Stair, Strip, Wall, WallType, Zone } from '../model';
 import { STRIP_STYLES, gateGeometry, gateSpans, pathMarks, solidSpans, stripColor } from '../outdoor';
-import { WINDOW_SPEC } from '../windows';
+import { OPENING_HEAD, WINDOW_SPEC, isWindowKind } from '../windows';
 import { inFace, roofBaseHeight, roofModel, skylightPlacement, type SkylightPlacement, type V3 } from '../roofs';
 import { stairOutline } from '../stairs';
 import { groundIndex } from '../shadows';
@@ -51,7 +51,7 @@ const GLASS = '#bfe3f5';
 const WOOD = '#b08968';
 
 /** Heights of the top of each opening above the floor, in meters. */
-export const OPENING_HEAD: Record<OpeningKind, number> = { door: 2.05, main: 2.3, garden: 2.1, double: 2.1, french: 2.15, sliding: 2.15, garage: 2.2, gap: 2.1, window: 2.1, bay: 2.1, casement: 2.1, sash: 2.15, picture: 2.2, highwin: 2.25, floorwin: 2.3 };
+export { OPENING_HEAD };
 export const WINDOW_SILL = WINDOW_SPEC.window.sill;
 
 // ---- walls ----------------------------------------------------------------------------------------------------------
@@ -217,7 +217,13 @@ function windowGlass(wp: WallPoint, kind: Exclude<OpeningKind, 'bay'>, width: nu
   return out;
 }
 
+/** A door or window, in its wall: with its own sill and lintel heights, a round top and a frame color when it has them. */
 function openingParts(w: Wall, o: Opening, base: number, top: number, wy0: number): Part[] {
+  const parts = openingPartsPlain(w, o, base, top, wy0);
+  return o.frame ? parts.map((p) => (p.color === FRAME ? { ...p, color: o.frame! } : p)) : parts;
+}
+
+function openingPartsPlain(w: Wall, o: Opening, base: number, top: number, wy0: number): Part[] {
   const L = wallLength(w);
   const wp = wallPointAt(w, o.pos);
   const s0 = Math.max(0, o.pos - o.width / 2);
@@ -225,40 +231,66 @@ function openingParts(w: Wall, o: Opening, base: number, top: number, wy0: numbe
   const width = s1 - s0;
   if (width < 0.1) return [];
   const tall = top - base;
-  const head = base + Math.min(OPENING_HEAD[o.kind], tall - 0.1);
+  const head = base + Math.min(o.head ?? OPENING_HEAD[o.kind], tall - 0.1);
   const wallColor = WALL_COLOR[w.type];
   const out: Part[] = [];
   const lintel = (y0: number) => y0 < top - 0.005 && out.push(prism(wallStrip(w, s0, s1), y0, top, wallColor), ...skinPanels(w, s0, s1, y0, top));
   const sill = (y1: number) => y1 > wy0 + 0.005 && out.push(prism(wallStrip(w, s0, s1), wy0, y1, wallColor), ...skinPanels(w, s0, s1, wy0, y1));
   const t = w.thickness;
 
+  // where the glass of a window starts and the opening ends; and the arch (a half circle) on top of the opening when it has one and there is room
+  const win = isWindowKind(o.kind) && o.kind !== 'bay';
+  const winY0 = base + (o.sill ?? (isWindowKind(o.kind) ? WINDOW_SPEC[o.kind].sill : 0));
+  const yTop = win ? Math.max(winY0 + 0.4, head) : head;
+  const yBot = win ? winY0 : base;
+  const r = width / 2;
+  const spring = o.arch && o.kind !== 'garage' && o.kind !== 'bay' && yTop - r >= yBot + 0.4 ? yTop - r : null;
+  const leafTop = spring ?? head;
+  /** The wall over the opening; over an arch the wall pieces beside the curve are cut in steps, and the arch is closed with glass. */
+  const close = (yLintel: number) => {
+    lintel(yLintel);
+    if (spring === null) return;
+    const N = 16;
+    for (let k = 0; k < N; k++) {
+      const y0 = spring + (r * k) / N;
+      const y1 = spring + (r * (k + 1)) / N;
+      const ym = (y0 + y1) / 2 - spring;
+      const half = Math.sqrt(Math.max(0, r * r - ym * ym));
+      const lo = o.pos - half;
+      const hi = o.pos + half;
+      if (lo - s0 > 0.005) out.push(prism(wallStrip(w, s0, lo), y0, y1, wallColor), ...skinPanels(w, s0, lo, y0, y1));
+      if (s1 - hi > 0.005) out.push(prism(wallStrip(w, hi, s1), y0, y1, wallColor), ...skinPanels(w, hi, s1, y0, y1));
+      if (o.kind !== 'gap') out.push(slab(wp, 0, 0, 2 * half, 0.02, y0, y1, GLASS, { glass: true }), slab(wp, -half + 0.015, 0, 0.03, 0.06, y0, y1, FRAME), slab(wp, half - 0.015, 0, 0.03, 0.06, y0, y1, FRAME));
+    }
+  };
+
   if (tall < 1.3) return out; // low railings: a gap is a gap
   switch (o.kind) {
     case 'gap':
-      lintel(head);
+      close(head);
       break;
     case 'door':
     case 'main':
     case 'garden': {
-      lintel(head);
-      out.push(...singleDoor(w, o, wp, base, head, width));
+      close(head);
+      out.push(...singleDoor(w, o, wp, base, leafTop, width));
       break;
     }
     case 'double': {
-      lintel(head);
-      for (const sgn of [-1, 1] as const) out.push(slab(wp, (sgn * width) / 4, 0, width / 2 - 0.05, 0.045, base, head - 0.03, WOOD, { anim: leafAnim(wp, o, sgn, width, base) }));
-      out.push(slab(wp, 0, 0, width, t, head - 0.04, head, FRAME));
+      close(head);
+      for (const sgn of [-1, 1] as const) out.push(slab(wp, (sgn * width) / 4, 0, width / 2 - 0.05, 0.045, base, leafTop - 0.03, WOOD, { anim: leafAnim(wp, o, sgn, width, base) }));
+      out.push(slab(wp, 0, 0, width, t, leafTop - 0.04, leafTop, FRAME));
       break;
     }
     case 'french': {
-      lintel(head);
-      for (const sgn of [-1, 1] as const) out.push(...glazed(wp, (sgn * width) / 4, width / 2, base, head - 0.02, 0, { anim: leafAnim(wp, o, sgn, width, base) }));
+      close(head);
+      for (const sgn of [-1, 1] as const) out.push(...glazed(wp, (sgn * width) / 4, width / 2, base, leafTop - 0.02, 0, { anim: leafAnim(wp, o, sgn, width, base) }));
       break;
     }
     case 'sliding': {
-      lintel(head);
+      close(head);
       const slide: Anim = { door: o.id, kind: 'slide', move: [wp.u.x * width * 0.44, 0, wp.u.y * width * 0.44] };
-      out.push(...glazed(wp, -width * 0.22, width * 0.56, base, head - 0.02, 0.03, { anim: slide }), ...glazed(wp, width * 0.22, width * 0.56, base, head - 0.02, -0.03));
+      out.push(...glazed(wp, -width * 0.22, width * 0.56, base, leafTop - 0.02, 0.03, { anim: slide }), ...glazed(wp, width * 0.22, width * 0.56, base, leafTop - 0.02, -0.03));
       break;
     }
     case 'window':
@@ -268,13 +300,13 @@ function openingParts(w: Wall, o: Opening, base: number, top: number, wy0: numbe
     case 'highwin':
     case 'floorwin':
     case 'bay': {
-      const y0 = base + WINDOW_SPEC[o.kind].sill;
-      const y1 = Math.max(y0 + 0.4, head);
+      const y0 = winY0;
+      const y1 = yTop;
       sill(y0);
-      lintel(y1);
+      close(y1);
       if (o.kind !== 'bay') {
-        out.push(...windowGlass(wp, o.kind, width, y0, y1, t));
-        if (WINDOW_SPEC[o.kind].sill > 0.2) out.push(slab(wp, 0, t / 2 + 0.03, width + 0.08, 0.1, y0 - 0.03, y0, '#e5e7eb'));
+        out.push(...windowGlass(wp, o.kind, width, y0, spring ?? y1, t));
+        if (y0 - base > 0.2) out.push(slab(wp, 0, t / 2 + 0.03, width + 0.08, 0.1, y0 - 0.03, y0, '#e5e7eb'));
       } else {
         const side = o.swing;
         const bay = Math.min(0.6, width * 0.35);

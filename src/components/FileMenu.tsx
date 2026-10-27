@@ -43,6 +43,7 @@ export function FileMenu() {
           {item('New design', newDesign, 'menu-new')}
           {item('Import JSON…', () => fileInput.current?.click(), 'menu-import')}
           {item('Area table…', () => useUi.getState().setDialog({ type: 'areas' }), 'menu-areas')}
+          {item('Snapshots…', () => useUi.getState().setDialog({ type: 'snapshots' }), 'menu-snapshots')}
           {item('Export JSON', exportJson, 'menu-export-json')}
           {item('Export PNG', exportPng, 'menu-export-png')}
           {item('Export SVG', exportSvg, 'menu-export-svg')}

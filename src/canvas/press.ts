@@ -1,4 +1,5 @@
 /** What happens when the mouse is pressed on an item in the select tool. One path for every kind of item. */
+import { selectWithGroup } from '../actions';
 import { catalogItem } from '../catalog';
 import { mountOnWall } from '../mount';
 import type { ItemRef } from '../model';
@@ -70,7 +71,7 @@ export function pressItem(evt: MouseEvent, ref: ItemRef, mode: 'move' | 'area' =
     return startPan(evt.clientX, evt.clientY); // a selected room: dragging still pans
   }
 
-  if (!isSelected) ui.select(ref);
+  if (!isSelected) selectWithGroup(ref); // a grouped item brings its whole group
   if (useUi.getState().selected.length > 1) return startGroupMove(evt, ref, isSelected);
   if (ref.kind === 'wall') return startWallMove(evt, ref.id);
   if (ref.kind === 'opening') return startOpeningDrag(evt, ref.id);

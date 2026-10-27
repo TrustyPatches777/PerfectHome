@@ -511,4 +511,6 @@ export function removeRefs(d: Draft<Design>, refs: ItemRef[]) {
   d.dimensions = rm(d.dimensions, 'dimension');
   d.notes = rm(d.notes, 'note');
   d.guides = rm(d.guides, 'guide');
+  // a group loses its members; with fewer than two left it is no group
+  d.groups = d.groups.map((g) => ({ ...g, refs: g.refs.filter((r) => !refs.some((x) => x.kind === r.kind && x.id === r.id)) })).filter((g) => g.refs.length >= 2);
 }

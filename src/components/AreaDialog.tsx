@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { areaReport, reportToCsv, reportToText } from '../areas';
 import { formatArea } from '../geometry';
+import { ROOM_TYPE_LABEL } from '../model';
 import { fileNameFor } from '../share';
 import { copyShareLink } from '../session';
 import { useDesign } from '../store/design';
@@ -40,9 +41,15 @@ export function AreaDialog() {
               <tbody>
                 {f.rooms.map((room) => (
                   <tr key={room.id} className={room.living ? '' : 'minor'}>
-                    <td>{room.name}</td>
+                    <td>
+                      {room.name}
+                      {room.type && <span className="tag"> {ROOM_TYPE_LABEL[room.type]}</span>}
+                    </td>
                     <td className="num">{formatArea(room.area)}</td>
-                    <td className="note">{room.living ? '' : 'not living area'}</td>
+                    <td className="note">
+                      {room.living ? '' : 'not living area · '}
+                      {room.ceiling.toFixed(2)} m high · {room.volume.toFixed(0)} m³
+                    </td>
                   </tr>
                 ))}
                 <tr className="sum">

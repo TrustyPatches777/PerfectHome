@@ -39,6 +39,12 @@ export function ViewMenu() {
           {item('Rulers', showRulers, () => ui.setShowRulers(!showRulers), 'view-rulers')}
           {item('Guides', showGuides, () => ui.setShowGuides(!showGuides), 'view-guides')}
           {item('All dimensions', showAllDims, () => ui.setShowAllDims(!showAllDims), 'view-dims')}
+          <button role="menuitem" data-testid="menu-find" onClick={() => { setOpen(false); ui.setDialog({ type: 'find' }); }}>
+            Find…
+          </button>
+          <button role="menuitem" data-testid="menu-rooms" onClick={() => { setOpen(false); ui.setDialog({ type: 'rooms' }); }}>
+            Rooms table…
+          </button>
         </div>
       )}
     </div>

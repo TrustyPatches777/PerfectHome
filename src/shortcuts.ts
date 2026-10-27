@@ -12,6 +12,7 @@ export const TOOL_KEYS: Record<string, Tool> = {
   p: 'paint',
   k: 'skylight',
   m: 'measure',
+  x: 'stretch',
   t: 'text',
   c: 'note',
 };
@@ -26,6 +27,7 @@ export const SHORTCUT_HELP: { keys: string; what: string }[] = [
   { keys: 'K', what: 'Put a skylight (roof window) on a roof: click on the roof' },
   { keys: 'P', what: 'Paint walls: pick a covering and color, click a face of a wall (Shift: both faces)' },
   { keys: 'M', what: 'Measure a distance' },
+  { keys: 'X', what: 'Stretch: drag a box round part of the plan, then drag inside it to pull (a side of the house, a wing)' },
   { keys: 'T', what: 'Add a text label' },
   { keys: 'C', what: 'Leave a sticky note on the plan' },
   { keys: 'Type a number while drawing', what: 'Exact length: 3.5, 350 (cm), 2.4m, 3.5<45 (angle), or 5x3 for a rectangle; then Enter' },
@@ -44,6 +46,9 @@ export const SHORTCUT_HELP: { keys: string; what: string }[] = [
   { keys: 'Arrow keys', what: 'Nudge the selection (Shift = bigger steps)' },
   { keys: 'R / Shift+R', what: 'Rotate the selection 90° / -90°' },
   { keys: '[ and ]', what: 'Rotate the selection by 15°' },
+  { keys: 'H / Shift+H', what: 'Mirror the selection left-right / top-bottom' },
+  { keys: 'Ctrl+G / Ctrl+Shift+G', what: 'Group the selected things so they move as one / ungroup' },
+  { keys: 'Ctrl+F', what: 'Find things by name or kind' },
   { keys: 'Page Up / Page Down', what: 'Go to the floor above / below' },
   { keys: 'Esc', what: 'Cancel / back to the select tool' },
 ];

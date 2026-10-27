@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { copySelection, cutSelection, deleteSelection, duplicateSelection, nudgeSelection, pasteSelection, rotateSelection, selectAll } from '../actions';
+import { copySelection, cutSelection, deleteSelection, duplicateSelection, groupSelection, mirrorSelection, nudgeSelection, pasteSelection, rotateSelection, selectAll, ungroupSelection } from '../actions';
 import { fitView, zoomByCenter } from '../canvas/camera';
 import { stepFloor } from '../floors';
 import { TOOL_KEYS } from '../shortcuts';
@@ -50,6 +50,10 @@ export function useShortcuts(toggleHelp: () => void) {
           cutSelection();
         } else if (key === 'v') {
           pasteSelection();
+        } else if (key === 'f') {
+          ui.setDialog({ type: 'find' });
+        } else if (key === 'g') {
+          e.shiftKey ? ungroupSelection() : groupSelection();
         } else return;
         e.preventDefault();
         return;
@@ -105,6 +109,7 @@ export function useShortcuts(toggleHelp: () => void) {
           break;
         default:
           if (key === 'r') rotateSelection(e.shiftKey ? -90 : 90);
+          else if (key === 'h') mirrorSelection(e.shiftKey ? 'y' : 'x');
           else if (key === 'g') ui.toggleSnap();
           else if (key === 'f') fitView(design.design);
           else if (key === '3') ui.setView('3d');

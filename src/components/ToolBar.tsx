@@ -10,6 +10,7 @@ const TOOLS: { tool: Tool; label: string; key: string; icon: string }[] = [
   { tool: 'paint', label: 'Paint walls', key: 'P', icon: 'M4 3h10v4H4zM14 5h2v5H9v3M8 13h2v4H8z' },
   { tool: 'roof', label: 'Roof', key: 'O', icon: 'M2 11L10 4l8 7M5 10v6h10v-6' },
   { tool: 'stairs', label: 'Stairs', key: 'S', icon: 'M3 16h4v-4h4V8h4V4h2M3 16v-2M7 12v-2M11 8V6' },
+  { tool: 'stretch', label: 'Stretch', key: 'X', icon: 'M3 10h14M3 10l3-3M3 10l3 3M17 10l-3-3M17 10l-3 3M10 4v12' },
   { tool: 'measure', label: 'Measure', key: 'M', icon: 'M3 13l10-10 4 4L7 17zM6 10l2 2M9 7l2 2M12 4l2 2' },
   { tool: 'note', label: 'Sticky note', key: 'C', icon: 'M3 4h14v10H9l-4 3v-3H3zM6 8h8M6 11h5' },
   { tool: 'text', label: 'Text', key: 'T', icon: 'M5 5h10M10 5v11M8 16h4' },

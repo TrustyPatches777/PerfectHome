@@ -4,7 +4,7 @@
  */
 import { polygonOutlineDistance } from './distance';
 import { formatArea, pointInPolygon, polygonArea, wallOutlinePoints } from './geometry';
-import type { Design, Point, ZoneKind } from './model';
+import { ROOM_TYPE_LABEL, type Design, type Point, type RoomType, type ZoneKind } from './model';
 import { ZONE_STYLES } from './outdoor';
 import { groundIndex } from './shadows';
 
@@ -13,6 +13,10 @@ export interface RoomArea {
   name: string;
   area: number;
   living: boolean;
+  /** What the room is for, its ceiling height (the storey's usual when not set) and the air in it. */
+  type?: RoomType;
+  ceiling: number;
+  volume: number;
 }
 
 export interface FloorArea {
@@ -93,7 +97,8 @@ export function unionArea(polys: Point[][]): number {
 
 export function areaReport(d: Design): AreaReport {
   const floors: FloorArea[] = [...d.floors].reverse().map((f) => {
-    const rooms = d.rooms.filter((r) => r.floor === f.id).map((r) => ({ id: r.id, name: r.name, area: polygonArea(r.points), living: r.living }));
+    const usual = d.settings.storeyHeight >= 2.5 ? 2.5 : d.settings.storeyHeight - 0.05;
+    const rooms = d.rooms.filter((r) => r.floor === f.id).map((r) => ({ id: r.id, name: r.name, area: polygonArea(r.points), living: r.living, type: r.type, ceiling: r.ceiling ?? usual, volume: polygonArea(r.points) * (r.ceiling ?? usual) }));
     return { floorId: f.id, name: f.name, rooms, total: rooms.reduce((s, r) => s + r.area, 0), living: rooms.filter((r) => r.living).reduce((s, r) => s + r.area, 0) };
   });
   const totalRooms = floors.reduce((s, f) => s + f.total, 0);
@@ -147,7 +152,7 @@ export function reportToText(r: AreaReport, designName: string): string {
   for (const f of r.floors) {
     if (!f.rooms.length) continue;
     lines.push(f.name);
-    for (const room of f.rooms) lines.push(`  ${room.name}: ${formatArea(room.area)}${room.living ? '' : ' (not counted as living area)'}`);
+    for (const room of f.rooms) lines.push(`  ${room.name}${room.type ? ` [${ROOM_TYPE_LABEL[room.type]}]` : ''}: ${formatArea(room.area)}${room.living ? '' : ' (not counted as living area)'}`);
     lines.push(`  Total: ${formatArea(f.total)} · living area ${formatArea(f.living)}`, '');
   }
   lines.push(`All rooms: ${formatArea(r.totalRooms)}`, `Living area: ${formatArea(r.totalLiving)}`);
@@ -167,9 +172,9 @@ export function reportToText(r: AreaReport, designName: string): string {
 
 const csvCell = (v: string | number) => (/[",\n;]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
 
-/** Rooms as CSV (floor, room, area in m², living area). */
+/** Rooms as CSV (floor, room, area in m², living area, what it is for, ceiling height, volume). */
 export function reportToCsv(r: AreaReport): string {
-  const rows = [['Floor', 'Room', 'Area (m2)', 'Living area']];
-  for (const f of r.floors) for (const room of f.rooms) rows.push([f.name, room.name, (Math.round(room.area * 100) / 100).toFixed(2), room.living ? 'yes' : 'no']);
+  const rows = [['Floor', 'Room', 'Area (m2)', 'Living area', 'Type', 'Ceiling (m)', 'Volume (m3)']];
+  for (const f of r.floors) for (const room of f.rooms) rows.push([f.name, room.name, (Math.round(room.area * 100) / 100).toFixed(2), room.living ? 'yes' : 'no', room.type ? ROOM_TYPE_LABEL[room.type] : '', room.ceiling.toFixed(2), room.volume.toFixed(1)]);
   return rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
 }
