@@ -43,7 +43,7 @@ function toBytes(data: unknown): Uint8Array | null {
 export interface Transport {
   destroy: () => void;
   /** How many of the public connection services (the places that introduce two browsers to each other) this browser can reach right now. */
-  status: () => { open: number; total: number; direct: boolean };
+  status: () => { open: number; total: number; direct: boolean; updatesIn: number; updatesOut: number; lastIn: number | null };
 }
 
 /** A way to reach other people: send to everybody, or to one who just spoke to us. */
@@ -60,11 +60,20 @@ export function connect(doc: Y.Doc, awareness: Awareness, room: string, password
   const hello = () => frame(STATE_VECTOR, Y.encodeStateVector(doc));
   const myAwareness = () => frame(AWARENESS, encodeAwarenessUpdate(awareness, [doc.clientID]));
 
+  // what arrived and what went out from here (shown in the Live dialog, to tell a blocked connection from a display problem)
+  let updatesIn = 0;
+  let updatesOut = 0;
+  let lastIn: number | null = null;
+
   const handle = (msg: Uint8Array, reply: (m: Uint8Array) => void, from: string | null) => {
     const body = msg.subarray(1);
+    if (from !== null) lastIn = Date.now();
     try {
       if (msg[0] === STATE_VECTOR) reply(frame(UPDATE, Y.encodeStateAsUpdate(doc, body)));
-      else if (msg[0] === UPDATE) Y.applyUpdate(doc, body, REMOTE);
+      else if (msg[0] === UPDATE) {
+        Y.applyUpdate(doc, body, REMOTE);
+        if (from !== null) updatesIn++;
+      }
       else if (msg[0] === AWARENESS) {
         const seen = from ? (clientsOf.get(from) ?? clientsOf.set(from, new Set()).get(from)!) : null;
         const onChange = ({ added, updated }: { added: number[]; updated: number[] }) => seen && [...added, ...updated].forEach((c) => seen.add(c));
@@ -118,7 +127,11 @@ export function connect(doc: Y.Doc, awareness: Awareness, room: string, password
   }
 
   // ---- local changes go out; everything that arrived stays where it is
-  const onUpdate = (u: Uint8Array, origin: unknown) => origin !== REMOTE && send(frame(UPDATE, u));
+  const onUpdate = (u: Uint8Array, origin: unknown) => {
+    if (origin === REMOTE) return;
+    updatesOut++;
+    send(frame(UPDATE, u));
+  };
   const onAwareness = ({ added, updated, removed }: { added: number[]; updated: number[]; removed: number[] }, origin: unknown) => {
     if (origin === REMOTE) return;
     send(frame(AWARENESS, encodeAwarenessUpdate(awareness, [...added, ...updated, ...removed])));
@@ -130,7 +143,11 @@ export function connect(doc: Y.Doc, awareness: Awareness, room: string, password
   send(hello());
   send(myAwareness());
   // anybody who opens the room later says hello themselves; this repeat covers a missed first message
-  const again = setInterval(() => send(myAwareness()), 15_000);
+  // and ask for what we may have missed (a message lost on a bad connection would otherwise leave us behind for good)
+  const again = setInterval(() => {
+    send(myAwareness());
+    send(hello());
+  }, 15_000);
 
   return {
     status: () => {
@@ -148,7 +165,7 @@ export function connect(doc: Y.Doc, awareness: Awareness, room: string, password
           }
         }
       }
-      return { open, total, direct: !networkOff() };
+      return { open, total, direct: !networkOff(), updatesIn, updatesOut, lastIn };
     },
     destroy: () => {
       clearInterval(again);

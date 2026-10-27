@@ -77,6 +77,13 @@ export function LiveDialog() {
                   : 'This browser cannot reach any of the services that introduce you to the other person (a firewall, VPN or ad blocker may be in the way). Until it can, you will not find each other; you can still work on this design alone.'}
               </p>
             )}
+            {net?.direct && live.peers.length > 0 && (
+              <p className="muted" data-testid="live-traffic">
+                Changes sent from here: {net.updatesOut}. Changes received from the others: {net.updatesIn}
+                {net.lastIn ? ` (the last ${Math.max(0, Math.round((Date.now() - net.lastIn) / 1000))} s ago)` : ''}.
+                {net.updatesIn === 0 && ' Nothing has arrived from them yet: if they have changed something, the connection between you is dropping the larger messages.'}
+              </p>
+            )}
             <p className="muted">Send this link:</p>
             <textarea ref={ref} className="link-box" readOnly value={url} rows={3} aria-label="Live session link" data-testid="live-url" onFocus={(e) => e.currentTarget.select()} />
             {copied && <p className="ok">✓ Link copied to the clipboard.</p>}
