@@ -9,9 +9,9 @@ import { contentBounds } from './bounds';
 import { autoDimensions } from './dims';
 import { doorGeometry, formatArea, labelPoint, niceLength, polygonArea, wallArc, wallCorners, wallPointAt, wallSegmentOutline, type WallCorners, faceSpan, wallSolidSegments } from './geometry';
 import type { Design, FloorMaterial, Furniture, Gate, Opening, Point, Strip, Wall } from './model';
-import { gateGeometry, gateSpans, pathMarks, samplePolyline, solidSpans, stripColor } from './outdoor';
+import { gateGeometry, gateSpans, pathMarks, plotFirst, samplePolyline, solidSpans, stripColor } from './outdoor';
 import { roofPlan } from './roofs';
-import { guardRuns, railPaths, railPlanColor, stairOutline, stairPlanFill, stairShapes } from './stairs';
+import { guardAvoid, guardRuns, railPaths, railPlanColor, stairOutline, stairPlanFill, stairShapes } from './stairs';
 import { WALL_STYLE, wallFaceLine } from './walls';
 import { isWindowKind, windowMarks } from './windows';
 
@@ -183,7 +183,7 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
   const onFloor = <T extends { floor: string }>(list: T[]) => list.filter((i) => i.floor === floor);
 
   if (vis('outdoor')) {
-    for (const z of onFloor(d.zones)) {
+    for (const z of plotFirst(onFloor(d.zones))) {
       const plot = z.kind === 'plot';
       body.push(`<polygon points="${pts(z.points)}" fill="${plot ? 'none' : z.color}" stroke="${plot ? '#6b7280' : shade(z.color, -0.18)}" stroke-width="1" ${plot ? 'stroke-dasharray="10 6"' : ''} ${hairline}/>`);
       const c = labelPoint(z.points);
@@ -262,7 +262,7 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
     const at = d.floors.findIndex((f) => f.id === floor);
     for (const s of at > 0 ? d.stairs.filter((x) => x.floor === d.floors[at - 1].id) : []) {
       const hole = stairOutline(s).map((p) => `${n(p.x)},${n(p.y)}`).join(' ');
-      const guard = s.railing && s.railing.guard !== false ? guardRuns(s).map((run) => `<polyline points="${run.map((p) => `${n(p.x)},${n(p.y)}`).join(' ')}" fill="none" stroke="${railPlanColor(s.railing!)}" stroke-width="0.06" stroke-linecap="round" stroke-linejoin="round"/>`).join('') : '';
+      const guard = s.railing && s.railing.guard !== false ? guardRuns(s, guardAvoid(d, s)).map((run) => `<polyline points="${run.map((p) => `${n(p.x)},${n(p.y)}`).join(' ')}" fill="none" stroke="${railPlanColor(s.railing!)}" stroke-width="0.06" stroke-linecap="round" stroke-linejoin="round"/>`).join('') : '';
       body.push(`<g transform="translate(${n(s.x)} ${n(s.y)}) rotate(${n(s.rotation)}) translate(${n(-s.w / 2)} ${n(-s.d / 2)})"><polygon points="${hole}" fill="rgba(71,85,105,0.16)" stroke="#475569" stroke-width="1.5" stroke-dasharray="6 4" ${hairline}/>${guard}</g>`);
     }
   }

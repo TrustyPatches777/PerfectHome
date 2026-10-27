@@ -11,7 +11,7 @@ import { useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
 import { pressItem } from '../press';
 import { SELECT_COLOR } from '../style';
-import { guardRuns, railPaths, railPlanColor, stairPlanFill, stairShapes } from '../../stairs';
+import { guardAvoid, guardRuns, railPaths, railPlanColor, stairPlanFill, stairShapes } from '../../stairs';
 import { StairShapes } from './StairShapes';
 import { useFloorId } from '../../store/floor';
 import { useIsMulti } from '../../store/ui';
@@ -278,7 +278,7 @@ export function StructureLayer() {
             >
               <Rect width={s.w} height={s.d} fill="rgba(0,0,0,0.001)" />
               <StairShapes shapes={stairShapes(s)} ghost />
-              {s.railing && s.railing.guard !== false && guardRuns(s).map((run, i) => <Line key={i} points={run.flatMap((p) => [p.x, p.y])} stroke={railPlanColor(s.railing!)} strokeWidth={0.06} lineCap="round" lineJoin="round" listening={false} />)}
+              {s.railing && s.railing.guard !== false && guardRuns(s, guardAvoid({ floors, stairs: allStairs }, s)).map((run, i) => <Line key={i} points={run.flatMap((p) => [p.x, p.y])} stroke={railPlanColor(s.railing!)} strokeWidth={0.06} lineCap="round" lineJoin="round" listening={false} />)}
             </Group>
           ));
       })()}

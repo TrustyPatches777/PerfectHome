@@ -1,5 +1,9 @@
 /** Commands that manage floors (levels). Items belong to a floor through their `floor` field. */
-import { newId, type Design, type Floor, type ItemRef } from './model';
+import { newId, type Design, type Floor, type ItemRef, type Point, type Roof, type Room } from './model';
+import { newRoof } from './roofActions';
+import { fitRoofToWalls } from './roofs';
+import { mergePolygons } from './roomEdit';
+import { rectCorners } from './selection';
 import { useDesign } from './store/design';
 import { floorIdOf } from './store/floor';
 import { useUi } from './store/ui';
@@ -68,15 +72,74 @@ function insertFloorAbove(moveRoofs: boolean) {
   useUi.getState().setActiveFloor(id);
 }
 
-/** An attic above the top floor: the usable space under its roof. */
+/**
+ * The floor plan of an attic: where the house is, seen from above (the rooms of the floor below, joined where they touch), or the area
+ * under the roof when that floor has no rooms. The low parts under the slopes are part of it (the plan shades them, and you cannot walk there).
+ */
+export function atticOutlines(d: Design, below: string): Point[][] {
+  let polys = d.rooms.filter((r) => r.floor === below).map((r) => r.points.map((p) => ({ ...p })));
+  for (let merged = true; merged && polys.length > 1; ) {
+    merged = false;
+    outer: for (let i = 0; i < polys.length; i++) {
+      for (let j = i + 1; j < polys.length; j++) {
+        const m = mergePolygons(polys[i], polys[j]);
+        if (m && m.length >= 3) {
+          polys = polys.filter((_, k) => k !== i && k !== j);
+          polys.push(m);
+          merged = true;
+          break outer;
+        }
+      }
+    }
+  }
+  if (polys.length) return polys;
+  const roof = d.roofs.find((r) => r.floor === below && r.kind !== 'flat');
+  return roof ? [rectCorners(roof.x, roof.y, roof.w, roof.d, roof.rotation)] : [];
+}
+
+const atticRoomsFor = (d: Design, below: string, floor: string): Room[] => {
+  const outlines = atticOutlines(d, below);
+  return outlines.map((points, i) => ({ id: newId(), floor, name: outlines.length > 1 ? `Attic ${i + 1}` : 'Attic', color: '#e8dcc8', material: 'wood' as const, living: true, points }));
+};
+
+/**
+ * An attic above the top floor, built from the roof: when the floor has no pitched roof yet one is fitted to its walls, and the attic
+ * gets its floor (the outline of the house) so that it is ready to use. Rebuild it with "Rebuild from the roof" after the roof or walls change.
+ */
 export function addAttic() {
   const d = useDesign.getState().design;
   const top = d.floors[d.floors.length - 1];
   if (top.attic) return useUi.getState().showToast('There is an attic already.');
-  if (!d.roofs.some((r) => r.floor === top.id && r.kind !== 'flat')) return useUi.getState().showToast('An attic needs a pitched roof on the top floor.');
+  const roofs = d.roofs.filter((r) => r.floor === top.id);
+  let roof: Roof | null = null;
+  if (!roofs.some((r) => r.kind !== 'flat')) {
+    const box = fitRoofToWalls(d, top.id);
+    if (!box) return useUi.getState().showToast('Draw the walls of the top floor first: the attic is built under a roof fitted to them.');
+    roof = newRoof(top.id, box, 'gable');
+  }
   const id = newId();
-  useDesign.getState().update((draft) => void draft.floors.push({ id, name: 'Attic', attic: true }));
+  useDesign.getState().update((draft) => {
+    if (roof) {
+      for (const flat of draft.roofs.filter((r) => r.floor === top.id && r.kind === 'flat')) draft.roofs.splice(draft.roofs.indexOf(flat), 1); // a flat roof makes no attic
+      draft.roofs.push(roof);
+    }
+    draft.floors.push({ id, name: 'Attic', attic: true });
+    draft.rooms.push(...atticRoomsFor(draft as Design, top.id, id));
+  });
   useUi.getState().setActiveFloor(id);
+}
+
+/** Make the floor of the active attic again from the rooms of the floor below (what you put in the attic stays). */
+export function rebuildAttic() {
+  const d = useDesign.getState().design;
+  const at = d.floors.findIndex((f) => f.id === activeFloor());
+  const attic = d.floors[at];
+  if (!attic?.attic || at < 1) return useUi.getState().showToast('Go to the attic first.');
+  const below = d.floors[at - 1].id;
+  useDesign.getState().update((draft) => {
+    draft.rooms = draft.rooms.filter((r) => r.floor !== attic.id);
+    draft.rooms.push(...atticRoomsFor(draft as Design, below, attic.id));
+  });
 }
 
 /** Copy everything on the active floor to a new floor above it (handy for stacking similar levels). */

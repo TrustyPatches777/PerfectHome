@@ -3,7 +3,7 @@ import { Ellipse, Group, Line, Rect, Text } from 'react-konva';
 import type { Gate, Strip, Zone } from '../../model';
 import { shade } from '../../catalog';
 import { formatArea, labelPoint, polygonArea } from '../../geometry';
-import { STRIP_STYLES, gateGeometry, gateSpans, pathMarks, samplePolyline, solidSpans, stripColor } from '../../outdoor';
+import { STRIP_STYLES, plotFirst, gateGeometry, gateSpans, pathMarks, samplePolyline, solidSpans, stripColor } from '../../outdoor';
 import { useOnFloor } from '../../store/floor';
 import { useDesign } from '../../store/design';
 import { useSelectedIds, useUi } from '../../store/ui';
@@ -158,7 +158,7 @@ export function OutdoorLayer() {
   const rank = (s: Strip) => (s.kind === 'road' ? 0 : s.kind === 'path' ? 1 : 2);
   return (
     <Group listening={tool === 'select' && !layer.locked}>
-      {zones.map((z) => (
+      {plotFirst(zones).map((z) => (
         <ZoneShape key={z.id} zone={z} zoom={zoom} selected={zoneIds.has(z.id)} />
       ))}
       {[...strips].sort((a, b) => rank(a) - rank(b)).map((s) => (

@@ -8,7 +8,7 @@ import { exemptFromWalls, footprint, pushOut } from './fit';
 import { pointInPolygon, wallLength, wallRangePieces, wallSolidSegments } from './geometry';
 import type { Design, Point, Stair } from './model';
 import { atticClearance } from './roofs';
-import { flatProfile, guardRuns, railPaths, railProfile, stairOutline, stairSteps, stairTopAt } from './stairs';
+import { flatProfile, guardAvoid, guardRuns, planToStair, railPaths, railProfile, stairOutline, stairSteps, stairToPlan, stairTopAt } from './stairs';
 import { POOL_DEPTH } from './view3d/furniture3d';
 import { gateGeometry, gateSpans, solidSpans } from './outdoor';
 import { isWindowKind } from './windows';
@@ -44,24 +44,6 @@ const obstacle = (poly: Point[], r = WALKER_RADIUS, lo = -Infinity, hi = Infinit
   minY: Math.min(...poly.map((p) => p.y)),
   maxY: Math.max(...poly.map((p) => p.y)),
 });
-
-/** A stair-box point (0..w, 0..d) on the plan. */
-function stairToPlan(s: Stair, p: Point): Point {
-  const c = Math.cos((s.rotation * Math.PI) / 180);
-  const sn = Math.sin((s.rotation * Math.PI) / 180);
-  const lx = p.x - s.w / 2;
-  const ly = p.y - s.d / 2;
-  return { x: s.x + lx * c - ly * sn, y: s.y + lx * sn + ly * c };
-}
-
-/** A plan point in a stair's box. */
-function planToStair(s: Stair, p: Point): Point {
-  const c = Math.cos((s.rotation * Math.PI) / 180);
-  const sn = Math.sin((s.rotation * Math.PI) / 180);
-  const dx = p.x - s.x;
-  const dy = p.y - s.y;
-  return { x: dx * c + dy * sn + s.w / 2, y: -dx * sn + dy * c + s.d / 2 };
-}
 
 /** A thin rectangle along a line (rails, fences). */
 function bar(a: Point, b: Point, width: number): Point[] {
@@ -138,12 +120,14 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
   // railings along the flights and the guard rails round the stairwells: only in the way at the height they are at
   const rails: Obstacle[] = [];
   const REACH_Y = 0.45;
+  // a rail is in the way of someone standing at its height (a little above is fine: that is someone on a stair that starts up there)
+  const SLACK_UP = 0.1;
   const addRail = (nodes: { x: number; y: number; h: number }[], st: Stair, e: number) => {
     for (let i = 0; i + 1 < nodes.length; i++) {
       const A = stairToPlan(st, nodes[i]);
       const B = stairToPlan(st, nodes[i + 1]);
       if (Math.hypot(A.x - B.x, A.y - B.y) < 0.005) continue;
-      rails.push(obstacle(bar(A, B, 0.05), RAIL_REACH, e + Math.min(nodes[i].h, nodes[i + 1].h) - REACH_Y, e + Math.max(nodes[i].h, nodes[i + 1].h) + REACH_Y));
+      rails.push(obstacle(bar(A, B, 0.05), RAIL_REACH, e + Math.min(nodes[i].h, nodes[i + 1].h) - REACH_Y, e + Math.max(nodes[i].h, nodes[i + 1].h) + SLACK_UP));
     }
   };
   for (const st of d.stairs) {
@@ -152,7 +136,7 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
     const steps = stairSteps(st);
     const paths = railPaths(st);
     for (const [on, path] of [[st.railing.a, paths.a], [st.railing.b, paths.b]] as const) if (on && path.length >= 2) addRail(railProfile(st, path, steps), st, f.elev);
-    if (st.railing.guard !== false && f.index + 1 < floors.length) for (const run of guardRuns(st)) addRail(flatProfile(run, st.rise), st, f.elev);
+    if (st.railing.guard !== false && f.index + 1 < floors.length) for (const run of guardRuns(st, guardAvoid(d, st))) addRail(flatProfile(run, st.rise), st, f.elev);
   }
 
   // ---- surfaces

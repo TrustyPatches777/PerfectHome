@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Group, Line } from 'react-konva';
-import { stripColor } from '../../outdoor';
+import { plotFirst, stripColor } from '../../outdoor';
 import { useDesign } from '../../store/design';
 import { floorBelow, useFloorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
@@ -23,7 +23,7 @@ export function Underlay() {
 
   return (
     <Group name="underlay" listening={false} opacity={0.28}>
-      {design.zones.filter((z) => z.floor === below).map((z) => (
+      {plotFirst(design.zones.filter((z) => z.floor === below)).map((z) => (
         <Line key={z.id} points={z.points.flatMap((p) => [p.x, p.y])} closed fill={z.color} />
       ))}
       {design.strips.filter((s) => s.floor === below && (s.kind === 'road' || s.kind === 'path')).map((s) => (

@@ -115,7 +115,7 @@ test('area table: rooms per floor, living area, outdoor areas and plot figures',
   const [dl] = await Promise.all([page.waitForEvent('download'), dialog.getByTestId('area-csv').click()]);
   expect(dl.suggestedFilename()).toBe('my-home-areas.csv');
   const csv = fs.readFileSync((await dl.path())!, 'utf8');
-  expect(csv.split('\r\n')[0]).toBe('Floor,Room,Area (m2),Living area');
+  expect(csv.split('\r\n')[0]).toBe('Floor,Room,Area (m2),Living area,Type,Ceiling (m),Volume (m3)');
   expect(csv).toContain('Ground floor,Garage,18.67,no');
   expect(csv).toContain('Ground floor,Room 1,33.22,yes');
   await dialog.getByRole('button', { name: 'Close' }).click();

@@ -213,7 +213,7 @@ function railRun({ nodes, style, frame, height: H, floorAt }: RunOptions): Part[
 }
 
 /** The railings of a staircase (`guard` false: along its flights) or the guard rail round its opening in the floor above (`guard` true), in the stair's centered box. */
-export function railParts(s: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'rise' | 'flip' | 'railing'>, guard: boolean): Part[] {
+export function railParts(s: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'rise' | 'flip' | 'railing'>, guard: boolean, avoid: Point[][] = []): Part[] {
   const r = s.railing;
   if (!r || r.style === 'none') return [];
   const { w, d } = s;
@@ -223,7 +223,7 @@ export function railParts(s: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'rise' |
   const out: Part[] = [];
   if (guard) {
     if (r.guard === false) return [];
-    for (const run of guardRuns(s)) out.push(...railRun({ nodes: flatProfile(run, s.rise).map(shift), style: r.style, frame, height, floorAt: () => s.rise }));
+    for (const run of guardRuns(s, avoid)) out.push(...railRun({ nodes: flatProfile(run, s.rise).map(shift), style: r.style, frame, height, floorAt: () => s.rise }));
     return out;
   }
   const steps = stairSteps(s);

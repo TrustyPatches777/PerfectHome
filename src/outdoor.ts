@@ -17,6 +17,9 @@ export const STRIP_STYLES: Record<StripKind, { label: string; color: string }> =
   hedge: { label: 'Hedge', color: '#6aa96a' },
 };
 
+/** Draw order of outdoor areas: the plot boundary is the ground of everything else, so it goes first (at the back) however it was drawn. */
+export const plotFirst = <T extends { kind: string }>(zones: readonly T[]): T[] => [...zones.filter((z) => z.kind === 'plot'), ...zones.filter((z) => z.kind !== 'plot')];
+
 export const polylineLength = (pts: Point[]): number => {
   let len = 0;
   for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);

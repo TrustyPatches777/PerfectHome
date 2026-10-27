@@ -1,4 +1,4 @@
-import { addAttic, addFloor, deleteFloor, duplicateFloor, renameFloor } from '../floors';
+import { addAttic, addFloor, deleteFloor, duplicateFloor, rebuildAttic, renameFloor } from '../floors';
 import { useDesign } from '../store/design';
 import { floorBelow, isBasement, useFloorId } from '../store/floor';
 import { useUi } from '../store/ui';
@@ -14,7 +14,8 @@ export function FloorsPanel() {
   const basement = isBasement(current);
   const top = floors[floors.length - 1];
   const roofs = useDesign((s) => s.design.roofs);
-  const canAttic = !top.attic && roofs.some((r) => r.floor === top.id && r.kind !== 'flat');
+  const walls = useDesign((s) => s.design.walls);
+  const canAttic = !top.attic && (roofs.some((r) => r.floor === top.id && r.kind !== 'flat') || walls.some((w) => w.floor === top.id));
 
   return (
     <div className="panel" data-testid="floors">
@@ -46,9 +47,14 @@ export function FloorsPanel() {
         </button>
       </div>
       <div className="row">
-        <button onClick={addAttic} disabled={!canAttic} title={canAttic ? 'Use the space under the roof of the top floor' : 'An attic needs a pitched roof on the top floor (and only one attic)'} data-testid="add-attic">
+        <button onClick={addAttic} disabled={!canAttic} title={canAttic ? 'Build the space under the roof of the top floor (a pitched roof is fitted to its walls when there is none)' : 'An attic needs walls on the top floor (and there can be only one attic)'} data-testid="add-attic">
           + Attic
         </button>
+        {current.attic && (
+          <button onClick={rebuildAttic} title="Make the attic floor again from the rooms below, after the walls or roof changed" data-testid="rebuild-attic">
+            Rebuild from the roof
+          </button>
+        )}
       </div>
       <div className="row">
         <button onClick={duplicateFloor} title="Copy everything on this floor to a new floor above" data-testid="duplicate-floor">

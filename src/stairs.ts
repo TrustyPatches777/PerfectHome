@@ -3,7 +3,7 @@
  * heading towards y = 0 (the top of the box) when the rotation is 0. Pure, so the canvas, the SVG export and the
  * tests all use the same drawing.
  */
-import type { Point, RailStyle, Stair, StairBuild, StairKind, StairMaterial } from './model';
+import type { Design, Point, RailStyle, Stair, StairBuild, StairKind, StairMaterial } from './model';
 
 export type StairShape =
   | { t: 'poly'; pts: number[]; fill?: boolean }
@@ -415,8 +415,49 @@ export function flatProfile(path: Point[], h: number): RailNode[] {
   return path.map((p, i) => ({ x: p.x, y: p.y, h, turn: i > 0 && i < path.length - 1, end: i === 0 || i === path.length - 1 }));
 }
 
-/** The edges of the stairwell hole that need a guard rail on the floor above: all of them except the one you step off the stair onto. */
-export function guardEdges(s: Shape): [Point, Point][] {
+/** A stair-box point (0..w, 0..d) on the plan. */
+export function stairToPlan(s: Pick<Stair, 'x' | 'y' | 'w' | 'd' | 'rotation'>, p: Point): Point {
+  const c = Math.cos((s.rotation * Math.PI) / 180);
+  const sn = Math.sin((s.rotation * Math.PI) / 180);
+  const lx = p.x - s.w / 2;
+  const ly = p.y - s.d / 2;
+  return { x: s.x + lx * c - ly * sn, y: s.y + lx * sn + ly * c };
+}
+
+/** A plan point in a stair's box. */
+export function planToStair(s: Pick<Stair, 'x' | 'y' | 'w' | 'd' | 'rotation'>, p: Point): Point {
+  const c = Math.cos((s.rotation * Math.PI) / 180);
+  const sn = Math.sin((s.rotation * Math.PI) / 180);
+  const dx = p.x - s.x;
+  const dy = p.y - s.y;
+  return { x: dx * c + dy * sn + s.w / 2, y: -dx * sn + dy * c + s.d / 2 };
+}
+
+/**
+ * Where the guard rail round a stairwell must not stand: the outlines (in this stair's box) of the stairs on the floor above. A stair that
+ * starts up there needs its way in free, and its own rails already guard the edge.
+ */
+export function guardAvoid(d: Pick<Design, 'floors' | 'stairs'>, s: Pick<Stair, 'floor' | 'x' | 'y' | 'w' | 'd' | 'rotation' | 'id'>): Point[][] {
+  const above = d.floors[d.floors.findIndex((f) => f.id === s.floor) + 1];
+  if (!above) return [];
+  return d.stairs.filter((o) => o.floor === above.id && o.id !== s.id).map((o) => stairOutline(o).map((p) => planToStair(s, stairToPlan(o, p))));
+}
+
+const nearPolygon = (p: Point, poly: Point[], margin: number): boolean => {
+  if (inPoly(p, poly)) return true;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+    if (Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t)) < margin) return true;
+  }
+  return false;
+};
+
+/** The edges of the stairwell hole that need a guard rail on the floor above: all of them except the one you step off the stair onto (and the stretches `avoid` covers). */
+export function guardEdges(s: Shape, avoid: Point[][] = []): [Point, Point][] {
   const { kind, w, d } = s;
   const un: Shape = { ...s, flip: false };
   const outline = stairOutline(un);
@@ -431,15 +472,25 @@ export function guardEdges(s: Shape): [Point, Point][] {
   const out: [Point, Point][] = [];
   outline.forEach((p, i) => {
     const q = outline[(i + 1) % outline.length];
-    if (!exit({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 })) out.push(mirrored(s) ? [{ x: w - p.x, y: p.y }, { x: w - q.x, y: q.y }] : [p, q]);
+    if (exit({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 })) return;
+    const [a, b] = mirrored(s) ? [{ x: w - p.x, y: p.y }, { x: w - q.x, y: q.y }] : [p, q];
+    if (!avoid.length) return void out.push([a, b]);
+    // cut into short pieces and leave out those that stand in the way of a stair above
+    const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.25));
+    for (let k = 0; k < n; k++) {
+      const p0 = { x: a.x + ((b.x - a.x) * k) / n, y: a.y + ((b.y - a.y) * k) / n };
+      const p1 = { x: a.x + ((b.x - a.x) * (k + 1)) / n, y: a.y + ((b.y - a.y) * (k + 1)) / n };
+      const mid = { x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 };
+      if (!avoid.some((poly) => nearPolygon(mid, poly, 0.4))) out.push([p0, p1]);
+    }
   });
   return out;
 }
 
 /** The guard edges joined into continuous runs, so that the rail has no seams where two edges meet. */
-export function guardRuns(s: Shape): Point[][] {
+export function guardRuns(s: Shape, avoid: Point[][] = []): Point[][] {
   const runs: Point[][] = [];
-  for (const [p, q] of guardEdges(s)) {
+  for (const [p, q] of guardEdges(s, avoid)) {
     const run = runs[runs.length - 1];
     const end = run?.[run.length - 1];
     if (run && end && Math.hypot(end.x - p.x, end.y - p.y) < 1e-6) run.push(q);

@@ -10,7 +10,7 @@ import type { Design, Furniture, Gate, Opening, OpeningKind, Point, Roof, Skylig
 import { STRIP_STYLES, gateGeometry, gateSpans, pathMarks, solidSpans, stripColor } from '../outdoor';
 import { OPENING_HEAD, WINDOW_SPEC, isWindowKind } from '../windows';
 import { inFace, roofBaseHeight, roofModel, skylightPlacement, type SkylightPlacement, type V3 } from '../roofs';
-import { stairOutline } from '../stairs';
+import { guardAvoid, stairOutline } from '../stairs';
 import { groundIndex } from '../shadows';
 import { box, cyl, place, prism, type Anim, type Look, type Part } from './parts';
 import { SITS_ON_FURNITURE, furnitureParts } from './furniture3d';
@@ -705,8 +705,11 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
   for (const s of d.stairs) {
     if (!visible.has(s.floor) || !shown('structure')) continue;
     const e = elev.get(s.floor) ?? 0;
-    const hasAbove = d.floors.findIndex((f) => f.id === s.floor) < d.floors.length - 1;
-    out.push({ key: `stair:${s.id}`, deps: [s, e, hasAbove], make: () => place([...stairParts(s), ...railParts(s, false), ...(hasAbove ? railParts(s, true) : [])], s.x, s.y, rad(s.rotation), e) });
+    const at = d.floors.findIndex((f) => f.id === s.floor);
+    const hasAbove = at < d.floors.length - 1;
+    // the stairs that start on the floor above: the guard rail leaves their way in free
+    const stairsAbove = hasAbove ? d.stairs.filter((o) => o.floor === d.floors[at + 1].id) : [];
+    out.push({ key: `stair:${s.id}`, deps: [s, e, hasAbove, ...stairsAbove], make: () => place([...stairParts(s), ...railParts(s, false), ...(hasAbove ? railParts(s, true, guardAvoid(d, s)) : [])], s.x, s.y, rad(s.rotation), e) });
   }
   for (const r of d.roofs) {
     // a cut-away takes off the roof of the floor you are on, and everything above it
