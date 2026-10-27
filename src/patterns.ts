@@ -5,6 +5,8 @@
  */
 import { shade } from './catalog';
 import type { FloorMaterial } from './model';
+import { parseSpec, textureImage, type PaintSpec } from './paintSpec';
+import { checkerboard, herringbone, marbleSlabs, squareTiles, subwayTiles } from './tiles';
 
 export type PatternKind = 'hatch' | Exclude<FloorMaterial, 'plain'>;
 
@@ -27,7 +29,7 @@ function rng(seed: number) {
   };
 }
 
-type Painter = (ctx: CanvasRenderingContext2D, size: number, base: string, rand: () => number) => void;
+type Painter = (ctx: CanvasRenderingContext2D, size: number, base: string, rand: () => number, spec: PaintSpec) => void;
 
 const PAINTERS: Record<PatternKind, { meters: number; size: number; paint: Painter }> = {
   // diagonal lines over the wall color (load-bearing walls)
@@ -113,16 +115,51 @@ const PAINTERS: Record<PatternKind, { meters: number; size: number; paint: Paint
   tile: {
     meters: 1.2,
     size: 240,
-    paint(ctx, size, base, rand) {
-      const n = 4;
-      const t = size / n;
-      ctx.fillStyle = shade(base, -0.2);
+    paint(ctx, size, base, rand, spec) {
+      squareTiles(ctx, size, 4, base, spec.second ?? shade(base, -0.2), rand);
+    },
+  },
+  // small rectangular tiles in brick bond
+  subway: {
+    meters: 1.2,
+    size: 240,
+    paint(ctx, size, base, rand, spec) {
+      subwayTiles(ctx, size, 8, base, spec.second ?? shade(base, -0.2), rand);
+    },
+  },
+  // planks laid in a zig-zag
+  herringbone: {
+    meters: 1.2,
+    size: 240,
+    paint(ctx, size, base, rand, spec) {
+      herringbone(ctx, size, base, spec.second ?? shade(base, -0.38), rand);
+    },
+  },
+  // two colors, like a chess board
+  checker: {
+    meters: 1.2,
+    size: 240,
+    paint(ctx, size, base, _rand, spec) {
+      checkerboard(ctx, size, 4, base, spec.second ?? shade(base, -0.78));
+    },
+  },
+  // big slabs with veins
+  marble: {
+    meters: 1.2,
+    size: 240,
+    paint(ctx, size, base, rand, spec) {
+      marbleSlabs(ctx, size, 2, base, spec.second ?? shade(base, -0.22), rand);
+    },
+  },
+  // a picture you uploaded, laid over 1.2 m (its plain color until it has loaded or when it is not on this device)
+  custom: {
+    meters: 1.2,
+    size: 256,
+    paint(ctx, size, base, _rand, spec) {
+      ctx.fillStyle = base;
       ctx.fillRect(0, 0, size, size);
-      for (let y = 0; y < n; y++)
-        for (let x = 0; x < n; x++) {
-          ctx.fillStyle = shade(base, (rand() - 0.5) * 0.08);
-          ctx.fillRect(x * t + 2, y * t + 2, t - 4, t - 4);
-        }
+      const img = spec.texture ? textureImage(spec.texture) : null;
+      if (img) ctx.drawImage(img, 0, 0, size, size);
     },
   },
   // soft speckle
@@ -194,9 +231,9 @@ const PAINTERS: Record<PatternKind, { meters: number; size: number; paint: Paint
 };
 
 /** A tile image for `kind` in `color`, or null when canvases are unavailable (tests, server). */
-export function patternFor(kind: PatternKind, color: string): Pattern | null {
+export function patternFor(kind: PatternKind, colorSpec: string): Pattern | null {
   if (typeof document === 'undefined') return null;
-  const key = `${kind}:${color}`;
+  const key = `${kind}:${colorSpec}`;
   const hit = cache.get(key);
   if (hit) return hit;
   const def = PAINTERS[kind];
@@ -205,9 +242,11 @@ export function patternFor(kind: PatternKind, color: string): Pattern | null {
   image.height = def.size;
   const ctx = image.getContext('2d');
   if (!ctx) return null;
-  def.paint(ctx, def.size, color, rng(kind.length * 7919 + color.length * 31));
+  const spec = parseSpec(colorSpec);
+  def.paint(ctx, def.size, spec.base, rng(kind.length * 7919 + spec.base.length * 31), spec);
   const pattern = { image, size: def.size, meters: def.meters };
-  cache.set(key, pattern);
+  // a picture that has not loaded yet is drawn again when it has: do not keep the placeholder
+  if (!(kind === 'custom' && spec.texture && !textureImage(spec.texture))) cache.set(key, pattern);
   return pattern;
 }
 

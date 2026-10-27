@@ -1,6 +1,8 @@
 /** Making and changing roofs: from a box you drag, from the walls of the floor, kind changes that keep the look sensible. */
 import { floorId } from './store/floor';
-import { newId, type Roof, type RoofKind } from './model';
+import { atticOutlines } from './floors';
+import { isRectilinear, wingsOf } from './roofWings';
+import { newId, type Roof, type RoofKind, type SkylightKind } from './model';
 import { ROOF_MATERIAL_STYLES, ROOF_STYLES, fitRoofToWalls, skylightPlacement, type RoofBox } from './roofs';
 import { useDesign } from './store/design';
 import { useUi } from './store/ui';
@@ -12,8 +14,24 @@ export const SKYLIGHT_SIZES = [
   { label: 'Large', w: 1.14, d: 1.4 },
 ];
 
-/** Put a skylight on the roof under a plan point. False (with a hint) when there is no roof there. */
-export function addSkylight(p: { x: number; y: number }, size: { w: number; d: number }): string | null {
+/** Solar panels: one panel (about 1.7 x 1.0 m) and a row of three. */
+export const SOLAR_SIZES = [
+  { label: 'One panel', w: 1.0, d: 1.7 },
+  { label: 'Two panels', w: 2.0, d: 1.7 },
+  { label: 'Row of three', w: 3.0, d: 1.7 },
+];
+
+/** Dormers: width and the height of the front wall. */
+export const DORMER_SIZES = [
+  { label: 'Small', w: 1.1, d: 1.1 },
+  { label: 'Standard', w: 1.5, d: 1.3 },
+  { label: 'Wide', w: 2.2, d: 1.4 },
+];
+
+export const SIZES_OF = { window: SKYLIGHT_SIZES, solar: SOLAR_SIZES, dormer: DORMER_SIZES } as const;
+
+/** Put a skylight, a row of solar panels or a dormer on the roof under a plan point. Null (with a hint) when there is no roof there. */
+export function addSkylight(p: { x: number; y: number }, size: { w: number; d: number }, kind: SkylightKind = 'window'): string | null {
   const d0 = useDesign.getState().design;
   const floor = floorId();
   if (!skylightPlacement(d0.roofs, floor, p)) {
@@ -21,7 +39,12 @@ export function addSkylight(p: { x: number; y: number }, size: { w: number; d: n
     return null;
   }
   const id = newId();
-  useDesign.getState().update((d) => void d.skylights.push({ id, floor, x: p.x, y: p.y, w: size.w, d: size.d }));
+  const placed = skylightPlacement(d0.roofs, floor, p);
+  if (kind === 'dormer' && placed?.flat) {
+    useUi.getState().showToast('A dormer needs a sloping roof.');
+    return null;
+  }
+  useDesign.getState().update((d) => void d.skylights.push({ id, floor, x: p.x, y: p.y, w: size.w, d: size.d, ...(kind !== 'window' ? { kind } : {}) }));
   useUi.getState().select({ kind: 'skylight', id });
   return id;
 }
@@ -126,4 +149,23 @@ export function turnRoof(id: string) {
     [r.w, r.d] = [r.d, r.w];
     r.rotation = (r.rotation + 90) % 360;
   });
+}
+
+/**
+ * Roofs for a house made of wings (an L, a T, a U): the outline of the rooms of this floor is cut into rectangles and each gets a roof,
+ * the ones that run into another wing made long enough to meet it in a valley. Returns how many roofs it made.
+ */
+export function addRoofWings(kind: RoofKind): number {
+  const d = useDesign.getState().design;
+  const floor = floorId();
+  const outlines = atticOutlines(d, floor).filter((p) => isRectilinear(p));
+  const wings = outlines.flatMap((p) => wingsOf(p));
+  if (!wings.length) {
+    useUi.getState().showToast('Wing roofs need rooms with square corners on this floor. For other shapes draw the roofs with the roof tool.');
+    return 0;
+  }
+  const roofs = wings.map((box) => newRoof(floor, box, kind));
+  useDesign.getState().update((draft) => void draft.roofs.push(...roofs));
+  useUi.getState().select({ kind: 'roof', id: roofs[0].id });
+  return roofs.length;
 }

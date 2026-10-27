@@ -6,14 +6,16 @@
 import { CUSTOM_PREFIX, catalogLayer, furnitureHeight, shade } from '../catalog';
 import { contentBounds } from '../bounds';
 import { clipPolygon, faceSpan, isConvex, pointInPolygon, wallArc, wallCorners, wallLength, wallPointAt, wallSegmentOutline, wallSolidSegments, type WallCorners, type WallPoint } from '../geometry';
-import type { Design, Furniture, Gate, Opening, OpeningKind, Point, Roof, Skylight, Stair, Strip, Wall, WallType, Zone } from '../model';
-import { STRIP_STYLES, gateGeometry, gateSpans, pathMarks, solidSpans, stripColor } from '../outdoor';
+import type { Design, Furniture, Gate, Room, Opening, OpeningKind, Point, Roof, Skylight, Stair, Strip, Wall, WallType, Zone } from '../model';
+import { STRIP_STYLES, freeEdges, joinEdges, gateGeometry, gateSpans, pathMarks, solidSpans, stripColor } from '../outdoor';
 import { OPENING_HEAD, WINDOW_SPEC, isWindowKind } from '../windows';
-import { inFace, roofBaseHeight, roofModel, skylightPlacement, type SkylightPlacement, type V3 } from '../roofs';
-import { guardAvoid, stairOutline } from '../stairs';
+import { faceNormal, inFace, roofBaseHeight, roofModel, skylightPlacement, type RoofModel, type SkylightPlacement, type V3 } from '../roofs';
+import { roomSpec, skinSpec } from '../paintSpec';
+import { RAIL_HEIGHT_DEFAULT, RAIL_LOOKS, flatProfile, guardAvoid, reachesNextFloor, stairOutline } from '../stairs';
+import { railRun } from './stairs3d';
 import { groundIndex } from '../shadows';
-import { box, cyl, place, prism, type Anim, type Look, type Part } from './parts';
-import { SITS_ON_FURNITURE, furnitureParts } from './furniture3d';
+import { ball, beam, box, cyl, place, prism, type Anim, type Look, type Part } from './parts';
+import { FRAME_COLORS, SITS_ON_FURNITURE, furnitureParts } from './furniture3d';
 
 export interface ChunkSpec {
   key: string;
@@ -29,6 +31,10 @@ export interface BuildOptions {
   showRoof?: boolean;
   /** Floors switched off in the 3D view (they and everything on them are left out). */
   hiddenFloors?: string[];
+  /** Draw the ceilings (so that you see the house from inside; from above they hide the rooms). */
+  showCeilings?: boolean;
+  /** Bumped when an uploaded picture has loaded: what is covered with one is built again. */
+  texVersion?: number;
 }
 
 const rad = (deg: number) => (deg * Math.PI) / 180;
@@ -126,8 +132,47 @@ export function skinPanels(w: Wall, s0: number, s1: number, y0: number, y1: numb
       const A: [number, number] = [a.p.x + a.n.x * off * sign, a.p.y + a.n.y * off * sign];
       const B: [number, number] = [b.p.x + b.n.x * off * sign, b.p.y + b.n.y * off * sign];
       const quad: [number, number, number][] = [[A[0], y0, A[1]], [B[0], y0, B[1]], [B[0], y1, B[1]], [A[0], y1, A[1]]];
-      out.push({ t: 'panel', pts: sign === 1 ? quad : [quad[1], quad[0], quad[3], quad[2]], thick: 0.004, facing: [a.n.x * sign, 0, a.n.y * sign], color: skin.color, tex: skin.finish === 'paint' ? undefined : { kind: `wall-${skin.finish}`, color: skin.color } });
+      out.push({ t: 'panel', pts: sign === 1 ? quad : [quad[1], quad[0], quad[3], quad[2]], thick: 0.004, facing: [a.n.x * sign, 0, a.n.y * sign], color: skin.color, tex: skin.finish === 'paint' ? undefined : { kind: `wall-${skin.finish}`, color: skinSpec(skin) } });
     }
+  }
+  return out;
+}
+
+/** A door handle on both faces: a lever, a round knob or a long bar. `off` is its distance from the middle of the leaf along the wall. */
+function handleParts(wp: WallPoint, style: NonNullable<Opening['handle']>, off: number, y: number, A: Partial<Look>): Part[] {
+  const metal = '#9ca3af';
+  const at = (noff: number): [number, number, number] => [wp.p.x + wp.u.x * off + wp.n.x * noff, y, wp.p.y + wp.u.y * off + wp.n.y * noff];
+  if (style === 'knob') {
+    const out: Part[] = [slab(wp, off, 0, 0.025, 0.14, y - 0.012, y + 0.012, metal, A)];
+    for (const side of [-1, 1]) {
+      const [x, yy, z] = at(side * 0.07);
+      out.push({ ...ball(x, yy, z, 0.035, 0.035, 0.035, metal), ...A } as Part);
+    }
+    return out;
+  }
+  if (style === 'bar') return [slab(wp, off, 0, 0.025, 0.15, y - 0.25, y + 0.25, metal, A)];
+  return [slab(wp, off - 0.04, 0, 0.12, 0.09, y - 0.01, y + 0.02, metal, A), slab(wp, off, 0, 0.04, 0.07, y - 0.05, y + 0.06, metal, A)];
+}
+
+/** Boards round an opening on both faces of the wall (the trim, or architrave): a board each side and one over the top. */
+function trimParts(wp: WallPoint, t: number, y0: number, y1: number, width: number, color: string): Part[] {
+  const out: Part[] = [];
+  for (const side of [-1, 1]) {
+    const noff = side * (t / 2 + 0.014);
+    out.push(slab(wp, -(width / 2 + 0.04), noff, 0.08, 0.028, y0, y1 + 0.08, color), slab(wp, width / 2 + 0.04, noff, 0.08, 0.028, y0, y1 + 0.08, color), slab(wp, 0, noff, width, 0.028, y1, y1 + 0.08, color));
+  }
+  return out;
+}
+
+/** Louvered shutters folded back beside a window, on the side the window opens to. */
+function shutterParts(wp: WallPoint, t: number, side: number, width: number, y0: number, y1: number, color: string): Part[] {
+  const out: Part[] = [];
+  const w = width / 2 - 0.02;
+  const noff = side * (t / 2 + 0.03);
+  for (const sgn of [-1, 1]) {
+    const off = sgn * (width / 2 + 0.03 + w / 2);
+    out.push(slab(wp, off, noff, w, 0.035, y0, y1, color));
+    for (let y = y0 + 0.06; y < y1 - 0.04; y += 0.075) out.push(slab(wp, off, noff + side * 0.022, w - 0.08, 0.012, y, y + 0.035, shade(color, -0.22)));
   }
   return out;
 }
@@ -143,6 +188,8 @@ function singleDoor(w: Wall, o: Opening, wp: WallPoint, base: number, head: numb
   const free = o.hinge === 'a' ? 1 : -1; // towards the free edge of the leaf
   const lw = width - 0.07;
   const out: Part[] = [];
+  /** The handle the kind of door has by itself; a handle you chose replaces it. */
+  const usual: Part[] = [];
   const frame = (jamb: number) => [slab(wp, 0, 0, width, t, head - 0.05, head, FRAME), slab(wp, -width / 2 + jamb / 2, 0, jamb, t + 0.02, base, head, FRAME), slab(wp, width / 2 - jamb / 2, 0, jamb, t + 0.02, base, head, FRAME)];
   const handle = (y: number, len: number, color: string) => [
     slab(wp, free * (lw / 2 - 0.09), 0, 0.03, 0.12 + 0.045, y, y + len, color, A),
@@ -154,7 +201,7 @@ function singleDoor(w: Wall, o: Opening, wp: WallPoint, base: number, head: numb
     const top = head - 0.05;
     out.push(slab(wp, 0, 0, lw, 0.04, base, top, '#e2d3b8', A));
     for (const [y0, y1] of [[base + 0.15, base + 0.95], [base + 1.1, top - 0.15]]) out.push(slab(wp, 0, 0, lw - 0.3, 0.052, y0, y1, '#d3c3a4', A));
-    out.push(slab(wp, free * (lw / 2 - 0.07), 0, 0.12, 0.09, base + 0.99, base + 1.02, '#9ca3af', A), slab(wp, free * (lw / 2 - 0.05), 0, 0.04, 0.07, base + 0.95, base + 1.06, '#9ca3af', A));
+    usual.push(slab(wp, free * (lw / 2 - 0.07), 0, 0.12, 0.09, base + 0.99, base + 1.02, '#9ca3af', A), slab(wp, free * (lw / 2 - 0.05), 0, 0.04, 0.07, base + 0.95, base + 1.06, '#9ca3af', A));
     out.push(...frame(0.04));
   } else if (o.kind === 'main') {
     // the front door: a heavy dark door with raised panels, a long handle, a letterbox and a number, and a fanlight over it
@@ -162,7 +209,7 @@ function singleDoor(w: Wall, o: Opening, wp: WallPoint, base: number, head: numb
     out.push(slab(wp, 0, 0, lw, 0.06, base, top, '#274a5e', A));
     const colW = (lw - 0.36) / 2;
     for (const cx of [-1, 1]) for (const [y0, y1] of [[base + 0.2, base + 0.95], [base + 1.1, top - 0.2]]) out.push(slab(wp, (cx * (colW + 0.12)) / 2 + cx * 0.02, 0, colW, 0.078, y0, y1, '#2f5b73', A));
-    out.push(slab(wp, free * (lw / 2 - 0.08), 0, 0.03, 0.2, base + 0.85, base + 1.4, '#c9a24a', A));
+    usual.push(slab(wp, free * (lw / 2 - 0.08), 0, 0.03, 0.2, base + 0.85, base + 1.4, '#c9a24a', A));
     out.push(slab(wp, 0, 0, 0.2, 0.085, base + 1.05, base + 1.12, '#c9a24a', A), slab(wp, 0, 0, 0.1, 0.085, base + 1.45, base + 1.55, '#e5e7eb', A));
     out.push(...glazed(wp, 0, width - 0.1, top, head - 0.03), slab(wp, 0, 0, 0.04, 0.07, top, head - 0.03, FRAME));
     out.push(...frame(0.08), slab(wp, 0, 0, width + 0.1, t + 0.25, base, base + 0.05, '#cbd5e1'));
@@ -173,10 +220,11 @@ function singleDoor(w: Wall, o: Opening, wp: WallPoint, base: number, head: numb
     out.push(slab(wp, 0, 0, lw, 0.05, base, rail, '#f1f5f9', A), slab(wp, 0, 0, lw - 0.3, 0.062, base + 0.12, rail - 0.12, '#e2e8f0', A));
     out.push(...glazed(wp, 0, lw, rail, top, 0, A));
     out.push(slab(wp, 0, 0, 0.035, 0.06, rail, top, FRAME, A), slab(wp, 0, 0, lw, 0.06, (rail + top) / 2, (rail + top) / 2 + 0.035, FRAME, A));
-    out.push(slab(wp, free * (lw / 2 - 0.07), 0, 0.03, 0.12, base + 0.95, base + 1.15, '#9ca3af', A));
+    usual.push(slab(wp, free * (lw / 2 - 0.07), 0, 0.03, 0.12, base + 0.95, base + 1.15, '#9ca3af', A));
     out.push(...frame(0.06));
   }
   void handle;
+  out.push(...(o.handle ? handleParts(wp, o.handle, free * (lw / 2 - 0.07), base + (o.kind === 'main' ? 1.1 : 1.0), A) : usual));
   return out;
 }
 
@@ -330,6 +378,8 @@ function openingPartsPlain(w: Wall, o: Opening, base: number, top: number, wy0: 
       break;
     }
   }
+  if (o.trim && !spring) out.push(...trimParts(wp, t, win ? winY0 : base, win ? yTop : leafTop, width, o.trim));
+  if (o.shutters && win && o.kind !== 'highwin' && o.kind !== 'floorwin' && !spring) out.push(...shutterParts(wp, t, o.swing, width, winY0, yTop, o.shutters));
   return out;
 }
 
@@ -378,9 +428,53 @@ export function stairHoles(room: { points: Point[] }, below: Stair[]): Point[][]
   return out;
 }
 
+// ---- ceilings ---------------------------------------------------------------------------------------------------------
+
+/** The ceiling of a room: a slab at the room's ceiling height, flat, with a grid of beams (coffered) or timber beams across it. */
+export function ceilingParts(d: Design, r: Room, e: number, stairsHere: Stair[]): Part[] {
+  const h = r.ceiling ?? ceilingHeight(d);
+  const y = e + h;
+  const holes = stairHoles(r, stairsHere);
+  const out: Part[] = [prism(r.points, y, y + 0.05, '#f6f4ef', undefined, {}, holes)];
+  const style = r.ceilingStyle ?? 'flat';
+  if (style === 'flat') return out;
+  const xs = r.points.map((p) => p.x);
+  const ys = r.points.map((p) => p.y);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const inside = (x: number, z: number) => pointInPolygon({ x, y: z }, r.points) && !holes.some((hole) => pointInPolygon({ x, y: z }, hole));
+  const piece = 0.2;
+  if (style === 'coffered') {
+    const gap = 0.9;
+    const cols = Math.max(1, Math.round((x1 - x0) / gap));
+    const rows = Math.max(1, Math.round((y1 - y0) / gap));
+    for (let i = 0; i <= cols; i++) {
+      const x = x0 + ((x1 - x0) * i) / cols;
+      for (let z = y0; z < y1; z += piece) if (inside(x, z + piece / 2)) out.push(box(x - 0.05, x + 0.05, y - 0.1, y, z, Math.min(z + piece, y1), '#ebe8e1'));
+    }
+    for (let j = 0; j <= rows; j++) {
+      const z = y0 + ((y1 - y0) * j) / rows;
+      for (let x = x0; x < x1; x += piece) if (inside(x + piece / 2, z)) out.push(box(x, Math.min(x + piece, x1), y - 0.1, y, z - 0.05, z + 0.05, '#ebe8e1'));
+    }
+  } else {
+    // timber beams across the shorter way of the room
+    const alongX = x1 - x0 < y1 - y0;
+    const n = Math.max(2, Math.round((alongX ? y1 - y0 : x1 - x0) / 1.1));
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n;
+      const c = alongX ? y0 + (y1 - y0) * t : x0 + (x1 - x0) * t;
+      for (let s = alongX ? x0 : y0; s < (alongX ? x1 : y1); s += piece) {
+        const mid = s + piece / 2;
+        if (!(alongX ? inside(mid, c) : inside(c, mid))) continue;
+        out.push(alongX ? box(s, Math.min(s + piece, x1), y - 0.18, y, c - 0.08, c + 0.08, '#8b6b4a') : box(c - 0.08, c + 0.08, y - 0.18, y, s, Math.min(s + piece, y1), '#8b6b4a'));
+      }
+    }
+  }
+  return out;
+}
+
 // ---- outdoors ----------------------------------------------------------------------------------------------------------
 
-const ZONE_HEIGHT: Record<Zone['kind'], number> = { lawn: 0.03, terrace: 0.06, driveway: 0.04, flowerbed: 0.08, water: 0.0, plot: 0 };
+const ZONE_HEIGHT: Record<Zone['kind'], number> = { lawn: 0.03, terrace: 0.06, balcony: 0.02, porch: 0.3, driveway: 0.04, flowerbed: 0.08, water: 0.0, plot: 0 };
 
 /** A pond or pool as a basin: a floor, walls all around, and the water a little below the edge. */
 function pondParts(z: Zone, elev: number): Part[] {
@@ -399,7 +493,7 @@ function pondParts(z: Zone, elev: number): Part[] {
   return out;
 }
 
-function zoneParts(z: Zone, elev: number): Part[] {
+function zoneParts(d: Design, z: Zone, elev: number): Part[] {
   if (z.kind === 'plot') {
     // the plot boundary: a thin line around the site
     return z.points.map((a, i) => {
@@ -408,7 +502,17 @@ function zoneParts(z: Zone, elev: number): Part[] {
     });
   }
   if (z.kind === 'water') return pondParts(z, elev);
-  return [prism(z.points, elev - 0.02, elev + ZONE_HEIGHT[z.kind], z.color)];
+  // a balcony is a slab at the level of its floor, hanging out of the wall; a porch is a platform raised above the ground
+  const top = z.kind === 'porch' ? elev + (z.raise ?? ZONE_HEIGHT.porch) : elev + ZONE_HEIGHT[z.kind];
+  const bottom = z.kind === 'balcony' ? elev - 0.22 : elev - 0.02;
+  const out: Part[] = [prism(z.points, bottom, top, z.color)];
+  // the railing round the edges that are not against a wall
+  if (z.railing && z.railing !== 'none' && (z.kind === 'balcony' || z.kind === 'terrace')) {
+    for (const run of joinEdges(freeEdges(z, d.walls))) {
+      out.push(...railRun({ nodes: flatProfile(run, top), style: z.railing, frame: RAIL_LOOKS[z.railing].color, height: RAIL_HEIGHT_DEFAULT, floorAt: () => top }));
+    }
+  }
+  return out;
 }
 
 const FENCE_WOOD = '#5b4a38';
@@ -551,8 +655,9 @@ export function furnitureChunk(d: Design, f: Furniture, elev: number): Part[] {
   const custom = f.type.startsWith(CUSTOM_PREFIX) ? d.custom.find((c) => CUSTOM_PREFIX + c.id === f.type) : undefined;
   const type = custom?.shape === 'symbol' && custom.base ? custom.base : f.type;
   const h = typeof f.height === 'number' ? f.height : furnitureHeight(f);
-  const k = { w: f.w, d: f.d, h, c: f.color, hw: f.w / 2, hd: f.d / 2, on: f.on !== false, ceil: ceilingHeight(d) };
-  const parts = furnitureParts(type, k, custom);
+  const k = { w: f.w, d: f.d, h, c: f.color, c2: f.color2, hw: f.w / 2, hd: f.d / 2, on: f.on !== false, ceil: ceilingHeight(d) };
+  let parts = furnitureParts(type, k, custom);
+  if (f.color2) parts = parts.map((p) => (p.t !== 'light' && FRAME_COLORS.has(p.color) ? { ...p, color: f.color2! } : p));
   const lift = SITS_ON_FURNITURE.has(f.type) ? supportHeight(d, f) : 0;
   return place(parts, f.x, f.y, rad(f.rotation), elev + lift);
 }
@@ -599,6 +704,125 @@ export function skylightParts(sp: SkylightPlacement, s: Skylight): Part[] {
   ];
 }
 
+// ---- dormers, solar panels, gutters ---------------------------------------------------------------------------------------------
+
+/** The frame of a dormer on a slope: a point (side, depth into the roof, height above its front) in the roof's own box, and the slope's steepness. */
+function dormerFrame(sp: SkylightPlacement) {
+  const hx = Math.hypot(sp.u[0], sp.u[2]) || 1;
+  const hdir: V3 = [sp.u[0] / hx, 0, sp.u[2] / hx]; // horizontally up the slope
+  const tan = Math.max(0.05, sp.u[1] / hx);
+  const P = (a: number, s: number, yy: number): V3 => [sp.lx + sp.t[0] * a + hdir[0] * s, sp.y + yy, sp.lz + sp.t[2] * a + hdir[2] * s];
+  return { hdir, tan, P };
+}
+
+/** Where a dormer stands on the slope: its footprint as four points in the plane of the roof (the roof is cut open there). */
+export function dormerCorners(sp: SkylightPlacement, s: Skylight): V3[] {
+  if (sp.flat) return skylightCorners(sp, s);
+  const { P, tan } = dormerFrame(sp);
+  const hw = s.w / 2;
+  const L = s.d / tan; // how far back the slope has risen as high as the dormer's wall
+  return [P(-hw, 0, 0), P(hw, 0, 0), P(hw, L, L * tan), P(-hw, L, L * tan)];
+}
+
+/**
+ * A dormer: a front wall with a window and a little gable above it, two cheeks that fill the gap between its sides and the slope, and a
+ * gable roof going back into the main roof. Its position on the plan is the middle of its front; `d` is the height of the front wall.
+ */
+export function dormerParts(sp: SkylightPlacement, s: Skylight, roof: Roof): Part[] {
+  if (sp.flat) return [];
+  const { hdir, tan, P } = dormerFrame(sp);
+  const hw = s.w / 2;
+  const H = s.d;
+  const Hr = Math.min(hw * 0.6, 0.7);
+  const sb = H / tan;
+  const sr = (H + Hr) / tan;
+  const out: Part[] = [];
+  const facing: V3 = [-hdir[0], 0, -hdir[2]];
+  const wallColor = WALL_COLOR.exterior;
+  const wy0 = Math.min(0.35, H * 0.3);
+  const wy1 = H - 0.18;
+  const wa = hw * 0.62;
+  const hole: V3[] = [P(-wa, 0, wy0), P(wa, 0, wy0), P(wa, 0, wy1), P(-wa, 0, wy1)];
+  out.push({ t: 'panel', pts: [P(-hw, 0, 0), P(hw, 0, 0), P(hw, 0, H), P(0, 0, H + Hr), P(-hw, 0, H)], thick: 0.2, facing, color: wallColor, holes: [hole] });
+  out.push({ t: 'panel', pts: hole.map((p) => [p[0] + hdir[0] * 0.08, p[1], p[2] + hdir[2] * 0.08] as V3), thick: 0.01, facing, color: GLASS, glass: true });
+  // the window frame: a ring and a bar across
+  const ring: V3[] = [...hole, hole[0]];
+  for (let i = 0; i < 4; i++) out.push(beam(ring[i], ring[i + 1], 0.05, 0.05, FRAME));
+  out.push(beam(P(0, 0.02, wy0), P(0, 0.02, wy1), 0.04, 0.04, FRAME));
+  for (const sgn of [-1, 1]) {
+    // the cheek on each side: a triangle from the front down to where the slope reaches the height of the wall
+    out.push({ t: 'panel', pts: [P(sgn * hw, 0, 0), P(sgn * hw, 0, H), P(sgn * hw, sb, H)], thick: 0.12, facing: [sp.t[0] * sgn, 0, sp.t[2] * sgn], color: wallColor });
+    // and the roof plane on that side
+    const plane: V3[] = [P(sgn * hw, -0.12, H - 0.12 * 0.4), P(0, -0.12, H + Hr - 0.05), P(0, sr, H + Hr), P(sgn * hw, sb, H)];
+    let n = faceNormal(plane);
+    if (n[1] < 0) n = [-n[0], -n[1], -n[2]];
+    out.push({ t: 'panel', pts: plane, thick: 0.08, facing: n, color: roof.color, tex: { kind: roof.material, color: roof.color } });
+  }
+  out.push(beam(P(0, -0.12, H + Hr - 0.03), P(0, sr, H + Hr + 0.01), 0.07, 0.05, '#4b5563')); // the ridge
+  return out;
+}
+
+/** Solar panels lying on the slope (or standing on a flat roof): dark blue cells in an aluminum frame, a little above the covering. */
+export function solarParts(sp: SkylightPlacement, s: Skylight): Part[] {
+  const hw = s.w / 2;
+  const hd = s.d / 2;
+  const cols = Math.max(1, Math.round(s.w / 0.55));
+  const out: Part[] = [];
+  if (sp.flat) {
+    // tilted frames are too fiddly: flat panels on short legs
+    out.push(box(sp.lx - hw, sp.lx + hw, sp.y + 0.12, sp.y + 0.16, sp.lz - hd, sp.lz + hd, '#1e3a8a'));
+    for (const sx of [-hw + 0.1, hw - 0.1]) for (const sz of [-hd + 0.1, hd - 0.1]) out.push(box(sp.lx + sx - 0.02, sp.lx + sx + 0.02, sp.y, sp.y + 0.12, sp.lz + sz - 0.02, sp.lz + sz + 0.02, '#9ca3af'));
+    return out;
+  }
+  const at = (a: number, b: number, lift: number): V3 => [sp.lx + sp.t[0] * a + sp.u[0] * b + sp.n[0] * lift, sp.y + sp.t[1] * a + sp.u[1] * b + sp.n[1] * lift, sp.lz + sp.t[2] * a + sp.u[2] * b + sp.n[2] * lift];
+  const rect = (a0: number, a1: number, b0: number, b1: number, lift: number): V3[] => [at(a0, b0, lift), at(a1, b0, lift), at(a1, b1, lift), at(a0, b1, lift)];
+  out.push({ t: 'panel', pts: rect(-hw, hw, -hd, hd, 0.1), thick: 0.05, facing: sp.n, color: '#9ca3af' }); // frame
+  out.push({ t: 'panel', pts: rect(-hw + 0.03, hw - 0.03, -hd + 0.03, hd - 0.03, 0.115), thick: 0.01, facing: sp.n, color: '#1e3a8a' }); // the cells
+  for (let i = 1; i < cols; i++) out.push(beam(at(-hw + (s.w * i) / cols, -hd, 0.13), at(-hw + (s.w * i) / cols, hd, 0.13), 0.012, 0.006, '#cbd5e1'));
+  for (let j = 1; j < 3; j++) out.push(beam(at(-hw, -hd + (s.d * j) / 3, 0.13), at(hw, -hd + (s.d * j) / 3, 0.13), 0.012, 0.006, '#cbd5e1'));
+  return out;
+}
+
+/** The edge of the roof: a fascia board along the eaves, a gutter below it, and downpipes down to the ground at the corners. */
+export function eaveParts(m: RoofModel, r: Roof, groundY: number): Part[] {
+  const out: Part[] = [];
+  const slopes = m.faces.filter((f) => f.kind === 'slope');
+  const eave = Math.min(...slopes.flatMap((f) => f.pts.map((p) => p[1])));
+  const corners = new Map<string, V3>();
+  for (const f of slopes) {
+    for (let i = 0; i < f.pts.length; i++) {
+      const a = f.pts[i];
+      const b = f.pts[(i + 1) % f.pts.length];
+      if (a[1] > eave + 1e-6 || b[1] > eave + 1e-6 || Math.hypot(b[0] - a[0], b[2] - a[2]) < 0.2) continue;
+      // outwards: away from the middle of the roof
+      const dx = b[0] - a[0];
+      const dz = b[2] - a[2];
+      const len = Math.hypot(dx, dz);
+      let nx = -dz / len;
+      let nz = dx / len;
+      if (nx * (a[0] + b[0]) + nz * (a[2] + b[2]) < 0) [nx, nz] = [-nx, -nz];
+      if (r.fascia) out.push(beam([a[0] + nx * 0.015, eave - 0.07, a[2] + nz * 0.015], [b[0] + nx * 0.015, eave - 0.07, b[2] + nz * 0.015], 0.03, 0.2, r.fascia));
+      if (r.gutters) {
+        out.push(beam([a[0] + nx * 0.07, eave - 0.1, a[2] + nz * 0.07], [b[0] + nx * 0.07, eave - 0.1, b[2] + nz * 0.07], 0.1, 0.08, '#6b7280'));
+        for (const p of [a, b]) corners.set(`${Math.round(p[0] * 10)},${Math.round(p[2] * 10)}`, p);
+      }
+    }
+  }
+  if (r.gutters) {
+    // downpipes at the corners of the eaves, pulled in to the face of the wall
+    const kx = (r.w / 2) / (r.w / 2 + Math.max(0, r.overhang));
+    const kz = (r.d / 2) / (r.d / 2 + Math.max(0, r.overhang));
+    const list = [...corners.values()];
+    const pick = list.length > 4 ? list.filter((p) => Math.abs(p[0]) > r.w * 0.3 && Math.abs(p[2]) > r.d * 0.3).slice(0, 4) : list;
+    for (const p of pick) {
+      const px = p[0] * kx + Math.sign(p[0]) * 0.05;
+      const pz = p[2] * kz + Math.sign(p[2]) * 0.05;
+      out.push(cyl(px, pz, groundY, eave - 0.1, 0.035, '#6b7280'));
+    }
+  }
+  return out;
+}
+
 /**
  * The wall that a gable end of a roof stands on (the one of the roof's floor lying along that end), and which of its faces looks
  * outwards ('l' or 'r'). A painted wall paints the triangle above it too.
@@ -631,11 +855,11 @@ export function roofParts(d: Design, r: Roof, elev: number): Part[] {
   // each skylight cuts a hole in the roof face it lies in (when it lies wholly inside that face), so light comes through
   const mine = skylightsOn(d, r).flatMap((sk) => {
     const sp = skylightPlacement(d.roofs, r.floor, sk);
-    return sp ? [{ sk, sp, corners: skylightCorners(sp, sk) }] : [];
+    return sp ? [{ sk, sp, corners: sk.kind === 'dormer' ? dormerCorners(sp, sk) : skylightCorners(sp, sk) }] : [];
   });
   for (const [fi, f] of m.faces.entries()) {
     if (f.kind === 'slope') {
-      const holes = mine.filter((x) => x.sp.face === fi && x.corners.every((c) => inFace(f.pts, c[0], c[2]))).map((x) => x.corners);
+      const holes = mine.filter((x) => x.sk.kind !== 'solar' && x.sp.face === fi && x.corners.every((c) => inFace(f.pts, c[0], c[2]))).map((x) => x.corners);
       out.push({ t: 'panel', pts: f.pts, thick: r.thickness, facing: up, color: r.color, tex: { kind: r.material, color: r.color }, ...(holes.length ? { holes } : {}) });
     } else {
       const sx = Math.sign(f.pts[0][0]) || 1;
@@ -646,14 +870,31 @@ export function roofParts(d: Design, r: Roof, elev: number): Part[] {
       const outer = skin(under?.outer ?? 'r');
       const inner = skin(under?.outer === 'l' ? 'r' : 'l');
       const thick = under?.wall.thickness ?? 0.2;
-      const tex = (k: NonNullable<typeof outer>) => (k.finish === 'paint' ? undefined : { kind: `wall-${k.finish}`, color: k.color });
+      const tex = (k: NonNullable<typeof outer>) => (k.finish === 'paint' ? undefined : { kind: `wall-${k.finish}`, color: skinSpec(k) });
       out.push({ t: 'panel', pts, thick, facing: [sx, 0, 0], color: outer?.color ?? WALL_COLOR.exterior, ...(outer && tex(outer) ? { tex: tex(outer) } : {}) });
       // the face of the gable seen from the attic
       if (inner) out.push({ t: 'panel', pts: pts.map((p) => [p[0] - sx * thick, p[1], p[2]] as [number, number, number]), thick: 0.004, facing: [-sx, 0, 0], color: inner.color, ...(tex(inner) ? { tex: tex(inner) } : {}) });
     }
   }
-  for (const b of m.blocks) out.push(box(b.x0, b.x1, b.y0, b.y1, b.z0, b.z1, b.kind === 'chimney' ? BRICK : b.kind === 'cap' ? '#6b7280' : WALL_COLOR.exterior));
-  for (const x of mine) out.push(...skylightParts(x.sp, x.sk));
+  const style = r.chimneyStyle ?? 'brick';
+  const CHIMNEY_COLOR = { brick: BRICK, pots: BRICK, stone: '#9a9288', render: '#ece8e0', steel: '#9aa3ad' }[style];
+  for (const b of m.blocks) {
+    if (b.kind === 'parapet') out.push(box(b.x0, b.x1, b.y0, b.y1, b.z0, b.z1, WALL_COLOR.exterior));
+    else if (style === 'steel') {
+      // a stainless flue instead of a brick stack: a round pipe with a rain cap
+      const cx = (b.x0 + b.x1) / 2;
+      const cz = (b.z0 + b.z1) / 2;
+      if (b.kind === 'chimney') out.push(cyl(cx, cz, b.y0, b.y1, 0.13, CHIMNEY_COLOR));
+      else out.push(cyl(cx, cz, b.y0, b.y1 + 0.12, 0.2, '#6b7280', 0.02));
+    } else if (b.kind === 'chimney') out.push(box(b.x0, b.x1, b.y0, b.y1, b.z0, b.z1, CHIMNEY_COLOR));
+    else {
+      out.push(box(b.x0, b.x1, b.y0, b.y1, b.z0, b.z1, style === 'stone' ? '#6b645c' : '#6b7280'));
+      // chimney pots on the cap
+      if (style === 'pots') for (const dx of [-0.13, 0.13]) out.push(cyl((b.x0 + b.x1) / 2 + dx, (b.z0 + b.z1) / 2, b.y1, b.y1 + 0.32, 0.075, '#b4532a', 0.06));
+    }
+  }
+  for (const x of mine) out.push(...(x.sk.kind === 'solar' ? solarParts(x.sp, x.sk) : x.sk.kind === 'dormer' ? dormerParts(x.sp, x.sk, r) : skylightParts(x.sp, x.sk)));
+  if (r.gutters || r.fascia) out.push(...eaveParts(m, r, -(elev + roofBaseHeight(d, r.floor)) + 0.02));
   return place(out, r.x, r.y, rad(r.rotation), elev + roofBaseHeight(d, r.floor));
 }
 
@@ -681,7 +922,7 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
     const ops = opsByWall.get(w.id) ?? [];
     const corners = wallCorners(w, wallsOf(w.floor));
     // the corners are part of what the chunk looks like (a neighbor that moves changes them)
-    out.push({ key: `wall:${w.id}`, deps: [w, e, slab, JSON.stringify(corners), ...ops], make: () => wallChunk(d, w, ops, e, corners) });
+    out.push({ key: `wall:${w.id}`, deps: [w, e, slab, JSON.stringify(corners), ...(w.paint && (w.paint.l?.finish === 'custom' || w.paint.r?.finish === 'custom') ? [opts.texVersion ?? 0] : []), ...ops], make: () => wallChunk(d, w, ops, e, corners) });
   }
   for (const r of d.rooms) {
     if (!visible.has(r.floor) || !shown('rooms')) continue;
@@ -689,13 +930,21 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
     const thick = e > 0.01 ? slab : 0.1;
     // the stairs of the floor below come up through this floor: they leave a hole in it
     const at = d.floors.findIndex((f) => f.id === r.floor);
-    const stairsBelow = at > 0 ? d.stairs.filter((st) => st.floor === d.floors[at - 1].id) : [];
-    out.push({ key: `room:${r.id}`, deps: [r, e, thick, ...stairsBelow], make: () => [prism(r.points, e - thick, e + 0.01, r.color, r.material !== 'plain' ? { kind: r.material, color: r.color } : undefined, {}, stairHoles(r, stairsBelow))] });
+    const stairsBelow = at > 0 ? d.stairs.filter((st) => st.floor === d.floors[at - 1].id && reachesNextFloor(st, d.settings.storeyHeight)) : [];
+    out.push({ key: `room:${r.id}`, deps: [r, e, thick, ...stairsBelow, ...(r.material === 'custom' ? [opts.texVersion ?? 0] : [])], make: () => [prism(r.points, e - thick, e + 0.01, r.color, r.material !== 'plain' ? { kind: r.material, color: roomSpec(r) } : undefined, {}, stairHoles(r, stairsBelow))] });
+  }
+  if (opts.showCeilings) {
+    for (const r of d.rooms) {
+      if (!visible.has(r.floor) || !shown('rooms')) continue;
+      const e = elev.get(r.floor) ?? 0;
+      const stairsHere = d.stairs.filter((st) => st.floor === r.floor && reachesNextFloor(st, d.settings.storeyHeight));
+      out.push({ key: `ceil:${r.id}`, deps: [r, e, d.settings.storeyHeight, ...stairsHere], make: () => ceilingParts(d, r, e, stairsHere) });
+    }
   }
   for (const z of d.zones) {
     if (!visible.has(z.floor) || !shown('outdoor')) continue;
     const e = elev.get(z.floor) ?? 0;
-    out.push({ key: `zone:${z.id}`, deps: [z, e], make: () => zoneParts(z, e) });
+    out.push({ key: `zone:${z.id}`, deps: [z, e, ...(z.railing ? d.walls.filter((w) => w.floor === z.floor) : [])], make: () => zoneParts(d, z, e) });
   }
   for (const s of d.strips) {
     if (!visible.has(s.floor) || !shown('outdoor')) continue;
@@ -706,7 +955,7 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
     if (!visible.has(s.floor) || !shown('structure')) continue;
     const e = elev.get(s.floor) ?? 0;
     const at = d.floors.findIndex((f) => f.id === s.floor);
-    const hasAbove = at < d.floors.length - 1;
+    const hasAbove = at < d.floors.length - 1 && reachesNextFloor(s, d.settings.storeyHeight);
     // the stairs that start on the floor above: the guard rail leaves their way in free
     const stairsAbove = hasAbove ? d.stairs.filter((o) => o.floor === d.floors[at + 1].id) : [];
     out.push({ key: `stair:${s.id}`, deps: [s, e, hasAbove, ...stairsAbove], make: () => place([...stairParts(s), ...railParts(s, false), ...(hasAbove ? railParts(s, true, guardAvoid(d, s)) : [])], s.x, s.y, rad(s.rotation), e) });

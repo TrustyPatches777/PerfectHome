@@ -1,5 +1,6 @@
 import { Group, Line, Text } from 'react-konva';
 import { formatArea, labelPoint, polygonArea } from '../../geometry';
+import { roomSpec } from '../../paintSpec';
 import { patternFillProps, patternFor, type PatternKind } from '../../patterns';
 import { useDesign } from '../../store/design';
 import { useOnFloor } from '../../store/floor';
@@ -9,9 +10,9 @@ import { pressItem } from '../press';
 import { SELECT_COLOR } from '../style';
 
 /** Pattern fill props for a room with a floor material (null for a plain color). */
-function pattern(r: { material: string; color: string }) {
+function pattern(r: { material: string; color: string; grout?: string; texture?: string }) {
   if (r.material === 'plain') return null;
-  const p = patternFor(r.material as PatternKind, r.color);
+  const p = patternFor(r.material as PatternKind, roomSpec(r));
   return p && patternFillProps(p);
 }
 
@@ -21,6 +22,7 @@ export function RoomsLayer() {
   const tool = useUi((s) => s.tool);
   const zoom = useUi((s) => s.viewport.zoom);
   const selIds = useSelectedIds('room');
+  useUi((s) => s.texturesVersion); // draw again when an uploaded picture has loaded
 
   if (!layer.visible) return null;
   const fs = 13 / zoom; // labels keep a constant on-screen size

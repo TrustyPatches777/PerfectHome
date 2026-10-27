@@ -154,7 +154,7 @@ const WIRE = '#c2c8d0';
 const GLASS = '#bfe3f5';
 
 /** One continuous railing along a run of nodes: posts or bars, the infill and a handrail on top. */
-function railRun({ nodes, style, frame, height: H, floorAt }: RunOptions): Part[] {
+export function railRun({ nodes, style, frame, height: H, floorAt }: RunOptions): Part[] {
   const out: Part[] = [];
   if (nodes.length < 2) return out;
   const at = (n: { x: number; y: number }, y: number): V => [n.x, y, n.y];

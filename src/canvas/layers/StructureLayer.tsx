@@ -11,7 +11,7 @@ import { useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
 import { pressItem } from '../press';
 import { SELECT_COLOR } from '../style';
-import { guardAvoid, guardRuns, railPaths, railPlanColor, stairPlanFill, stairShapes } from '../../stairs';
+import { guardAvoid, guardRuns, reachesNextFloor, railPaths, railPlanColor, stairPlanFill, stairShapes } from '../../stairs';
 import { StairShapes } from './StairShapes';
 import { useFloorId } from '../../store/floor';
 import { useIsMulti } from '../../store/ui';
@@ -237,6 +237,7 @@ export function StructureLayer() {
   const stairs = useOnFloor((d) => d.stairs);
   const allStairs = useDesign((s) => s.design.stairs);
   const floors = useDesign((s) => s.design.floors);
+  const storey = useDesign((s) => s.design.settings.storeyHeight);
   const floor = useFloorId();
   const stairIds = useSelectedIds('stair');
   const multi = useIsMulti();
@@ -260,7 +261,7 @@ export function StructureLayer() {
         const at = floors.findIndex((f) => f.id === floor);
         const below = at > 0 ? floors[at - 1].id : null;
         return allStairs
-          .filter((s) => s.floor === below)
+          .filter((s) => s.floor === below && reachesNextFloor(s, storey))
           .map((s) => (
             <Group
               key={`well-${s.id}`}

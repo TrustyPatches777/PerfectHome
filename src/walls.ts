@@ -19,6 +19,9 @@ export const FINISH_STYLES: Record<WallFinish, { label: string; color: string }>
   wood: { label: 'Wood cladding', color: '#a47c52' },
   tiles: { label: 'Tiles', color: '#d3e0e8' },
   concrete: { label: 'Concrete', color: '#a3a7ab' },
+  wallpaper: { label: 'Wallpaper', color: '#e8dfc9' },
+  marble: { label: 'Marble', color: '#ece8e2' },
+  custom: { label: 'Your own picture', color: '#d6d3cc' },
 };
 
 /** Colors offered for walls. */

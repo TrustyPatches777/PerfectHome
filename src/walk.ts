@@ -8,9 +8,9 @@ import { exemptFromWalls, footprint, pushOut } from './fit';
 import { pointInPolygon, wallLength, wallRangePieces, wallSolidSegments } from './geometry';
 import type { Design, Point, Stair } from './model';
 import { atticClearance } from './roofs';
-import { flatProfile, guardAvoid, guardRuns, planToStair, railPaths, railProfile, stairOutline, stairSteps, stairToPlan, stairTopAt } from './stairs';
+import { flatProfile, guardAvoid, guardRuns, planToStair, reachesNextFloor, railPaths, railProfile, stairOutline, stairSteps, stairToPlan, stairTopAt } from './stairs';
 import { POOL_DEPTH } from './view3d/furniture3d';
-import { gateGeometry, gateSpans, solidSpans } from './outdoor';
+import { freeEdges, gateGeometry, gateSpans, joinEdges, solidSpans } from './outdoor';
 import { isWindowKind } from './windows';
 
 /** How close to a wall you can get (the radius of the walker, in meters). */
@@ -117,6 +117,12 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
       add(f.index, bar(g.a, g.b, Math.max(st.width, 0.08)));
     }
   }
+  // the railing round a balcony or a terrace
+  for (const z of d.zones) {
+    const f = byFloor(z.floor);
+    if (!f || !z.railing || z.railing === 'none' || (z.kind !== 'balcony' && z.kind !== 'terrace')) continue;
+    for (const run of joinEdges(freeEdges(z, d.walls))) for (let i = 0; i + 1 < run.length; i++) add(f.index, bar(run[i], run[i + 1], 0.06));
+  }
   // railings along the flights and the guard rails round the stairwells: only in the way at the height they are at
   const rails: Obstacle[] = [];
   const REACH_Y = 0.45;
@@ -136,14 +142,15 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
     const steps = stairSteps(st);
     const paths = railPaths(st);
     for (const [on, path] of [[st.railing.a, paths.a], [st.railing.b, paths.b]] as const) if (on && path.length >= 2) addRail(railProfile(st, path, steps), st, f.elev);
-    if (st.railing.guard !== false && f.index + 1 < floors.length) for (const run of guardRuns(st, guardAvoid(d, st))) addRail(flatProfile(run, st.rise), st, f.elev);
+    if (st.railing.guard !== false && f.index + 1 < floors.length && reachesNextFloor(st, d.settings.storeyHeight)) for (const run of guardRuns(st, guardAvoid(d, st))) addRail(flatProfile(run, st.rise), st, f.elev);
   }
 
   // ---- surfaces
   const stairsOf = (floorId: string) => d.stairs.filter((s) => s.floor === floorId);
   const stepsOf = new Map(d.stairs.map((s) => [s.id, stairSteps(s)]));
   const outlineOf = new Map(d.stairs.map((s) => [s.id, stairOutline(s).map((q) => stairToPlan(s, q))]));
-  const stairHole = (floorIndex: number, p: Point): boolean => (floorIndex > 0 ? stairsOf(floors[floorIndex - 1].id).some((s) => pointInPolygon(p, outlineOf.get(s.id)!)) : false);
+  // entrance steps and garden steps do not reach the next floor: they leave no hole in it
+  const stairHole = (floorIndex: number, p: Point): boolean => (floorIndex > 0 ? stairsOf(floors[floorIndex - 1].id).some((s) => reachesNextFloor(s, d.settings.storeyHeight) && pointInPolygon(p, outlineOf.get(s.id)!)) : false);
   const pools = d.furniture.filter((f) => f.type === 'pool' && (byFloor(f.floor)?.elev ?? 0) === 0);
   const ponds = d.zones.filter((z) => z.kind === 'water' && (byFloor(z.floor)?.elev ?? 0) === 0);
   const basementRooms = d.rooms.filter((r) => (byFloor(r.floor)?.elev ?? 0) < -0.01);
@@ -166,6 +173,12 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
         const top = stairTopAt(s, planToStair(s, p), 0, stepsOf.get(s.id));
         if (top !== null) out.push(f.elev + top);
       }
+    }
+    // balconies lie at the level of their floor, porches stand a little above the ground
+    for (const z of d.zones) {
+      if ((z.kind !== 'balcony' && z.kind !== 'porch') || !pointInPolygon(p, z.points)) continue;
+      const f = byFloor(z.floor);
+      if (f) out.push(f.elev + (z.kind === 'porch' ? (z.raise ?? 0.3) : 0.02));
     }
     return out;
   };

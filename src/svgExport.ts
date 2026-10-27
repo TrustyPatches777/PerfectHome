@@ -11,7 +11,7 @@ import { doorGeometry, formatArea, labelPoint, niceLength, polygonArea, wallArc,
 import type { Design, FloorMaterial, Furniture, Gate, Opening, Point, Strip, Wall } from './model';
 import { gateGeometry, gateSpans, pathMarks, plotFirst, samplePolyline, solidSpans, stripColor } from './outdoor';
 import { roofPlan } from './roofs';
-import { guardAvoid, guardRuns, railPaths, railPlanColor, stairOutline, stairPlanFill, stairShapes } from './stairs';
+import { guardAvoid, guardRuns, reachesNextFloor, railPaths, railPlanColor, stairOutline, stairPlanFill, stairShapes } from './stairs';
 import { WALL_STYLE, wallFaceLine } from './walls';
 import { isWindowKind, windowMarks } from './windows';
 
@@ -46,8 +46,8 @@ const hairline = 'vector-effect="non-scaling-stroke"';
 const FONT = 'font-family="system-ui, Segoe UI, Arial, sans-serif"';
 
 /** A little vector version of each floor material, in the room's color. */
-function materialPattern(material: Exclude<FloorMaterial, 'plain'>, color: string): { id: string; def: string } {
-  const id = `mat-${material}-${color.replace('#', '')}`;
+function materialPattern(material: Exclude<FloorMaterial, 'plain'>, color: string, grout?: string): { id: string; def: string } {
+  const id = `mat-${material}-${color.replace('#', '')}${grout ? `-${grout.replace('#', '')}` : ''}`;
   const line = (x1: number, y1: number, x2: number, y2: number, c: string, w = 0.012) => `<line x1="${n(x1)}" y1="${n(y1)}" x2="${n(x2)}" y2="${n(y2)}" stroke="${c}" stroke-width="${w}"/>`;
   const dark = shade(color, -0.28);
   let body = '';
@@ -61,7 +61,22 @@ function materialPattern(material: Exclude<FloorMaterial, 'plain'>, color: strin
     for (let k = 0; k <= 4; k++) body += line(k * 0.3, 0, k * 0.3, 1.2, dark) + line(0, k * 0.3, 1.2, k * 0.3, dark);
   } else if (material === 'tile') {
     size = 0.6;
-    body = line(0, 0, 0.6, 0, shade(color, -0.3), 0.02) + line(0, 0, 0, 0.6, shade(color, -0.3), 0.02);
+    body = line(0, 0, 0.6, 0, grout ?? shade(color, -0.3), 0.02) + line(0, 0, 0, 0.6, grout ?? shade(color, -0.3), 0.02);
+  } else if (material === 'subway') {
+    size = 0.6;
+    const g = grout ?? shade(color, -0.3);
+    for (let r = 0; r < 4; r++) body += line(0, r * 0.15, 0.6, r * 0.15, g, 0.012) + line(r % 2 ? 0.15 : 0.45, r * 0.15, r % 2 ? 0.15 : 0.45, (r + 1) * 0.15, g, 0.012) + (r % 2 ? line(0.45, r * 0.15, 0.45, (r + 1) * 0.15, g, 0.012) : line(0.15, r * 0.15, 0.15, (r + 1) * 0.15, g, 0.012));
+  } else if (material === 'checker') {
+    size = 0.6;
+    const second = grout ?? shade(color, -0.78);
+    body = `<rect x="0" y="0" width="0.3" height="0.3" fill="${second}"/><rect x="0.3" y="0.3" width="0.3" height="0.3" fill="${second}"/>`;
+  } else if (material === 'herringbone') {
+    const g = grout ?? shade(color, -0.4);
+    for (let k = -8; k < 16; k++) body += line(k * 0.15, 0, k * 0.15 + 1.2, 1.2, g, 0.01);
+    for (let k = 0; k < 8; k++) body += line(k * 0.15, 0, k * 0.15, 1.2, g, 0.006);
+  } else if (material === 'marble') {
+    const v = shade(color, -0.4);
+    body = `<path d="M0.1 0 C 0.3 0.3, 0.2 0.5, 0.5 0.7 S 0.8 1.0, 0.9 1.2" fill="none" stroke="${v}" stroke-width="0.012" opacity="0.5"/><path d="M0.7 0 C 0.6 0.2, 0.9 0.5, 0.8 0.8" fill="none" stroke="${v}" stroke-width="0.008" opacity="0.4"/>` + line(0.6, 0, 0.6, 1.2, grout ?? shade(color, -0.2), 0.01) + line(0, 0.6, 1.2, 0.6, grout ?? shade(color, -0.2), 0.01);
   } else if (material === 'carpet') {
     size = 0.4;
     for (let i = 0; i < 24; i++) body += `<circle cx="${((i * 0.137) % 0.4).toFixed(3)}" cy="${((i * 0.271) % 0.4).toFixed(3)}" r="0.008" fill="${i % 2 ? shade(color, 0.2) : shade(color, -0.15)}"/>`;
@@ -155,8 +170,8 @@ function furnitureSvg(f: Furniture): string {
   const common = `stroke="#475569" stroke-width="1" ${hairline}`;
   const shapes = item.shapes
     .map((p) => {
-      if (p.t === 'rect') return `<rect x="${n(p.x * f.w)}" y="${n(p.y * f.d)}" width="${n(p.w * f.w)}" height="${n(p.h * f.d)}" rx="${n((p.r ?? 0) * m)}" fill="${fillColor(p.fill, f.color)}" ${common}/>`;
-      if (p.t === 'ellipse') return `<ellipse cx="${n((p.x + p.w / 2) * f.w)}" cy="${n((p.y + p.h / 2) * f.d)}" rx="${n((p.w / 2) * f.w)}" ry="${n((p.h / 2) * f.d)}" fill="${fillColor(p.fill, f.color)}" ${common}/>`;
+      if (p.t === 'rect') return `<rect x="${n(p.x * f.w)}" y="${n(p.y * f.d)}" width="${n(p.w * f.w)}" height="${n(p.h * f.d)}" rx="${n((p.r ?? 0) * m)}" fill="${fillColor(p.fill, f.color, f.color2)}" ${common}/>`;
+      if (p.t === 'ellipse') return `<ellipse cx="${n((p.x + p.w / 2) * f.w)}" cy="${n((p.y + p.h / 2) * f.d)}" rx="${n((p.w / 2) * f.w)}" ry="${n((p.h / 2) * f.d)}" fill="${fillColor(p.fill, f.color, f.color2)}" ${common}/>`;
       return `<polyline points="${flat(p.pts, f.w, f.d)}" fill="none" ${common}/>`;
     })
     .join('');
@@ -219,7 +234,7 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
     for (const r of onFloor(d.rooms)) {
       let fill = r.color;
       if (r.material !== 'plain') {
-        const p = materialPattern(r.material, r.color);
+        const p = materialPattern(r.material, r.color, r.grout);
         defs.push(p.def);
         fill = `url(#${p.id})`;
       }
@@ -260,7 +275,7 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
     }
     // the stairwell of the stair coming up from the floor below, with its guard rail
     const at = d.floors.findIndex((f) => f.id === floor);
-    for (const s of at > 0 ? d.stairs.filter((x) => x.floor === d.floors[at - 1].id) : []) {
+    for (const s of at > 0 ? d.stairs.filter((x) => x.floor === d.floors[at - 1].id && reachesNextFloor(x, d.settings.storeyHeight)) : []) {
       const hole = stairOutline(s).map((p) => `${n(p.x)},${n(p.y)}`).join(' ');
       const guard = s.railing && s.railing.guard !== false ? guardRuns(s, guardAvoid(d, s)).map((run) => `<polyline points="${run.map((p) => `${n(p.x)},${n(p.y)}`).join(' ')}" fill="none" stroke="${railPlanColor(s.railing!)}" stroke-width="0.06" stroke-linecap="round" stroke-linejoin="round"/>`).join('') : '';
       body.push(`<g transform="translate(${n(s.x)} ${n(s.y)}) rotate(${n(s.rotation)}) translate(${n(-s.w / 2)} ${n(-s.d / 2)})"><polygon points="${hole}" fill="rgba(71,85,105,0.16)" stroke="#475569" stroke-width="1.5" stroke-dasharray="6 4" ${hairline}/>${guard}</g>`);

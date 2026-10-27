@@ -2,11 +2,12 @@ import { useMemo } from 'react';
 import { create } from 'zustand';
 import { loadIdentity, type Identity } from '../identity';
 import { setNotifier } from './notice';
-import type { CustomItem, Design, ItemKind, ItemRef, OpeningKind, Point, RoofKind, StairKind, StripKind, WallFinish, WallType, ZoneKind } from '../model';
+import type { SkylightKind, CustomItem, Design, ItemKind, ItemRef, OpeningKind, Point, RoofKind, StairKind, StripKind, WallFinish, WallType, ZoneKind } from '../model';
 import { STRIP_DEFAULT_WIDTH, type GateKind, type PathSurface } from '../model';
 import type { WindowKind } from '../windows';
 import type { Bounds } from '../geometry';
 import type { DesignDiff } from '../snapshots';
+import { onTextureLoaded } from '../paintSpec';
 
 /** A modal question or message. Rendered by components/Dialogs.tsx. */
 export type DialogState =
@@ -160,6 +161,9 @@ interface UiStore {
   setWallRoom: (v: boolean) => void;
   /** Skylight tool: which size to put on a roof (index into SKYLIGHT_SIZES). */
   skylightSize: number;
+  /** What the skylight tool puts on a roof. */
+  skylightKind: SkylightKind;
+  setSkylightKind: (k: SkylightKind) => void;
   setSkylightSize: (i: number) => void;
   /** Paint tool: what to cover walls with ('clear' takes the covering off). */
   paintFinish: WallFinish | 'clear';
@@ -181,7 +185,13 @@ interface UiStore {
   showAllFloors: () => void;
   /** 3D: show the roofs. */
   showRoof3d: boolean;
+  /** 3D: draw the ceilings (always while walking). */
+  showCeilings3d: boolean;
+  setShowCeilings3d: (v: boolean) => void;
   setShowRoof3d: (v: boolean) => void;
+  /** Bumped when an uploaded picture (a floor or wall covering) has loaded, so that what shows it is drawn again. */
+  texturesVersion: number;
+  bumpTextures: () => void;
   /** The tracing picture: bumped when it is replaced (so the canvas loads it again), and whether it is being dragged. */
   traceVersion: number;
   bumpTrace: () => void;
@@ -208,6 +218,9 @@ interface UiStore {
   setPathSurface: (s: PathSurface) => void;
   /** Which kind of staircase the Stairs tool places. */
   stairKind: StairKind;
+  /** The Stairs tool puts a short flight of entrance steps instead (three steps up to a door). */
+  stairEntrance: boolean;
+  setStairEntrance: (v: boolean) => void;
   setStairKind: (k: StairKind) => void;
   /** Type of the walls being drawn (their thickness is a separate, editable setting). */
   wallType: WallType;
@@ -228,6 +241,8 @@ interface UiStore {
   toast: string | null;
   showToast: (msg: string) => void;
 }
+
+onTextureLoaded(() => useUi.getState().bumpTextures());
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -296,6 +311,8 @@ export const useUi = create<UiStore>((set) => ({
   zoneShape: 'rect',
   stripKind: 'road',
   stripWidth: { ...STRIP_DEFAULT_WIDTH },
+  texturesVersion: 0,
+  bumpTextures: () => set((s) => ({ texturesVersion: s.texturesVersion + 1 })),
   traceVersion: 0,
   bumpTrace: () => set((s) => ({ traceVersion: s.traceVersion + 1 })),
   traceMove: false,
@@ -372,6 +389,8 @@ export const useUi = create<UiStore>((set) => ({
   setDoorKind: (doorKind) => set({ doorKind }),
   windowKind: 'window',
   setWindowKind: (windowKind) => set({ windowKind }),
+  skylightKind: 'window',
+  setSkylightKind: (skylightKind) => set({ skylightKind, skylightSize: 1 }),
   skylightSize: 1,
   setSkylightSize: (skylightSize) => set({ skylightSize }),
   paintFinish: 'paint',
@@ -382,8 +401,12 @@ export const useUi = create<UiStore>((set) => ({
   hiddenFloors: [],
   setFloorShown: (id, shown) => set((s) => ({ hiddenFloors: shown ? s.hiddenFloors.filter((f) => f !== id) : [...s.hiddenFloors.filter((f) => f !== id), id] })),
   showAllFloors: () => set({ hiddenFloors: [] }),
+  showCeilings3d: false,
+  setShowCeilings3d: (showCeilings3d) => set({ showCeilings3d }),
   showRoof3d: true,
   setShowRoof3d: (showRoof3d) => set({ showRoof3d }),
+  stairEntrance: false,
+  setStairEntrance: (stairEntrance) => set({ stairEntrance }),
   stairKind: 'straight',
   setStairKind: (stairKind) => set({ stairKind }),
   wallType: 'interior',

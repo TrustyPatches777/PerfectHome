@@ -44,7 +44,7 @@ test('custom furniture: create, place, edit, reuse after a reload', async ({ pag
     await page.getByTestId(id).fill(v);
     await page.getByTestId(id).press('Enter');
   }
-  await page.getByRole('button', { name: 'Color #b7c9a8' }).click();
+  await page.getByTestId('custom-dialog').getByRole('button', { name: 'Color #b7c9a8' }).click();
   await page.getByTestId('custom-save-place').click();
   let d = await design(page);
   expect(d.custom).toHaveLength(1);

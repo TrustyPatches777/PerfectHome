@@ -1,11 +1,13 @@
 /** Look and defaults of the outdoor features: ground areas (zones) and line features (strips). */
-import type { Gate, PathSurface, Point, Strip, StripKind, ZoneKind } from './model';
+import type { Gate, PathSurface, Point, Strip, StripKind, Wall, Zone, ZoneKind } from './model';
 
 export const ZONE_STYLES: Record<ZoneKind, { label: string; color: string; swatches: string[] }> = {
   lawn: { label: 'Lawn', color: '#cfe8c4', swatches: ['#cfe8c4', '#b9dba8', '#e0efc8', '#a8cf9a'] },
   terrace: { label: 'Terrace', color: '#e4dccb', swatches: ['#e4dccb', '#d9cdb5', '#cfc6bb', '#e9e4da'] },
   driveway: { label: 'Driveway', color: '#d4d6da', swatches: ['#d4d6da', '#c3c6cc', '#e1ddd3', '#b7bcc4'] },
   flowerbed: { label: 'Flower bed', color: '#e2c9ae', swatches: ['#e2c9ae', '#d9b99a', '#f0c9d4', '#d6c2e6'] },
+  balcony: { label: 'Balcony / raised terrace', color: '#d9d2c5', swatches: ['#d9d2c5', '#c9c0b0', '#b8b3a7', '#a5835a'] },
+  porch: { label: 'Porch (raised)', color: '#cfc6bb', swatches: ['#cfc6bb', '#d9d2c5', '#b8b3a7', '#e9e4da'] },
   water: { label: 'Pond / pool', color: '#bfe0f5', swatches: ['#bfe0f5', '#a8d4ee', '#cfeaf0'] },
   plot: { label: 'Plot boundary', color: '#f4f1e6', swatches: ['#f4f1e6', '#ffffff', '#ecf2e4'] },
 };
@@ -237,4 +239,44 @@ export function offsetPolyline(pts: Point[], off: number): Point[] {
     const k = 1 / Math.max(0.5, dir.x * n1.x + dir.y * n1.y); // a mitre at corners, but not a spike
     return { x: p.x + dir.x * off * k, y: p.y + dir.y * off * k };
   });
+}
+
+// ---- balconies, terraces and porches ---------------------------------------------------------------------------------------------
+
+/**
+ * The edges of an area that need a railing: the ones that are not against a wall of its floor (a balcony is fenced where you could fall off).
+ * Each edge is cut into short pieces, so that a wall along part of an edge leaves only the free part.
+ */
+export function freeEdges(z: Pick<Zone, 'points' | 'floor'>, walls: readonly Wall[]): [Point, Point][] {
+  const mine = walls.filter((w) => w.floor === z.floor);
+  const against = (p: Point) =>
+    mine.some((w) => {
+      const dx = w.b.x - w.a.x;
+      const dy = w.b.y - w.a.y;
+      const t = Math.max(0, Math.min(1, ((p.x - w.a.x) * dx + (p.y - w.a.y) * dy) / (dx * dx + dy * dy || 1)));
+      return Math.hypot(p.x - (w.a.x + dx * t), p.y - (w.a.y + dy * t)) < w.thickness / 2 + 0.2;
+    });
+  const out: [Point, Point][] = [];
+  z.points.forEach((a, i) => {
+    const b = z.points[(i + 1) % z.points.length];
+    const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.25));
+    for (let k = 0; k < n; k++) {
+      const p0 = { x: a.x + ((b.x - a.x) * k) / n, y: a.y + ((b.y - a.y) * k) / n };
+      const p1 = { x: a.x + ((b.x - a.x) * (k + 1)) / n, y: a.y + ((b.y - a.y) * (k + 1)) / n };
+      if (!against({ x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2 })) out.push([p0, p1]);
+    }
+  });
+  return out;
+}
+
+/** Edges joined into runs (a run goes on while one edge starts where the last one ended). */
+export function joinEdges(edges: [Point, Point][]): Point[][] {
+  const runs: Point[][] = [];
+  for (const [p, q] of edges) {
+    const run = runs[runs.length - 1];
+    const end = run?.[run.length - 1];
+    if (run && end && Math.hypot(end.x - p.x, end.y - p.y) < 1e-6) run.push(q);
+    else runs.push([p, q]);
+  }
+  return runs;
 }

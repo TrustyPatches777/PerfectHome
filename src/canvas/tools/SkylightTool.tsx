@@ -3,7 +3,7 @@ import { Group, Rect } from 'react-konva';
 import type Konva from 'konva';
 import { layerBlocksEditing } from '../../actions';
 import type { Point } from '../../model';
-import { SKYLIGHT_SIZES, addSkylight } from '../../roofActions';
+import { SIZES_OF, addSkylight } from '../../roofActions';
 import { roofAt } from '../../roofs';
 import { useDesign } from '../../store/design';
 import { floorId } from '../../store/floor';
@@ -13,7 +13,8 @@ import { isPrimary, snapWorld, useStageEvents } from '../input';
 /** Put a skylight on a roof: click on the roof where the window should be. */
 export function SkylightTool() {
   const ref = useRef<Konva.Group>(null);
-  const size = SKYLIGHT_SIZES[useUi((s) => s.skylightSize)] ?? SKYLIGHT_SIZES[1];
+  const kind = useUi((s) => s.skylightKind);
+  const size = SIZES_OF[kind][useUi((s) => s.skylightSize)] ?? SIZES_OF[kind][1];
   const [hover, setHover] = useState<Point | null>(null);
   const roof = hover ? roofAt(useDesign.getState().design.roofs, floorId(), hover) : null;
 
@@ -22,7 +23,7 @@ export function SkylightTool() {
     mousedown: (e, world) => {
       if (!isPrimary(e) || layerBlocksEditing('skylight')) return;
       const p = snapWorld(world, { ignore: () => true }).p;
-      if (addSkylight(p, size) && !e.evt.shiftKey) useUi.getState().setTool('select');
+      if (addSkylight(p, size, kind) && !e.evt.shiftKey) useUi.getState().setTool('select');
     },
   });
 

@@ -569,6 +569,9 @@ export const RAIL_LOOKS: Record<Exclude<RailStyle, 'none'>, RailLook> = {
 };
 export const RAIL_HEIGHT_DEFAULT = 0.9;
 
+/** Does this stair take you up to the next floor? (Entrance steps and garden steps do not: they leave no hole in a floor above.) */
+export const reachesNextFloor = (s: Pick<Stair, 'rise'>, storeyHeight: number): boolean => s.rise > storeyHeight * 0.7;
+
 /** The color a rail is drawn with on the plan. */
 export const railPlanColor = (r: { style: RailStyle; color?: string }): string => r.color ?? (r.style === 'glass' ? '#38bdf8' : r.style === 'none' ? '#000' : RAIL_LOOKS[r.style].color);
 

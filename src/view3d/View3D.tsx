@@ -18,7 +18,9 @@ export default function View3D() {
   const walking = useUi((s) => s.walking);
   const shadows = useUi((s) => s.shadows3d);
   const showRoof = useUi((s) => s.showRoof3d);
+  const ceilingsOn = useUi((s) => s.showCeilings3d);
   const hiddenFloors = useUi((s) => s.hiddenFloors);
+  const texturesVersion = useUi((s) => s.texturesVersion);
   const invertLook = useUi((s) => s.invertLook);
   const hour = useUi((s) => s.timeOfDay);
   const playing = useUi((s) => s.sunPlaying);
@@ -34,7 +36,7 @@ export default function View3D() {
     const d = useDesign.getState().design;
     const ui = useUi.getState();
     const f = floorIdOf(d, ui.activeFloor);
-    s.setDesign(d, { hideAbove: ui.cutaway ? f : null, showRoof: ui.showRoof3d, hiddenFloors: ui.hiddenFloors, floorElevation: floorElevations(d).get(f) ?? 0 });
+    s.setDesign(d, { hideAbove: ui.cutaway ? f : null, showRoof: ui.showRoof3d, showCeilings: ui.showCeilings3d || ui.walking, hiddenFloors: ui.hiddenFloors, texVersion: ui.texturesVersion, floorElevation: floorElevations(d).get(f) ?? 0 });
     s.setSun({ sun: sunPosition(d.site.lat, d.site.month, d.site.day, ui.timeOfDay), north: d.site.north, shadows: ui.shadows3d });
     s.resetView();
     s.onFar = () => useUi.getState().showToast('Walk closer to open that door.');
@@ -49,8 +51,8 @@ export default function View3D() {
 
   // the design (or which floors to show) changed
   useEffect(() => {
-    scene?.setDesign(design, { hideAbove: cutaway ? floor : null, showRoof, hiddenFloors, floorElevation: elevation });
-  }, [scene, design, floor, cutaway, showRoof, hiddenFloors, elevation]);
+    scene?.setDesign(design, { hideAbove: cutaway ? floor : null, showRoof, showCeilings: ceilingsOn || walking, hiddenFloors, texVersion: texturesVersion, floorElevation: elevation });
+  }, [scene, design, floor, cutaway, showRoof, ceilingsOn, walking, hiddenFloors, texturesVersion, elevation]);
 
   // sun and time of day
   useEffect(() => {
@@ -150,6 +152,10 @@ export default function View3D() {
             Roof
           </label>
         )}
+        <label className="check" title="Draw the ceilings (from above they hide the rooms; while walking they are always there)">
+          <input type="checkbox" checked={ceilingsOn || walking} disabled={walking} onChange={(e) => ui.setShowCeilings3d(e.target.checked)} data-testid="view3d-ceilings" />
+          Ceilings
+        </label>
         <label className="check">
           <input type="checkbox" checked={shadows} onChange={(e) => ui.setShadows3d(e.target.checked)} data-testid="view3d-shadows" />
           Shadows

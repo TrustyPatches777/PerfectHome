@@ -10,13 +10,17 @@ import { useUi } from '../../store/ui';
 import { isPrimary, snapWorld, useCaptureKeys, useStageEvents } from '../input';
 import { StairShapes } from '../layers/StairShapes';
 
+/** Three steps up to a front door: a short straight flight that does not reach the next floor. */
+export const ENTRANCE_STEPS = { w: 1.4, d: 0.9, steps: 3, rise: 0.45 };
+
 /** Place a staircase: a ghost follows the cursor, R rotates it, click drops it. */
 export function StairTool() {
   const ref = useRef<Konva.Group>(null);
   const kind = useUi((s) => s.stairKind);
   const rotation = useUi((s) => s.placingRotation);
   const [hover, setHover] = useState<Point | null>(null);
-  const def = STAIR_DEFAULTS[kind];
+  const entrance = useUi((s) => s.stairEntrance);
+  const def = entrance ? ENTRANCE_STEPS : STAIR_DEFAULTS[kind];
 
   useCaptureKeys((e) => {
     if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey) {
@@ -32,9 +36,9 @@ export function StairTool() {
       if (!isPrimary(e) || layerBlocksEditing('stair')) return;
       const p = snapWorld(world, { ignore: () => true }).p;
       const id = newId();
-      const rise = useDesign.getState().design.settings.storeyHeight;
+      const rise = entrance ? ENTRANCE_STEPS.rise : useDesign.getState().design.settings.storeyHeight;
       useDesign.getState().update((d) => {
-        d.stairs.push({ id, floor: floorId(), kind, x: p.x, y: p.y, w: def.w, d: def.d, rotation, steps: def.steps, rise, flip: false, railing: { style: 'wood', a: true, b: true } });
+        d.stairs.push({ id, floor: floorId(), kind: entrance ? 'straight' : kind, x: p.x, y: p.y, w: def.w, d: def.d, rotation, steps: def.steps, rise, flip: false, ...(entrance ? {} : { railing: { style: 'wood' as const, a: true, b: true } }) });
       });
       useUi.getState().setTool('select');
       useUi.getState().select({ kind: 'stair', id });
@@ -45,7 +49,7 @@ export function StairTool() {
     <Group ref={ref} listening={false}>
       {hover && (
         <Group x={hover.x} y={hover.y} offsetX={def.w / 2} offsetY={def.d / 2} rotation={rotation} opacity={0.6}>
-          <StairShapes shapes={stairShapes({ kind, w: def.w, d: def.d, steps: def.steps, flip: false })} />
+          <StairShapes shapes={stairShapes({ kind: entrance ? 'straight' : kind, w: def.w, d: def.d, steps: def.steps, flip: false })} />
         </Group>
       )}
     </Group>

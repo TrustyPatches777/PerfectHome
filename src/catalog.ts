@@ -605,10 +605,10 @@ export function shade(hex: string, amount: number): string {
 }
 
 /** Concrete CSS color for a symbol fill, derived from the item's color. */
-export function fillColor(fill: Fill | undefined, color: string): string {
+export function fillColor(fill: Fill | undefined, color: string, color2?: string): string {
   switch (fill) {
     case 'dark':
-      return shade(color, -0.14);
+      return color2 ?? shade(color, -0.14);
     case 'light':
       return shade(color, 0.55);
     case 'white':

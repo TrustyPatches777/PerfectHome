@@ -38,7 +38,11 @@ src/find.ts           find items by name/kind (Ctrl+F dialog); src/snapshots.ts 
 src/trace.ts          the picture to trace on a floor: pixels in localStorage ONLY (not in links), placement in Floor.trace
 src/shapes.ts         rectangles of walls, addRoomTo, shiftEdge (drag a side of a room/lawn), refitRooms (rooms follow their walls)
 src/roofs.ts          roofs: 3D shape (faces + blocks per kind), plan symbol, "fit to walls" (min-area rotated box), base height
-src/roofActions.ts    make/refit/turn roofs, kind and covering changes that keep a sensible look
+src/roofActions.ts    make/refit/turn roofs, kind and covering changes that keep a sensible look; addSkylight (window/solar/dormer), addRoofWings
+src/roofWings.ts      an L/T/U outline cut into rectangles, one roof per wing (wings that run into another reach its ridge: a valley)
+src/paintSpec.ts      a covering as ONE string `base|second|pattern|texture` (floors and walls), wall pattern lists, picture storage (localStorage only)
+src/tiles.ts          canvas layouts shared by floors and walls: square/subway/herringbone/diamond/checker/marble slabs/wallpaper
+src/facade.ts         `outerSide` (which face of a wall looks outside) and `coverOutside` (clad the whole house in one go)
 src/stairs.ts         stair drawings (straight/L/U/spiral) as pure instructions, walking length, comfort check; stairSteps (the solid
                       steps and their heights), stairOutline (the hole in the floor above), railPaths/railProfile/guardRuns (railings:
                       railProfile gives the nosing line the 3D view AND walking share), stair materials/colors, rail looks
@@ -199,6 +203,18 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
 - **Skylights** (`design.skylights`, layer `roofs`) are placed by plan position and lie in whichever roof covers that point
   (`skylightPlacement` finds the slope face and its frame); not on a roof = not drawn in 3D. A skylight inside a roof face cuts a hole
   in it (the panel has `holes`), so the sun comes in; the glass does not cast a shadow.
+- **Coverings** (floors and walls) travel through the renderers as one spec string (`paintSpec.ts`: `skinSpec`/`roomSpec`), so texture caches keyed
+  by `kind|spec` carry pattern, second color (grout, wallpaper ink) and a picture without new signatures. Uploaded pictures (finish/material
+  `custom`) are downscaled to 512 px and kept in `localStorage['perfect-home:tex:<id>']` ONLY: they are not in links, other computers show
+  the base color. The ui store's `texturesVersion` is bumped when one loads; 3D chunks with a custom texture put it in their `deps`.
+- **Detail parts** in 3D (`view3d/build.ts`): ceilings are chunks `ceil:<room>` that exist only when `showCeilings` (View3D checkbox, always on
+  while walking); dormers, solar panels, gutters/fascia (`eaveParts`), chimney styles, shutters/trim/handles and balcony rails are plain parts
+  from `roofParts`/`openingParts`/`zoneParts`. Dormers cut a hole in the slope; solar panels do not. `Furniture.color2` replaces the parts
+  painted with `FRAME_COLORS` (the wood of the recipes).
+- **Balconies and porches** are zones (`balcony`: slab at the floor's level; `porch`: raised by `zone.raise`). `freeEdges(zone, walls)` (the
+  edges not against a wall) carry the railing on the plan, in 3D and in `walk.ts` (where balcony/porch tops are walkable). Entrance steps
+  are a normal stair that does not `reachesNextFloor` (rise <= 0.7 storey): it leaves no stairwell hole and no guard rail, in 3D, walking,
+  the plan ghost and SVG.
 - **Plan symbol = 3D model**: `footprint.test.ts` compares the plan symbol of every catalog item with its 3D model from above (grid
   overlap > 60%); schematic exceptions are listed there. A new recipe must match the symbol, including which end is which.
 - **Debug hook**: `window.__ph = { design, ui }` exposes both stores; Playwright tests read state through it.
@@ -212,3 +228,5 @@ furniture · electrical/plumbing/lamps · guides + rulers + all dimensions · st
 area table · SVG export + print at scale
 then: live co-editing (Yjs, peer-to-peer) · 3D view (orbit, walk, sun, furniture models) · roofs (gable, hip, flat, shed, gambrel, mansard)
 then: rectangles of walls · drag sides · wall paint · doors that open in 3D · walk-mode fix · deep pools · corner sofa fix · furniture kept out of walls · skylights
+then: editing tools (mirror, groups, wall tools, scale, find, snapshots) · attic from the roof · plot boundary at the back
+then: visual detail (wallpaper/tile layouts/pictures, furniture frame color, ceilings, dormers/solar/gutters/chimneys/roof wings, balconies/porches/entrance steps, shutters/trim/handles, facade)

@@ -1,7 +1,12 @@
 /** Faces of walls as tile images (one square meter): brick, stone, wood cladding, ceramic tiles, concrete, plaster. */
 import { shade } from '../catalog';
+import { parseSpec, textureImage } from '../paintSpec';
+import { diamondTiles, herringbone, marbleSlabs, squareTiles, subwayTiles, wallpaper } from '../tiles';
 
-export function paintWall(g: CanvasRenderingContext2D, S: number, finish: string, color: string, rand: () => number) {
+/** Paint one square meter of a wall covering. `specText` is a paint spec (see paintSpec.ts): the color, maybe grout, pattern and picture. */
+export function paintWall(g: CanvasRenderingContext2D, S: number, finish: string, specText: string, rand: () => number) {
+  const spec = parseSpec(specText);
+  const color = spec.base;
   const dark = shade(color, -0.28);
   const light = shade(color, 0.18);
   g.fillStyle = color;
@@ -58,15 +63,16 @@ export function paintWall(g: CanvasRenderingContext2D, S: number, finish: string
       g.fillRect(x + plank - 1.5, 0, 1.5, S);
     }
   } else if (finish === 'tiles') {
-    const n = 4;
-    g.fillStyle = shade(color, -0.2);
-    g.fillRect(0, 0, S, S);
-    for (let i = 0; i < n; i++) {
-      for (let j = 0; j < n; j++) {
-        g.fillStyle = shade(color, (rand() - 0.5) * 0.08);
-        g.fillRect((i * S) / n + 2, (j * S) / n + 2, S / n - 4, S / n - 4);
-      }
-    }
+    const grout = spec.second ?? shade(color, -0.2);
+    if (spec.pattern === 'subway') subwayTiles(g, S, 12, color, grout, rand);
+    else if (spec.pattern === 'herringbone') herringbone(g, S, color, grout, rand);
+    else if (spec.pattern === 'diagonal') diamondTiles(g, S, 4, color, grout, rand);
+    else squareTiles(g, S, 4, color, grout, rand);
+  } else if (finish === 'wallpaper') wallpaper(g, S, spec.pattern ?? 'stripes', color, spec.second ?? shade(color, -0.22), rand);
+  else if (finish === 'marble') marbleSlabs(g, S, 2, color, spec.second ?? shade(color, -0.2), rand);
+  else if (finish === 'custom') {
+    const img = spec.texture ? textureImage(spec.texture) : null;
+    if (img) g.drawImage(img, 0, 0, S, S);
   } else if (finish === 'concrete') noise(1800, 0.35, 3);
   else noise(900, 0.18, 4); // plaster
 }

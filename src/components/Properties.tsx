@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CUSTOM_PREFIX, catalogItem, FURNITURE_COLORS, furnitureHeight } from '../catalog';
-import { ROOM_TYPES, ROOM_TYPE_LABEL, isSingleDoor, type RoomType } from '../model';
+import { CHIMNEY_LABEL, CHIMNEY_STYLES, HANDLE_STYLES, type ChimneyStyle, type HandleStyle } from '../model';
+import { CEILING_LABEL, CEILING_STYLES, ROOM_TYPES, ROOM_TYPE_LABEL, isSingleDoor, type CeilingStyle, type RoomType } from '../model';
 import { deleteSelection, duplicateSelection, isLayerLocked, mirrorSelection, reshapeWall, selectAllLike, spaceWallOpenings, splitWallAt } from '../actions';
 import { setWallLength } from '../canvas/editing';
 import { FLOOR_COLORS } from '../canvas/style';
@@ -15,7 +16,7 @@ import { OPENING_HEAD, WINDOW_SPEC, isWindowKind } from '../windows';
 import { ROOF_KINDS, ROOF_MATERIALS, type Roof, type RoofKind, type RoofMaterial } from '../model';
 import { ROOF_MATERIAL_STYLES, ROOF_STYLES } from '../roofs';
 import { moveRoofToFloor, refitRoof, setRoofKind, setRoofMaterial, turnRoof } from '../roofActions';
-import { SKYLIGHT_SIZES } from '../roofActions';
+import { SIZES_OF } from '../roofActions';
 import { skylightPlacement } from '../roofs';
 import type { Skylight } from '../model';
 import { RAIL_STYLES, STAIR_BUILDS, STAIR_KINDS, STAIR_MATERIALS, type RailStyle, type Stair, type StairBuild, type StairKind, type StairMaterial } from '../model';
@@ -24,6 +25,8 @@ import { useOnFloor } from '../store/floor';
 import { useUi } from '../store/ui';
 import { ColorField, NumberField, TextField } from './fields';
 import { GroupPanel } from './GroupPanel';
+import { FacadeBox } from './FacadeBox';
+import { FloorExtras, SkinExtras } from './CoveringFields';
 import { MATERIAL_COLORS, MaterialPicker } from './MaterialPicker';
 
 const ROOF_SWATCHES = ['#b5523b', '#4b5563', '#7b8794', '#6b5b4a', '#c9a86a', '#6d9a5b', '#9ca3af', '#2f3a4a', '#8c3b2c'];
@@ -139,6 +142,7 @@ function Summary() {
       <button onClick={() => useUi.getState().setDialog({ type: 'areas' })} data-testid="open-areas">
         Area table &amp; plot figures…
       </button>
+      <FacadeBox />
     </div>
   );
 }
@@ -235,7 +239,8 @@ function WallProps({ id }: { id: string }) {
                 </option>
               ))}
             </select>
-            {skin && <ColorField label="Color" value={skin.color} swatches={PAINT_COLORS} onChange={(c) => edit((w) => void (w.paint = { ...w.paint, [side]: { finish: skin.finish, color: c } }))} />}
+            {skin && <ColorField label="Color" value={skin.color} swatches={PAINT_COLORS} onChange={(c) => edit((w) => void (w.paint = { ...w.paint, [side]: { ...skin, color: c } }))} />}
+            {skin && <SkinExtras skin={skin} side={side} edit={(fn) => edit((w) => { const s = w.paint?.[side]; if (s) fn(s); })} />}
           </div>
         );
       })}
@@ -243,6 +248,8 @@ function WallProps({ id }: { id: string }) {
   );
 }
 
+const HANDLE_LABEL: Record<HandleStyle, string> = { lever: 'Lever', knob: 'Round knob', bar: 'Long bar' };
+const FRAME_SWATCHES2 = ['#a5835a', '#6b4a2f', '#3b2f27', '#e5e7eb', '#1f2937', '#9ca3af', '#c9a24a', '#7c2d12'];
 const FRAME_SWATCHES = ['#f8fafc', '#6b4a2f', '#1f2937', '#9ca3af', '#7c2d12', '#1e3a5f'];
 
 /** The cutting, moving and spacing tools of one wall. */
@@ -295,6 +302,33 @@ function OpeningHeights({ opening, edit }: { opening: Opening; edit: (fn: (o: Op
           Round-topped (an arch)
         </label>
       )}
+      {isSingleDoor(opening.kind) && (
+        <label className="field">
+          <span>Handle</span>
+          <select value={opening.handle ?? ''} data-testid="opening-handle" onChange={(e) => edit((o) => (e.target.value ? void (o.handle = e.target.value as HandleStyle) : void delete o.handle))}>
+            <option value="">The usual</option>
+            {HANDLE_STYLES.map((h) => (
+              <option key={h} value={h}>
+                {HANDLE_LABEL[h]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {solid && (
+        <label className="check" title="Boards round the opening on both faces of the wall">
+          <input type="checkbox" checked={!!opening.trim} data-testid="opening-trim" onChange={(e) => edit((o) => (e.target.checked ? void (o.trim = '#f8fafc') : void delete o.trim))} />
+          Trim round the frame
+        </label>
+      )}
+      {opening.trim && <ColorField label="Trim color" value={opening.trim} swatches={FRAME_SWATCHES} onChange={(c) => edit((o) => void (o.trim = c))} />}
+      {window && opening.kind !== 'highwin' && opening.kind !== 'floorwin' && (
+        <label className="check" title="Louvered shutters folded back beside the window, on the side it opens to">
+          <input type="checkbox" checked={!!opening.shutters} data-testid="opening-shutters" onChange={(e) => edit((o) => (e.target.checked ? void (o.shutters = '#3f6b4f') : void delete o.shutters))} />
+          Shutters
+        </label>
+      )}
+      {opening.shutters && <ColorField label="Shutter color" value={opening.shutters} swatches={['#3f6b4f', '#1f2937', '#6b4a2f', '#f8fafc', '#1e3a5f', '#7c2d12']} onChange={(c) => edit((o) => void (o.shutters = c))} />}
       {solid && <ColorField label="Frame color" value={opening.frame ?? '#f8fafc'} swatches={FRAME_SWATCHES} onChange={(c) => edit((o) => void (o.frame = c))} />}
       {opening.frame && (
         <button onClick={() => edit((o) => void delete o.frame)} data-testid="opening-frame-reset">
@@ -399,6 +433,16 @@ function RoomProps({ id }: { id: string }) {
           ))}
         </select>
       </label>
+      <label className="field">
+        <span>Ceiling</span>
+        <select value={room.ceilingStyle ?? 'flat'} data-testid="room-ceiling-style" onChange={(e) => edit((r) => (e.target.value === 'flat' ? void delete r.ceilingStyle : void (r.ceilingStyle = e.target.value as CeilingStyle)))}>
+          {CEILING_STYLES.map((c) => (
+            <option key={c} value={c}>
+              {CEILING_LABEL[c]}
+            </option>
+          ))}
+        </select>
+      </label>
       <NumberField label="Ceiling height" value={room.ceiling ?? 2.5} scale={100} unit="cm" min={150} max={1200} testId="room-ceiling" onCommit={(v) => edit((r) => void (r.ceiling = v))} />
       <button onClick={() => { useUi.getState().setSplitRoomId(id); useUi.getState().setTool('split-room'); useUi.getState().setSplitRoomId(id); }} title="Draw a line through the room to cut it in two" data-testid="room-split">
         Split this room…
@@ -415,6 +459,7 @@ function RoomProps({ id }: { id: string }) {
         }
       />
       <ColorField label={room.material === 'plain' ? 'Floor color' : 'Tint'} value={room.color} swatches={room.material === 'plain' ? FLOOR_COLORS : MATERIAL_SWATCHES} onChange={(c) => edit((r) => void (r.color = c))} />
+      <FloorExtras room={room} edit={edit} />
       <label className="check">
         <input type="checkbox" checked={room.living} data-testid="room-living" onChange={(e) => edit((r) => void (r.living = e.target.checked))} />
         Counts as living area
@@ -455,6 +500,12 @@ function FurnitureProps({ id }: { id: string }) {
         onCommit={(v) => edit((f) => void (f.rotation = ((v % 360) + 360) % 360))}
       />
       <ColorField label="Color" value={item.color} swatches={FURNITURE_COLORS} onChange={(c) => edit((f) => void (f.color = c))} />
+      <ColorField label="Frame / second color" value={item.color2 ?? '#a5835a'} swatches={FRAME_SWATCHES2} onChange={(c) => edit((f) => void (f.color2 = c))} />
+      {item.color2 && (
+        <button onClick={() => edit((f) => void delete f.color2)} data-testid="furniture-color2-reset">
+          Back to the usual frame
+        </button>
+      )}
       <div className="row">
         <button onClick={() => edit((f) => void (f.rotation = (f.rotation + 90) % 360))} title="R">
           Rotate 90°
@@ -552,6 +603,20 @@ function ZoneProps({ id }: { id: string }) {
         </select>
       </label>
       <ColorField label="Color" value={zone.color} swatches={ZONE_STYLES[zone.kind].swatches} onChange={(c) => edit((z) => void (z.color = c))} />
+      {(zone.kind === 'balcony' || zone.kind === 'terrace') && (
+        <label className="field">
+          <span>Railing round the free edges</span>
+          <select value={zone.railing ?? 'none'} data-testid="zone-railing" onChange={(e) => edit((z) => (e.target.value === 'none' ? void delete z.railing : void (z.railing = e.target.value as RailStyle)))}>
+            {RAIL_STYLES.map((r) => (
+              <option key={r} value={r}>
+                {r === 'none' ? 'None' : RAIL_LOOKS[r].label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {zone.kind === 'balcony' && <p className="muted">A balcony lies at the level of the floor it is drawn on, outside the wall. Draw it on the upper floor, against the wall.</p>}
+      {zone.kind === 'porch' && <NumberField label="Raised by" value={zone.raise ?? 0.3} scale={100} unit="cm" min={0} max={150} testId="zone-raise" onCommit={(v) => edit((z) => void (z.raise = v))} />}
       <p className="stat" data-testid="zone-area">
         Area <strong>{formatArea(polygonArea(zone.points))}</strong>
       </p>
@@ -737,6 +802,27 @@ function RoofProps({ id }: { id: string }) {
           Chimney
         </label>
       )}
+      {roof.chimney && (
+        <label className="field">
+          <span>Chimney style</span>
+          <select value={roof.chimneyStyle ?? 'brick'} data-testid="roof-chimney-style" onChange={(e) => edit((r) => (e.target.value === 'brick' ? void delete r.chimneyStyle : void (r.chimneyStyle = e.target.value as ChimneyStyle)))}>
+            {CHIMNEY_STYLES.map((c) => (
+              <option key={c} value={c}>
+                {CHIMNEY_LABEL[c]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label className="check" title="A gutter along the eaves, with a downpipe at the corners">
+        <input type="checkbox" checked={!!roof.gutters} data-testid="roof-gutters" onChange={(e) => edit((r) => (e.target.checked ? void (r.gutters = true) : void delete r.gutters))} />
+        Gutters and downpipes
+      </label>
+      <label className="check" title="A board along the edge of the roof">
+        <input type="checkbox" checked={!!roof.fascia} data-testid="roof-fascia" onChange={(e) => edit((r) => (e.target.checked ? void (r.fascia = '#f1f5f9') : void delete r.fascia))} />
+        Fascia board
+      </label>
+      {roof.fascia && <ColorField label="Fascia color" value={roof.fascia} swatches={['#f1f5f9', '#1f2937', '#6b4a2f', '#7c2d12', '#9ca3af', '#1e3a5f']} onChange={(c) => edit((r) => void (r.fascia = c))} />}
       {flatRoof && (
         <label className="check">
           <input type="checkbox" checked={roof.parapet} data-testid="roof-parapet" onChange={(e) => edit((r) => void (r.parapet = e.target.checked))} />
@@ -769,17 +855,17 @@ function SkylightProps({ id }: { id: string }) {
     <>
       <div className="row two">
         <NumberField label="Width" value={sky.w} scale={100} unit="cm" min={20} max={500} testId="sky-w" onCommit={(v) => edit((s) => void (s.w = v))} />
-        <NumberField label="Length (up the slope)" value={sky.d} scale={100} unit="cm" min={20} max={500} testId="sky-d" onCommit={(v) => edit((s) => void (s.d = v))} />
+        <NumberField label={sky.kind === 'dormer' ? 'Height of its front' : 'Length (up the slope)'} value={sky.d} scale={100} unit="cm" min={20} max={500} testId="sky-d" onCommit={(v) => edit((s) => void (s.d = v))} />
       </div>
       <div className="row three">
-        {SKYLIGHT_SIZES.map((s) => (
+        {SIZES_OF[sky.kind ?? 'window'].map((s) => (
           <button key={s.label} onClick={() => edit((x) => void ((x.w = s.w), (x.d = s.d)))} data-testid={`sky-size-${s.label.toLowerCase()}`}>
             {s.label}
           </button>
         ))}
       </div>
       <p className={spot ? 'muted' : 'notice'} data-testid="sky-status">
-        {spot ? (spot.flat ? 'On a flat roof: a raised window.' : 'Lies in the slope of the roof.') : 'Not on a roof: drag it onto one, or it will not show in 3D.'}
+        {spot ? (sky.kind === 'dormer' ? (spot.flat ? 'A dormer needs a sloping roof: it does not show on a flat one.' : 'A dormer on the slope of the roof.') : spot.flat ? 'On a flat roof: a raised window.' : 'Lies in the slope of the roof.') : 'Not on a roof: drag it onto one, or it will not show in 3D.'}
       </p>
     </>
   );

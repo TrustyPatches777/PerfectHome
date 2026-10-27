@@ -14,6 +14,8 @@ export interface Ctx {
   h: number;
   /** The item's color. */
   c: string;
+  /** The item's second color, when it has one: the recipes then show their frame (wooden arm caps, a plinth). */
+  c2?: string;
   hw: number;
   hd: number;
   /** Lamps: switched on. */
@@ -25,6 +27,8 @@ type Recipe = (k: Ctx) => Part[];
 
 const WOOD = '#a5835a';
 const WOOD_L = '#c9a97c';
+/** The colors of the parts that make up a piece's frame (legs, bed frames, table frames): a piece's second color replaces them. */
+export const FRAME_COLORS: ReadonlySet<string> = new Set([WOOD, WOOD_L]);
 const METAL = '#b8bec8';
 const STEEL = '#8d96a3';
 const BLK = '#1f2937';
@@ -169,7 +173,7 @@ const dresser: Recipe = ({ hw, hd, h, c }) => {
 
 // ---- living ------------------------------------------------------------------------------------------------
 
-const sofaOf = (seats: number): Recipe => ({ hw, hd, h, c }) => {
+const sofaOf = (seats: number): Recipe => ({ hw, hd, h, c, c2 }) => {
   const dark = shade(c, -0.18);
   const arm = Math.min(0.14, hw * 0.2);
   const out: Part[] = [
@@ -184,6 +188,8 @@ const sofaOf = (seats: number): Recipe => ({ hw, hd, h, c }) => {
     const x1 = x0 + span / seats - 0.02;
     out.push(box(x0, x1, 0.4, 0.5, -hd + 0.25, hd - 0.02, c), box(x0, x1, 0.5, h - 0.06, -hd + 0.2, -hd + 0.34, c));
   }
+  // with a second color the sofa has a frame to show: wooden caps on the arms and the back, taller legs
+  if (c2) out.push(box(-hw - 0.01, -hw + arm + 0.01, 0.62, 0.67, -hd + 0.2, hd + 0.01, WOOD), box(hw - arm - 0.01, hw + 0.01, 0.62, 0.67, -hd + 0.2, hd + 0.01, WOOD), box(-hw - 0.01, hw + 0.01, h, h + 0.05, -hd - 0.01, -hd + 0.21, WOOD));
   out.push(box(-hw + 0.05, -hw + 0.1, 0, 0.08, -hd + 0.05, -hd + 0.1, WOOD), box(hw - 0.1, hw - 0.05, 0, 0.08, -hd + 0.05, -hd + 0.1, WOOD), box(-hw + 0.05, -hw + 0.1, 0, 0.08, hd - 0.1, hd - 0.05, WOOD), box(hw - 0.1, hw - 0.05, 0, 0.08, hd - 0.1, hd - 0.05, WOOD));
   return out;
 };
@@ -217,9 +223,10 @@ const sofaLChaiseRight: Recipe = (k) => {
   return out;
 };
 
-const armchair: Recipe = ({ hw, hd, h, c }) => {
+const armchair: Recipe = ({ hw, hd, h, c, c2 }) => {
   const dark = shade(c, -0.18);
   return [
+    ...(c2 ? [box(-hw - 0.01, -hw + 0.15, 0.62, 0.67, -hd + 0.2, hd + 0.01, WOOD), box(hw - 0.15, hw + 0.01, 0.62, 0.67, -hd + 0.2, hd + 0.01, WOOD), box(-hw - 0.01, hw + 0.01, h, h + 0.05, -hd - 0.01, -hd + 0.21, WOOD)] : []),
     box(-hw, hw, 0.1, 0.4, -hd, hd, dark),
     box(-hw, hw, 0.1, h, -hd, -hd + 0.2, dark),
     box(-hw, -hw + 0.14, 0.1, 0.62, -hd + 0.2, hd, dark),

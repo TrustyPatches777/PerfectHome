@@ -1,9 +1,10 @@
 import { Fragment } from 'react';
 import { Ellipse, Group, Line, Rect, Text } from 'react-konva';
-import type { Gate, Strip, Zone } from '../../model';
+import type { Gate, Strip, Wall, Zone } from '../../model';
+import { RAIL_LOOKS } from '../../stairs';
 import { shade } from '../../catalog';
 import { formatArea, labelPoint, polygonArea } from '../../geometry';
-import { STRIP_STYLES, plotFirst, gateGeometry, gateSpans, pathMarks, samplePolyline, solidSpans, stripColor } from '../../outdoor';
+import { STRIP_STYLES, freeEdges, joinEdges, plotFirst, gateGeometry, gateSpans, pathMarks, samplePolyline, solidSpans, stripColor } from '../../outdoor';
 import { useOnFloor } from '../../store/floor';
 import { useDesign } from '../../store/design';
 import { useSelectedIds, useUi } from '../../store/ui';
@@ -17,7 +18,7 @@ function pressArea(e: { evt: MouseEvent; cancelBubble: boolean }, kind: 'zone' |
   pressItem(e.evt, { kind, id }, 'area');
 }
 
-function ZoneShape({ zone, selected, zoom }: { zone: Zone; selected: boolean; zoom: number }) {
+function ZoneShape({ zone, selected, zoom, walls }: { zone: Zone; selected: boolean; zoom: number; walls: Wall[] }) {
   const pts = zone.points.flatMap((p) => [p.x, p.y]);
   const plot = zone.kind === 'plot';
   const xs = zone.points.map((p) => p.x);
@@ -39,6 +40,7 @@ function ZoneShape({ zone, selected, zoom }: { zone: Zone; selected: boolean; zo
         strokeScaleEnabled={false}
         onMouseDown={(e) => pressArea(e, 'zone', zone.id)}
       />
+      {zone.railing && zone.railing !== 'none' && (zone.kind === 'balcony' || zone.kind === 'terrace') && joinEdges(freeEdges(zone, walls)).map((run, i) => <Line key={`rail${i}`} points={run.flatMap((p) => [p.x, p.y])} stroke={RAIL_LOOKS[zone.railing as keyof typeof RAIL_LOOKS].color} strokeWidth={0.06} lineCap="round" lineJoin="round" listening={false} />)}
       {big && (
         <Text
           x={c.x - width / 2}
@@ -147,6 +149,7 @@ function StripShape({ strip, selected, zoom }: { strip: Strip; selected: boolean
 
 export function OutdoorLayer() {
   const zones = useOnFloor((d) => d.zones);
+  const walls = useDesign((s) => s.design.walls);
   const strips = useOnFloor((d) => d.strips);
   const layer = useDesign((s) => s.design.layers.outdoor);
   const tool = useUi((s) => s.tool);
@@ -159,7 +162,7 @@ export function OutdoorLayer() {
   return (
     <Group listening={tool === 'select' && !layer.locked}>
       {plotFirst(zones).map((z) => (
-        <ZoneShape key={z.id} zone={z} zoom={zoom} selected={zoneIds.has(z.id)} />
+        <ZoneShape key={z.id} zone={z} zoom={zoom} selected={zoneIds.has(z.id)} walls={walls} />
       ))}
       {[...strips].sort((a, b) => rank(a) - rank(b)).map((s) => (
         <StripShape key={s.id} strip={s} zoom={zoom} selected={stripIds.has(s.id)} />

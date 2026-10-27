@@ -69,11 +69,15 @@ export const WALL_TYPE_THICKNESS: Record<WallType, number> = { exterior: 0.3, in
 export const WALL_TYPE_HEIGHT: Record<WallType, number> = { exterior: 2.5, interior: 2.5, partition: 2.5, railing: 1.0 };
 
 /** What the surface of a wall is covered with. */
-export type WallFinish = 'paint' | 'plaster' | 'brick' | 'stone' | 'wood' | 'tiles' | 'concrete';
-export const WALL_FINISHES: WallFinish[] = ['paint', 'plaster', 'brick', 'stone', 'wood', 'tiles', 'concrete'];
+export type WallFinish = 'paint' | 'plaster' | 'brick' | 'stone' | 'wood' | 'tiles' | 'concrete' | 'wallpaper' | 'marble' | 'custom';
+export const WALL_FINISHES: WallFinish[] = ['paint', 'plaster', 'brick', 'stone', 'wood', 'tiles', 'concrete', 'wallpaper', 'marble', 'custom'];
 export interface WallSkin {
   finish: WallFinish;
   color: string;
+  /** Layout of tiles or pattern of wallpaper (see paintSpec.ts), the second color (grout, pattern color), and a picture you uploaded (finish 'custom'). */
+  pattern?: string;
+  grout?: string;
+  texture?: string;
 }
 
 /** A wall between two centerline points; straight, or an arc when `bulge` is set. */
@@ -127,10 +131,19 @@ export interface Opening {
   arch?: boolean;
   /** Color of the frame. */
   frame?: string;
+  /** Shutters on the swing side of a window, in this color. */
+  shutters?: string;
+  /** The handle of a door (absent = the kind's usual). */
+  handle?: HandleStyle;
+  /** Trim (architrave) round the opening, in this color. */
+  trim?: string;
 }
 
-export type FloorMaterial = 'plain' | 'wood' | 'parquet' | 'tile' | 'carpet' | 'stone' | 'concrete';
-export const FLOOR_MATERIALS: FloorMaterial[] = ['plain', 'wood', 'parquet', 'tile', 'carpet', 'stone', 'concrete'];
+export type HandleStyle = 'lever' | 'knob' | 'bar';
+export const HANDLE_STYLES: HandleStyle[] = ['lever', 'knob', 'bar'];
+
+export type FloorMaterial = 'plain' | 'wood' | 'parquet' | 'tile' | 'carpet' | 'stone' | 'concrete' | 'marble' | 'herringbone' | 'checker' | 'subway' | 'custom';
+export const FLOOR_MATERIALS: FloorMaterial[] = ['plain', 'wood', 'parquet', 'herringbone', 'tile', 'subway', 'checker', 'marble', 'carpet', 'stone', 'concrete', 'custom'];
 
 /** A named floor area. `points` is a closed polygon (implicitly closed). */
 export interface Room {
@@ -149,7 +162,16 @@ export interface Room {
   type?: RoomType;
   /** Height of the ceiling in meters (absent = the storey's usual). */
   ceiling?: number;
+  /** How the ceiling looks (absent = flat). */
+  ceilingStyle?: CeilingStyle;
+  /** The grout between tiles (or the second color of a checkerboard), and a picture you uploaded for a floor of material 'custom'. */
+  grout?: string;
+  texture?: string;
 }
+
+export type CeilingStyle = 'flat' | 'coffered' | 'beams';
+export const CEILING_STYLES: CeilingStyle[] = ['flat', 'coffered', 'beams'];
+export const CEILING_LABEL: Record<CeilingStyle, string> = { flat: 'Flat', coffered: 'Coffered (a grid of beams)', beams: 'Exposed timber beams' };
 
 export type RoomType = 'bedroom' | 'living' | 'kitchen' | 'dining' | 'bathroom' | 'toilet' | 'hall' | 'office' | 'storage' | 'garage' | 'other';
 export const ROOM_TYPES: RoomType[] = ['bedroom', 'living', 'kitchen', 'dining', 'bathroom', 'toilet', 'hall', 'office', 'storage', 'garage', 'other'];
@@ -173,6 +195,8 @@ export interface Furniture {
   height?: number;
   /** Lamps only: switched on (glows at night). Absent = on. */
   on?: boolean;
+  /** A second color for the frame of the piece (the wooden or metal parts: legs, bed frame, table frame) and the darker parts of its plan symbol. */
+  color2?: string;
 }
 
 /** A staircase. Position is its center; `d` runs along the walking direction. */
@@ -256,7 +280,21 @@ export interface Roof {
   chimney: boolean;
   /** Flat roofs: a low wall around the edge. */
   parapet: boolean;
+  /** What the chimney is made of and looks like (absent = brick). */
+  chimneyStyle?: ChimneyStyle;
+  /** A gutter along the eaves with downpipes at the corners. */
+  gutters?: boolean;
+  /** A fascia board along the eaves in this color. */
+  fascia?: string;
 }
+
+export type ChimneyStyle = 'brick' | 'stone' | 'render' | 'steel' | 'pots';
+export const CHIMNEY_STYLES: ChimneyStyle[] = ['brick', 'pots', 'stone', 'render', 'steel'];
+export const CHIMNEY_LABEL: Record<ChimneyStyle, string> = { brick: 'Brick', pots: 'Brick with chimney pots', stone: 'Stone', render: 'Rendered', steel: 'Steel flue' };
+
+/** What a roof window is: a skylight, a row of solar panels or a dormer (a little house on the roof with a window in its front). */
+export type SkylightKind = 'window' | 'solar' | 'dormer';
+export const SKYLIGHT_KINDS: SkylightKind[] = ['window', 'solar', 'dormer'];
 
 /**
  * A skylight / roof window. Its position is where it is on the plan; it lies in whichever roof is there (on that floor), turned to
@@ -269,6 +307,8 @@ export interface Skylight {
   y: number;
   w: number;
   d: number;
+  /** Absent = a roof window. For a dormer `d` is the height of its front wall, and its position is the middle of its front. */
+  kind?: SkylightKind;
 }
 
 /** A sticky note pinned on the plan. */
@@ -337,8 +377,8 @@ export interface Dimension {
 }
 
 /** A ground-surface area outside (or around) the house: lawn, terrace, driveway... drawn as a polygon. */
-export type ZoneKind = 'lawn' | 'terrace' | 'driveway' | 'flowerbed' | 'water' | 'plot';
-export const ZONE_KINDS: ZoneKind[] = ['lawn', 'terrace', 'driveway', 'flowerbed', 'water', 'plot'];
+export type ZoneKind = 'lawn' | 'terrace' | 'balcony' | 'porch' | 'driveway' | 'flowerbed' | 'water' | 'plot';
+export const ZONE_KINDS: ZoneKind[] = ['lawn', 'terrace', 'balcony', 'porch', 'driveway', 'flowerbed', 'water', 'plot'];
 
 export interface Zone {
   id: string;
@@ -347,6 +387,10 @@ export interface Zone {
   name: string;
   color: string;
   points: Point[];
+  /** A railing round the edges that are not against a wall (terraces and balconies). A balcony lies at the level of the floor it is on. */
+  railing?: RailStyle;
+  /** A porch: how far it is raised above the ground, in meters. */
+  raise?: number;
 }
 
 /** A line feature with a width: street, footpath, fence or hedge. */
@@ -540,7 +584,16 @@ function list<T>(v: unknown, map: (o: Json) => T | null): T[] {
 }
 
 function skin(v: unknown): WallSkin | undefined {
-  return isObj(v) && WALL_FINISHES.includes(v.finish as WallFinish) ? { finish: v.finish as WallFinish, color: color(v.color, '#f5f0e6') } : undefined;
+  if (!isObj(v) || !WALL_FINISHES.includes(v.finish as WallFinish)) return undefined;
+  const hex = (x: unknown) => (typeof x === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(x) ? x : undefined);
+  const word = (x: unknown) => (typeof x === 'string' && /^[a-z0-9-]{1,24}$/.test(x) ? x : undefined);
+  return {
+    finish: v.finish as WallFinish,
+    color: color(v.color, '#f5f0e6'),
+    ...(word(v.pattern) ? { pattern: word(v.pattern) } : {}),
+    ...(hex(v.grout) ? { grout: hex(v.grout) } : {}),
+    ...(word(v.texture) ? { texture: word(v.texture) } : {}),
+  };
 }
 
 function skins(v: unknown): Wall['paint'] | undefined {
@@ -621,6 +674,9 @@ export function parseDesign(input: unknown): Design {
             ...(typeof o.head === 'number' ? { head: num(o.head, 2.1, 0.3, 6) } : {}),
             ...(o.arch === true ? { arch: true } : {}),
             ...(typeof o.frame === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(o.frame) ? { frame: o.frame } : {}),
+            ...(typeof o.shutters === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(o.shutters) ? { shutters: o.shutters } : {}),
+            ...(typeof o.trim === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(o.trim) ? { trim: o.trim } : {}),
+            ...(HANDLE_STYLES.includes(o.handle as HandleStyle) ? { handle: o.handle as HandleStyle } : {}),
           }
         : null,
     ),
@@ -638,6 +694,9 @@ export function parseDesign(input: unknown): Design {
         seed: isObj(o.seed) ? point(o.seed) : undefined,
         ...(ROOM_TYPES.includes(o.type as RoomType) ? { type: o.type as RoomType } : {}),
         ...(typeof o.ceiling === 'number' ? { ceiling: num(o.ceiling, 2.5, 1.5, 12) } : {}),
+        ...(CEILING_STYLES.includes(o.ceilingStyle as CeilingStyle) && o.ceilingStyle !== 'flat' ? { ceilingStyle: o.ceilingStyle as CeilingStyle } : {}),
+        ...(typeof o.grout === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(o.grout) ? { grout: o.grout } : {}),
+        ...(typeof o.texture === 'string' && /^[a-z0-9-]{1,24}$/.test(o.texture) ? { texture: o.texture } : {}),
       };
     }),
     furniture: list<Furniture>(input.furniture, (o) => ({
@@ -653,6 +712,7 @@ export function parseDesign(input: unknown): Design {
       label: str(o.label, '', 60),
       ...(typeof o.height === 'number' ? { height: num(o.height, 0.5, 0.01, 30) } : {}),
       ...(o.on === false ? { on: false } : {}),
+      ...(typeof o.color2 === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(o.color2) ? { color2: o.color2 } : {}),
     })),
     labels: list<TextLabel>(input.labels, (o) => ({
       id: str(o.id, newId(), 20),
@@ -680,6 +740,8 @@ export function parseDesign(input: unknown): Design {
         name: str(o.name, '', 80),
         color: color(o.color, '#cfe8c4'),
         points: pts,
+        ...(RAIL_STYLES.includes(o.railing as RailStyle) && o.railing !== 'none' ? { railing: o.railing as RailStyle } : {}),
+        ...(typeof o.raise === 'number' ? { raise: num(o.raise, 0.3, 0, 1.5) } : {}),
       };
     }),
     strips: list<Strip>(input.strips, (o) => {
@@ -753,6 +815,9 @@ export function parseDesign(input: unknown): Design {
       color: color(o.color, '#b5523b'),
       chimney: o.chimney === true,
       parapet: o.parapet === true,
+      ...(CHIMNEY_STYLES.includes(o.chimneyStyle as ChimneyStyle) && o.chimneyStyle !== 'brick' ? { chimneyStyle: o.chimneyStyle as ChimneyStyle } : {}),
+      ...(o.gutters === true ? { gutters: true } : {}),
+      ...(typeof o.fascia === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(o.fascia) ? { fascia: o.fascia } : {}),
     })),
     skylights: list<Skylight>(input.skylights, (o) => ({
       id: str(o.id, newId(), 20),
@@ -761,6 +826,7 @@ export function parseDesign(input: unknown): Design {
       y: num(o.y, 0),
       w: num(o.w, 0.78, 0.2, 5),
       d: num(o.d, 1.18, 0.2, 5),
+      ...(o.kind === 'solar' || o.kind === 'dormer' ? { kind: o.kind as SkylightKind } : {}),
     })),
     notes: list<Note>(input.notes, (o) => ({
       id: str(o.id, newId(), 20),

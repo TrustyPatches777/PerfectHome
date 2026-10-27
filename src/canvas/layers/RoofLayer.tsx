@@ -62,9 +62,27 @@ function SkylightShape({ sky, roofs, selected }: { sky: Skylight; roofs: Roof[];
         pressItem(e.evt, { kind: 'skylight', id: sky.id }, 'move');
       }}
     >
-      <Rect x={-sky.w / 2} y={-length / 2} width={sky.w} height={length} fill="rgba(147,197,253,0.6)" stroke={stroke} strokeWidth={selected ? 2.5 : 1.5} strokeScaleEnabled={false} dash={spot ? undefined : [4, 3]} />
-      <Line points={[-sky.w / 2, -length / 2, sky.w / 2, length / 2]} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
-      <Line points={[sky.w / 2, -length / 2, -sky.w / 2, length / 2]} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+      {sky.kind === 'dormer' ? (
+        <>
+          {/* the little house: its front towards the eaves (down in the symbol), a ridge up the middle */}
+          <Rect x={-sky.w / 2} y={0} width={sky.w} height={length} fill="rgba(226,232,240,0.9)" stroke={stroke} strokeWidth={selected ? 2.5 : 1.5} strokeScaleEnabled={false} dash={spot ? undefined : [4, 3]} />
+          <Line points={[0, 0, 0, length]} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+          <Line points={[-sky.w / 2, 0, sky.w / 2, 0]} stroke={stroke} strokeWidth={3} strokeScaleEnabled={false} listening={false} />
+        </>
+      ) : sky.kind === 'solar' ? (
+        <>
+          <Rect x={-sky.w / 2} y={-length / 2} width={sky.w} height={length} fill="rgba(30,58,138,0.75)" stroke={stroke} strokeWidth={selected ? 2.5 : 1.5} strokeScaleEnabled={false} dash={spot ? undefined : [4, 3]} />
+          {Array.from({ length: Math.max(0, Math.round(sky.w / 0.5) - 1) }, (_, i) => (
+            <Line key={i} points={[-sky.w / 2 + ((i + 1) * sky.w) / Math.round(sky.w / 0.5), -length / 2, -sky.w / 2 + ((i + 1) * sky.w) / Math.round(sky.w / 0.5), length / 2]} stroke="rgba(203,213,225,0.8)" strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+          ))}
+        </>
+      ) : (
+        <>
+          <Rect x={-sky.w / 2} y={-length / 2} width={sky.w} height={length} fill="rgba(147,197,253,0.6)" stroke={stroke} strokeWidth={selected ? 2.5 : 1.5} strokeScaleEnabled={false} dash={spot ? undefined : [4, 3]} />
+          <Line points={[-sky.w / 2, -length / 2, sky.w / 2, length / 2]} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+          <Line points={[sky.w / 2, -length / 2, -sky.w / 2, length / 2]} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+        </>
+      )}
     </Group>
   );
 }

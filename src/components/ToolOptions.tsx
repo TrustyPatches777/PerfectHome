@@ -7,7 +7,10 @@ import { STAIR_KINDS, ROOF_KINDS, type RoofKind } from '../model';
 import { ROOF_STYLES } from '../roofs';
 import { WALL_FINISHES, type WallFinish } from '../model';
 import { FINISH_STYLES, PAINT_COLORS } from '../walls';
-import { SKYLIGHT_SIZES, addRoofFromWalls } from '../roofActions';
+import { SIZES_OF, addRoofFromWalls, addRoofWings } from '../roofActions';
+import { SKYLIGHT_KINDS } from '../model';
+
+const SKYLIGHT_KIND_LABEL = { window: 'Skylight', solar: 'Solar panels', dormer: 'Dormer' } as const;
 import { PATH_SURFACES, STRIP_STYLES, ZONE_STYLES } from '../outdoor';
 import { GATE_KINDS, PATH_SURFACE_KINDS, type PathSurface } from '../model';
 
@@ -42,9 +45,11 @@ export function ToolOptions() {
   const wallMode = useUi((s) => s.wallMode);
   const wallRoom = useUi((s) => s.wallRoom);
   const stairKind = useUi((s) => s.stairKind);
+  const stairEntrance = useUi((s) => s.stairEntrance);
   const roofKind = useUi((s) => s.roofKind);
   const paintFinish = useUi((s) => s.paintFinish);
   const skylightSize = useUi((s) => s.skylightSize);
+  const skylightKind = useUi((s) => s.skylightKind);
   const paintColor = useUi((s) => s.paintColor);
   const zoneKind = useUi((s) => s.zoneKind);
   const zoneShape = useUi((s) => s.zoneShape);
@@ -153,21 +158,33 @@ export function ToolOptions() {
     body = (
       <div className="segmented" role="group" aria-label="Stair type">
         {STAIR_KINDS.map((k) => (
-          <button key={k} className={stairKind === k ? 'active' : ''} onClick={() => useUi.getState().setStairKind(k)} data-testid={`stair-kind-${k}`}>
+          <button key={k} className={!stairEntrance && stairKind === k ? 'active' : ''} onClick={() => { useUi.getState().setStairEntrance(false); useUi.getState().setStairKind(k); }} data-testid={`stair-kind-${k}`}>
             {STAIR_SHORT[k]}
           </button>
         ))}
+        <button className={stairEntrance ? 'active' : ''} onClick={() => useUi.getState().setStairEntrance(true)} title="Three steps up to a door: they do not go up to the next floor" data-testid="stair-kind-entrance">
+          Entrance steps
+        </button>
       </div>
     );
   } else if (tool === 'skylight') {
     body = (
-      <div className="segmented" role="group" aria-label="Skylight size">
-        {SKYLIGHT_SIZES.map((s, i) => (
-          <button key={s.label} className={skylightSize === i ? 'active' : ''} onClick={() => useUi.getState().setSkylightSize(i)} title={`${Math.round(s.w * 100)} × ${Math.round(s.d * 100)} cm`} data-testid={`skylight-size-${i}`}>
-            {s.label}
-          </button>
-        ))}
-      </div>
+      <>
+        <div className="segmented" role="group" aria-label="What to put on the roof">
+          {SKYLIGHT_KINDS.map((k) => (
+            <button key={k} className={skylightKind === k ? 'active' : ''} onClick={() => useUi.getState().setSkylightKind(k)} data-testid={`skylight-kind-${k}`}>
+              {SKYLIGHT_KIND_LABEL[k]}
+            </button>
+          ))}
+        </div>
+        <div className="segmented" role="group" aria-label="Size">
+          {SIZES_OF[skylightKind].map((s, i) => (
+            <button key={s.label} className={skylightSize === i ? 'active' : ''} onClick={() => useUi.getState().setSkylightSize(i)} title={`${Math.round(s.w * 100)} × ${Math.round(s.d * 100)} cm`} data-testid={`skylight-size-${i}`}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </>
     );
   } else if (tool === 'paint') {
     body = (
@@ -201,6 +218,9 @@ export function ToolOptions() {
         </select>
         <button onClick={() => addRoofFromWalls(roofKind)} title="A roof that covers the walls of this floor" data-testid="roof-fit-walls">
           Fit to walls
+        </button>
+        <button onClick={() => addRoofWings(roofKind)} title="One roof for each wing of an L, T or U shaped house, meeting in valleys" data-testid="roof-wings">
+          Roof each wing
         </button>
       </>
     );

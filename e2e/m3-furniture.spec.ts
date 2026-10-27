@@ -73,7 +73,7 @@ test('properties: label, size, rotation and color', async ({ page }) => {
   await page.getByTestId('furn-d').press('Enter');
   await page.getByTestId('furn-rotation').fill('30');
   await page.getByTestId('furn-rotation').press('Enter');
-  await page.getByRole('button', { name: 'Color #9ca3af' }).click();
+  await page.getByTestId('properties').getByRole('button', { name: 'Color #9ca3af' }).first().click(); // the first color field; the frame color has the same swatches
   const f = (await design(page)).furniture[0];
   expect(f).toMatchObject({ label: 'Paul desk', w: 1.5, d: 0.8, rotation: 30, color: '#9ca3af' });
   await page.getByRole('button', { name: 'Reset size' }).click();
