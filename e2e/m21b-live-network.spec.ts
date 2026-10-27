@@ -18,6 +18,8 @@ test('two separate browsers edit the same design over a real peer-to-peer connec
   await page.getByTestId('live').click();
   await page.getByTestId('live-start').click();
   const url = await page.getByTestId('live-url').inputValue();
+  // while nobody has come yet the dialog says whether this browser can reach the services that introduce people to each other
+  await expect(page.getByTestId('live-network')).toContainText(/Connection services reachable: [1-9]/, { timeout: 20_000 });
   await page.getByTestId('live-dialog').getByRole('button', { name: 'Done' }).click();
 
   // a different browser profile: nothing in common with the first

@@ -264,5 +264,8 @@ export function restoreLiveHash() {
   if (active) history.replaceState(null, '', `${location.pathname}${location.search}#live=${active.id}`);
 }
 
+/** Can this browser reach the services that introduce it to the other person? Null outside a session. */
+export const liveNetwork = () => active?.transport.status() ?? null;
+
 /** Test/debug access. */
 export const liveDoc = () => active?.doc ?? null;

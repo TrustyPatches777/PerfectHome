@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { copyShareLink } from '../session';
 import { readableOn } from '../identity';
-import { leaveLive, liveUrl, startLive } from '../live/live';
+import { leaveLive, liveNetwork, liveUrl, startLive } from '../live/live';
 import { useLive } from '../store/live';
 import { useUi } from '../store/ui';
 
@@ -14,6 +14,11 @@ export function LiveDialog() {
   const ref = useRef<HTMLTextAreaElement>(null);
   const close = () => useUi.getState().setDialog(null);
   const url = live.id ? liveUrl(live.id) : '';
+  const [net, setNet] = useState(liveNetwork);
+  useEffect(() => {
+    const t = setInterval(() => setNet(liveNetwork()), 2000);
+    return () => clearInterval(t);
+  }, []);
 
   const start = async () => {
     setBusy(true);
@@ -65,6 +70,13 @@ export function LiveDialog() {
                 </span>
               ))}
             </div>
+            {net && live.peers.length === 0 && net.direct && (
+              <p className={net.open ? 'muted' : 'notice'} data-testid="live-network">
+                {net.open
+                  ? `Connection services reachable: ${net.open} of ${net.total}. If the other person has opened this exact link and still does not show up after a minute, one of your networks probably blocks direct connections (some mobile hotspots, work or school networks, VPNs): try another network, or turn the VPN off.`
+                  : 'This browser cannot reach any of the services that introduce you to the other person (a firewall, VPN or ad blocker may be in the way). Until it can, you will not find each other; you can still work on this design alone.'}
+              </p>
+            )}
             <p className="muted">Send this link:</p>
             <textarea ref={ref} className="link-box" readOnly value={url} rows={3} aria-label="Live session link" data-testid="live-url" onFocus={(e) => e.currentTarget.select()} />
             {copied && <p className="ok">✓ Link copied to the clipboard.</p>}

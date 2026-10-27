@@ -8,8 +8,8 @@
  */
 import * as Y from 'yjs';
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate, removeAwarenessStates } from 'y-protocols/awareness';
-import { joinRoom as joinNostr } from '@trystero-p2p/nostr';
-import { joinRoom as joinTorrent } from '@trystero-p2p/torrent';
+import { getRelaySockets as nostrSockets, joinRoom as joinNostr } from '@trystero-p2p/nostr';
+import { getRelaySockets as torrentSockets, joinRoom as joinTorrent } from '@trystero-p2p/torrent';
 
 const APP_ID = 'perfect-home-live-1';
 const STATE_VECTOR = 0; // "this is what I have: send me the rest"
@@ -42,6 +42,8 @@ function toBytes(data: unknown): Uint8Array | null {
 
 export interface Transport {
   destroy: () => void;
+  /** How many of the public connection services (the places that introduce two browsers to each other) this browser can reach right now. */
+  status: () => { open: number; total: number; direct: boolean };
 }
 
 /** A way to reach other people: send to everybody, or to one who just spoke to us. */
@@ -131,6 +133,23 @@ export function connect(doc: Y.Doc, awareness: Awareness, room: string, password
   const again = setInterval(() => send(myAwareness()), 15_000);
 
   return {
+    status: () => {
+      let open = 0;
+      let total = 0;
+      if (!networkOff()) {
+        for (const sockets of [torrentSockets, nostrSockets]) {
+          try {
+            for (const s of Object.values(sockets() as Record<string, { readyState?: number }>)) {
+              total++;
+              if (s?.readyState === 1) open++;
+            }
+          } catch {
+            /* the services report nothing: counted as none */
+          }
+        }
+      }
+      return { open, total, direct: !networkOff() };
+    },
     destroy: () => {
       clearInterval(again);
       doc.off('update', onUpdate);
