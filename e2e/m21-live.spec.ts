@@ -164,3 +164,19 @@ test('a reload rejoins the session with the saved copy', async ({ page, context 
   await expect.poll(async () => (await design(page)).furniture[0]?.x).toBe(2);
   void context;
 });
+
+test('the Live dialog has relay settings that are checked and kept in this browser', async ({ page }) => {
+  await fresh(page);
+  await page.getByTestId('live').click();
+  await page.getByTestId('relay-box').locator('summary').click();
+  await page.getByTestId('relay-save').click();
+  await expect(page.getByTestId('relay-state')).toContainText('Fill in the address');
+  await page.getByTestId('relay-urls').fill('turns:relay.example.com:443?transport=tcp');
+  await page.getByTestId('relay-user').fill('me');
+  await page.getByTestId('relay-pass').fill('secret');
+  await page.getByTestId('relay-save').click();
+  await expect(page.getByTestId('relay-state')).toContainText('Saved');
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem('perfect-home:turn')!))).toMatchObject({ urls: ['turns:relay.example.com:443?transport=tcp'], username: 'me' });
+  await page.getByTestId('relay-forget').click();
+  expect(await page.evaluate(() => localStorage.getItem('perfect-home:turn'))).toBeNull();
+});

@@ -7,6 +7,7 @@
  * One message format on every channel: first byte = kind, rest = payload.
  */
 import * as Y from 'yjs';
+import { readTurn } from './relay';
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate, removeAwarenessStates } from 'y-protocols/awareness';
 import { getRelaySockets as nostrSockets, joinRoom as joinNostr } from '@trystero-p2p/nostr';
 import { getRelaySockets as torrentSockets, joinRoom as joinTorrent } from '@trystero-p2p/torrent';
@@ -43,7 +44,7 @@ function toBytes(data: unknown): Uint8Array | null {
 export interface Transport {
   destroy: () => void;
   /** How many of the public connection services (the places that introduce two browsers to each other) this browser can reach right now. */
-  status: () => { open: number; total: number; direct: boolean; updatesIn: number; updatesOut: number; lastIn: number | null };
+  status: () => { open: number; total: number; direct: boolean; relay: boolean; updatesIn: number; updatesOut: number; lastIn: number | null };
 }
 
 /** A way to reach other people: send to everybody, or to one who just spoke to us. */
@@ -100,10 +101,11 @@ export function connect(doc: Y.Doc, awareness: Awareness, room: string, password
 
   // ---- other computers
   const leaves: (() => void | Promise<void>)[] = [];
+  const turn = readTurn(); // a relay server for networks that block direct connections (optional)
   if (!networkOff()) {
     for (const join of [joinTorrent, joinNostr]) {
       try {
-        const r = join({ appId: APP_ID, password }, room);
+        const r = join({ appId: APP_ID, password, ...(turn ? { turnConfig: [{ urls: turn.urls, username: turn.username, credential: turn.credential }] } : {}) }, room);
         const action = r.makeAction<Uint8Array>('ph');
         action.onMessage = (data, { peerId }) => {
           const msg = toBytes(data);
@@ -165,7 +167,7 @@ export function connect(doc: Y.Doc, awareness: Awareness, room: string, password
           }
         }
       }
-      return { open, total, direct: !networkOff(), updatesIn, updatesOut, lastIn };
+      return { open, total, direct: !networkOff(), relay: !!turn, updatesIn, updatesOut, lastIn };
     },
     destroy: () => {
       clearInterval(again);

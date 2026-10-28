@@ -1340,3 +1340,18 @@ body.resizing canvas {
   border-radius: 6px;
   padding: 6px 8px;
 }
+
+.relay-box {
+  margin: 10px 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 6px;
+}
+.relay-box summary {
+  cursor: pointer;
+}
+.relay-box textarea,
+.relay-box input {
+  width: 100%;
+  box-sizing: border-box;
+}

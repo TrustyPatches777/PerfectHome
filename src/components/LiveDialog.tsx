@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { copyShareLink } from '../session';
 import { readableOn } from '../identity';
 import { leaveLive, liveNetwork, liveUrl, startLive } from '../live/live';
+import { parseTurn, readTurn, saveTurn, testTurn, turnSource } from '../live/relay';
 import { useLive } from '../store/live';
 import { useUi } from '../store/ui';
 
@@ -45,6 +46,7 @@ export function LiveDialog() {
               at the same time to see changes; anything done while the other is away is merged in when you meet again. Anybody who has the link can join and edit, so only send it to people you trust.
             </p>
             {!me && <p className="notice">Tip: set your name and color first (top right, “Who are you?”), so the other person sees who is who.</p>}
+            <RelaySettings />
             <div className="row end">
               <button onClick={close}>Cancel</button>
               <button className="primary" onClick={() => void start()} disabled={busy} data-testid="live-start">
@@ -88,6 +90,7 @@ export function LiveDialog() {
             <textarea ref={ref} className="link-box" readOnly value={url} rows={3} aria-label="Live session link" data-testid="live-url" onFocus={(e) => e.currentTarget.select()} />
             {copied && <p className="ok">✓ Link copied to the clipboard.</p>}
             {!live.synced && live.peers.length === 0 && <p className="muted">If you joined through a link and the plan is empty, the person who started the session has to be online.</p>}
+            <RelaySettings />
             <div className="row end">
               <button className="danger" style={{ marginRight: 'auto' }} onClick={() => (leaveLive(), close())} data-testid="live-leave">
                 Leave the session
@@ -108,5 +111,76 @@ export function LiveDialog() {
         )}
       </div>
     </div>
+  );
+}
+
+/** A relay (TURN) server for networks that block direct connections: typed in here, kept in this browser, used the next time a session opens. */
+function RelaySettings() {
+  const have = readTurn();
+  const [urls, setUrls] = useState((have?.urls ?? []).join('\n'));
+  const [user, setUser] = useState(have?.username ?? '');
+  const [pass, setPass] = useState(have?.credential ?? '');
+  const [state, setState] = useState<{ kind: 'ok' | 'bad' | 'busy'; text: string } | null>(null);
+  const source = turnSource();
+  const typed = () => parseTurn(urls, user, pass);
+
+  const test = async () => {
+    const cfg = typed();
+    if (!cfg) return setState({ kind: 'bad', text: 'Fill in the address (starting with turn: or turns:), the user name and the password.' });
+    setState({ kind: 'busy', text: 'Trying the relay…' });
+    const r = await testTurn(cfg);
+    setState(r.ok ? { kind: 'ok', text: '✓ The relay works.' } : { kind: 'bad', text: r.reason ?? 'The relay did not answer.' });
+  };
+  const save = () => {
+    const cfg = typed();
+    if (!cfg) return setState({ kind: 'bad', text: 'Fill in the address (starting with turn: or turns:), the user name and the password.' });
+    setState(saveTurn(cfg) ? { kind: 'ok', text: 'Saved. It is used when a session opens: reload this page (the link stays the same) to use it now. The other person needs the same relay.' } : { kind: 'bad', text: 'This browser would not keep it.' });
+  };
+  const forget = () => {
+    saveTurn(null);
+    setUrls('');
+    setUser('');
+    setPass('');
+    setState({ kind: 'ok', text: 'Removed.' });
+  };
+
+  return (
+    <details className="relay-box" data-testid="relay-box">
+      <summary>Relay server{source ? (source === 'typed' ? ' (set)' : ' (built into this site)') : ''}</summary>
+      <p className="muted">
+        For networks that block direct connections (schools, companies, some mobile hotspots). Get the details from a TURN service and paste them here; the traffic then goes through that
+        server, still encrypted. It is kept in this browser only and is never part of a link. Both of you need it.
+      </p>
+      <label className="field">
+        <span>Address (one per line, e.g. turns:… :443?transport=tcp)</span>
+        <textarea rows={3} value={urls} onChange={(e) => setUrls(e.target.value)} data-testid="relay-urls" spellCheck={false} />
+      </label>
+      <label className="field">
+        <span>User name</span>
+        <input value={user} onChange={(e) => setUser(e.target.value)} data-testid="relay-user" spellCheck={false} autoComplete="off" />
+      </label>
+      <label className="field">
+        <span>Password</span>
+        <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} data-testid="relay-pass" autoComplete="off" />
+      </label>
+      {state && (
+        <p className={state.kind === 'ok' ? 'ok' : state.kind === 'bad' ? 'notice' : 'muted'} data-testid="relay-state">
+          {state.text}
+        </p>
+      )}
+      <div className="row end">
+        {source === 'typed' && (
+          <button style={{ marginRight: 'auto' }} onClick={forget} data-testid="relay-forget">
+            Remove
+          </button>
+        )}
+        <button onClick={() => void test()} data-testid="relay-test">
+          Test
+        </button>
+        <button onClick={save} data-testid="relay-save">
+          Save
+        </button>
+      </div>
+    </details>
   );
 }

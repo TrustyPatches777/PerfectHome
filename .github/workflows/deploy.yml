@@ -29,6 +29,13 @@ jobs:
       - run: npm test
       # tsc --noEmit, then vite build into dist/ (relative base, so any repo name works)
       - run: npm run build
+        # Optional relay (TURN) for live sessions on networks that block direct connections: repository secrets TURN_URLS (addresses separated by
+        # spaces), TURN_USERNAME, TURN_CREDENTIAL. Left empty = no relay built in (people can still type one into the Live dialog). Note that anything
+        # built into the site is readable by anyone who opens it, so use a free, low-limit account.
+        env:
+          VITE_TURN_URLS: ${{ secrets.TURN_URLS }}
+          VITE_TURN_USERNAME: ${{ secrets.TURN_USERNAME }}
+          VITE_TURN_CREDENTIAL: ${{ secrets.TURN_CREDENTIAL }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

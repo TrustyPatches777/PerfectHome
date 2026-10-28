@@ -81,6 +81,8 @@ src/view3d/             the house in 3D (three.js, loaded only when the 3D view 
 src/live/              working together live (see the "Live sessions" rule below)
   crdt.ts               PURE: design <-> Yjs document (writeChange / readDesign / reuse), field-level merge, list order keys
   transport.ts          Yjs updates + presence over BroadcastChannel (same browser) and Trystero/WebRTC (other computers)
+  relay.ts              optional TURN relay for networks that block direct connections: typed in the Live dialog (localStorage, never in a link)
+                        or built in via VITE_TURN_URLS/USERNAME/CREDENTIAL (repo secrets TURN_*); `testTurn` checks it gets a relay candidate
   live.ts               start/join/leave a session, undo manager, presence, bridge into store/design.ts
 src/store/live.ts     Zustand: is a session active, are we synced, who else is here
 src/canvas/           react-konva scene
