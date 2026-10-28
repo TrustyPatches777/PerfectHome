@@ -349,6 +349,18 @@ export interface CustomItem {
 }
 
 /** Where the building stands: used for the sun. */
+/** The weather over the site in the 3D view: the sky, the light and what falls from it. */
+export type Weather = 'clear' | 'cloudy' | 'rain' | 'snow' | 'fog';
+export const WEATHERS: Weather[] = ['clear', 'cloudy', 'rain', 'snow', 'fog'];
+
+/** The season (trees in leaf or bare, the color of the ground); 'auto' follows the date and the latitude. */
+export type Season = 'auto' | 'spring' | 'summer' | 'autumn' | 'winter';
+export const SEASONS: Season[] = ['auto', 'spring', 'summer', 'autumn', 'winter'];
+
+/** What lies on the horizon beyond the plot. */
+export type Horizon = 'none' | 'hills' | 'mountains' | 'city' | 'forest' | 'sea';
+export const HORIZONS: Horizon[] = ['none', 'hills', 'mountains', 'city', 'forest', 'sea'];
+
 export interface Site {
   /** Direction of true north on the plan, in degrees clockwise from "up" on screen. */
   north: number;
@@ -356,6 +368,12 @@ export interface Site {
   lat: number;
   month: number;
   day: number;
+  /** Weather in the 3D view (absent = clear). */
+  weather?: Weather;
+  /** Season (absent = follows the date). */
+  season?: Season;
+  /** The horizon (absent = none: the ground fades into the sky). */
+  horizon?: Horizon;
 }
 
 export interface TextLabel {
@@ -892,6 +910,9 @@ export function parseDesign(input: unknown): Design {
         lat: num(s.lat, DEFAULT_SITE.lat, -66, 66),
         month: Math.round(num(s.month, DEFAULT_SITE.month, 1, 12)),
         day: Math.round(num(s.day, DEFAULT_SITE.day, 1, 31)),
+        ...(WEATHERS.includes(s.weather as Weather) && s.weather !== 'clear' ? { weather: s.weather as Weather } : {}),
+        ...(SEASONS.includes(s.season as Season) && s.season !== 'auto' ? { season: s.season as Season } : {}),
+        ...(HORIZONS.includes(s.horizon as Horizon) && s.horizon !== 'none' ? { horizon: s.horizon as Horizon } : {}),
       };
     })(),
   };

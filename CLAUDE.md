@@ -31,6 +31,7 @@ src/distance.ts       closest points/distances between segments and polygon outl
 src/selection.ts      pure group operations: item bounds, move/rotate/align/distribute, copy/paste clipboard, remove, layer of an item
 src/catalog.ts        furniture catalog (~200 items incl. cars, garden, lamps, electrical, plumbing) + custom items registry,
                       heights for shadows, which layer an item lives on, wall-mounted and lamp flags
+src/sky.ts            weather moods (sun/hemi strength, shadows, clouds, fog, rain/snow), `seasonOf`, tree colors per season (`leafColor`, `isFoliage`, `DECIDUOUS`), snow colors
 src/terrain.ts        the lie of the land (pure): zone planes (height + slope), `groundAt`, `retainingWalls`, `pitsIn`, `stairBase`, `furnitureBase`
 src/entrance.ts       entrance steps: `entranceSteps` (as many steps as the height needs) and `snapEntrance` (centered on a door, top against the wall)
 src/storey.ts         the storey height and what follows from it: slabFor, fullWallHeight, usualCeiling, wallHeightFor, applyStoreyHeight (one command moves
@@ -39,6 +40,7 @@ src/doorways.ts       patches of floor under door openings (the floor of the roo
                       middle of the wall); used by the plan, the SVG and 3D
 src/winterGarden.ts   one-click winter garden: glass walls + tiled room + French door + glass roof (the Winter garden mode of the Wall tool)
 src/catalogKorean.ts  Korean furniture/household items and winter garden furniture (recipes in view3d/furniture3d3.ts)
+src/catalogSurroundings.ts  neighbouring buildings and boundaries (houses, terrace, blocks, tower, garage, wall, fence); recipes in view3d/furniture3d4.ts
 src/catalogMore.ts    the second half of the catalog: kitchen runs/appliances, bedroom, living, bathroom, built-ins, garden, heating & cooling,
                       people & pets, window dressing (same format; `wallMounted` = snaps to a wall and may stand in its line)
 src/walk.ts            walking in 3D: what blocks you (walls, shut doors, windows, furniture, rails, fences), the height of the ground under your feet
@@ -88,6 +90,7 @@ src/view3d/             the house in 3D (three.js, loaded only when the 3D view 
   furniture3d2.ts       the recipes of catalogMore.ts; COUNTERTOP lists the appliances that stand on whatever worktop is under them
   furniture3d.ts        a recipe per catalog type (item-local coords, back at -z); no recipe = plain block. A unit test keeps every
                         model inside its footprint, so a new recipe cannot wander off
+  skyline.ts            the horizon (hills, mountains, city, forest, sea) as parts marked `sky` (unlit, out of the fog, no shadows)
   roofTex.ts            canvas textures for roof coverings (tiles, slate, metal ribs, thatch...)
   build.ts              design -> chunks (one per wall/room/item) with `deps`; walls get cut for doors/windows, floors stack by storey
   stairs3d.ts           steps (closed / open / floating, materials) and railings of staircases; build.ts re-exports stairParts/railParts
@@ -235,6 +238,11 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
 - **Storey height**: `settings.storeyHeight` fixes where every floor lies; a full-height wall is `fullWallHeight` (storey minus the slab, 2.5 m at 2.8 m), new walls
   of the usual types get it (`wallHeightFor`), and `setStoreyHeight` (Floors panel, one undo step) brings along walls that were full height (or 2.5) and stairs
   whose rise was one storey. Entrance steps, low walls and railings keep their height.
+- **Sky and surroundings** (`design.site.weather/season/horizon`, all optional, in the link): `scene.ts setSun` takes the weather's `Mood` (sun and sky strength, no shadows when
+  overcast, sky color, fog), keeps a ring of cloud clusters (more show in bad weather) and a rain/snow particle box that follows the camera (it redraws every frame
+  only while it falls). The season (`seasonOf`: chosen, or from the date, flipped in the south) recolors the leaves of `DECIDUOUS` catalog trees in `furnitureChunk`
+  (`seasonalTree`: spring light, autumn warm, winter bare branches and no fruit); snow whitens the ground, the plot's areas and adds a white layer on roof slopes.
+  Season/snow are in chunk `deps`, so only the trees/zones/roofs rebuild. Neighbouring buildings are ordinary catalog items (they cast plan shadows and block walking).
 - **Terrain**: level 0 is the ground of the plot; `settings.groundLevel` is how far the ground floor lies above it (a raised floor over a semi-basement; `floorElevations`
   adds it to every floor). Ground areas (everything but `plot`/`balcony`) drawn on the ground floor or a basement are *terrain zones* (`isTerrainZone`; areas on upper
   floors are roof terraces at their floor's level). A zone has `height`/`slope` of its own, or takes the plane of the `terrain` area under its middle (`zonePlane`), so

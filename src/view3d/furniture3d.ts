@@ -8,6 +8,7 @@ import { shade } from '../catalog';
 import { ball, box, cyl, light, ring, rod, type Look, type Part } from './parts';
 import { COUNTERTOP, MORE_RECIPES } from './furniture3d2';
 import { COUNTERTOP_EXTRA, EXTRA_RECIPES } from './furniture3d3';
+import { SURROUNDINGS_RECIPES } from './furniture3d4';
 
 export interface Ctx {
   w: number;
@@ -811,6 +812,7 @@ export const RECIPES: Record<string, Recipe> = {
   stairs: stairsItem,
   ...MORE_RECIPES,
   ...EXTRA_RECIPES,
+  ...SURROUNDINGS_RECIPES,
 };
 
 /** Catalog items whose model sits on top of whatever furniture stands under them (lamps and plants on tables). */

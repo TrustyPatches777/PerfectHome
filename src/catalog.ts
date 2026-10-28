@@ -12,11 +12,12 @@ export type Prim =
   /** Open polyline. */
   | { t: 'line'; pts: number[] };
 
-export type Category = 'My items' | 'Lighting' | 'Electrical' | 'Plumbing' | 'Bedroom' | 'Living' | 'Kitchen & dining' | 'Office' | 'Bathroom' | 'Utility' | 'Garage & cars' | 'Outdoor' | 'Built-in' | 'Heating & cooling' | 'People & pets' | 'Window dressing' | 'Korean' | 'Winter garden' | 'Other';
+export type Category = 'My items' | 'Lighting' | 'Electrical' | 'Plumbing' | 'Bedroom' | 'Living' | 'Kitchen & dining' | 'Office' | 'Bathroom' | 'Utility' | 'Garage & cars' | 'Outdoor' | 'Built-in' | 'Heating & cooling' | 'People & pets' | 'Window dressing' | 'Korean' | 'Winter garden' | 'Surroundings' | 'Other';
 
 import type { CustomItem, LayerId } from './model';
 import { MORE_ITEMS } from './catalogMore';
 import { KOREAN_ITEMS, WINTER_ITEMS } from './catalogKorean';
+import { SURROUNDINGS_ITEMS } from './catalogSurroundings';
 
 export interface CatalogItem {
   type: string;
@@ -511,13 +512,13 @@ export const CATALOG: CatalogItem[] = [
   },
 ];
 
-CATALOG.push(...MORE_ITEMS, ...KOREAN_ITEMS, ...WINTER_ITEMS);
+CATALOG.push(...MORE_ITEMS, ...KOREAN_ITEMS, ...WINTER_ITEMS, ...SURROUNDINGS_ITEMS);
 
 // Extra properties of a few older items.
 Object.assign(CATALOG.find((c) => c.type === 'floor-lamp')!, { lamp: { radius: 2.6, color: '#ffd98a' } });
 Object.assign(CATALOG.find((c) => c.type === 'radiator')!, { wallMounted: true });
 
-export const CATEGORIES: Category[] = ['My items', 'Bedroom', 'Living', 'Kitchen & dining', 'Office', 'Bathroom', 'Utility', 'Lighting', 'Electrical', 'Plumbing', 'Garage & cars', 'Outdoor', 'Built-in', 'Heating & cooling', 'People & pets', 'Window dressing', 'Korean', 'Winter garden', 'Other'];
+export const CATEGORIES: Category[] = ['My items', 'Bedroom', 'Living', 'Kitchen & dining', 'Office', 'Bathroom', 'Utility', 'Lighting', 'Electrical', 'Plumbing', 'Garage & cars', 'Outdoor', 'Built-in', 'Heating & cooling', 'People & pets', 'Window dressing', 'Korean', 'Winter garden', 'Surroundings', 'Other'];
 
 const byType = new Map(CATALOG.map((c) => [c.type, c]));
 const GENERIC = byType.get('box')!;
@@ -541,6 +542,7 @@ const CATEGORY_HEIGHT: Record<Category, number> = {
   'Window dressing': 2.4,
   Korean: 0.6,
   'Winter garden': 1.2,
+  Surroundings: 7,
   Other: 0.5,
 };
 const HEIGHT: Record<string, number> = {

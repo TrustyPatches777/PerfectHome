@@ -21,6 +21,8 @@ export interface Look {
   glass?: boolean;
   /** Light-emitting (lamps switched on). */
   glow?: boolean;
+  /** Far-away scenery (the horizon): drawn unlit, out of the fog, casting and receiving no shadow. */
+  sky?: boolean;
 }
 
 export type Part = Look &

@@ -5,7 +5,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { patternFor, type PatternKind } from '../patterns';
-import type { Design } from '../model';
+import type { Design, Weather } from '../model';
+import { moodOf, type Mood } from '../sky';
 import { darkness, goldenHour, type SunPosition } from '../sun';
 import { faceNormal } from '../roofs';
 import { buildWalkWorld, type WalkWorld } from '../walk';
@@ -31,6 +32,8 @@ interface Built {
 
 export interface SunSettings {
   sun: SunPosition;
+  /** The weather (absent = clear): the sky, the light, clouds and what falls. */
+  weather?: Weather;
   /** Degrees clockwise from "up" on the plan to true north. */
   north: number;
   shadows: boolean;
@@ -56,6 +59,13 @@ export class Scene3D {
   private raf = 0;
   private extent = { cx: 0, cz: 0, radius: 8, top: 3 };
   private dark = 0;
+  /** Clouds in the sky (more or fewer of them show), and rain or snow falling round the camera. */
+  private clouds = new THREE.Group();
+  private cloudMaterial = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.93, fog: false, depthWrite: false });
+  private precip: { kind: 'rain' | 'snow'; object: THREE.LineSegments | THREE.Points; pos: Float32Array; seed: Float32Array } | null = null;
+  /** The materials of the horizon (unlit): darkened and tinted with the light of the day. */
+  private skyMats = new Map<string, { m: THREE.MeshBasicMaterial; base: THREE.Color }>();
+  private haze = { sky: new THREE.Color('#cfe3f3'), foggy: false };
   private floorY = 0;
   /** What stops you and where the ground is, built when you start walking and after the design or a door changes. */
   private design: Design | null = null;
@@ -84,7 +94,8 @@ export class Scene3D {
     this.renderer.domElement.dataset.testid = 'view3d-canvas';
     host.appendChild(this.renderer.domElement);
 
-    this.scene.add(this.world, this.sky, this.sunLight, this.sunLight.target);
+    this.scene.add(this.world, this.sky, this.sunLight, this.sunLight.target, this.clouds);
+    this.buildClouds();
     this.sunLight.shadow.mapSize.set(2048, 2048);
     this.sunLight.shadow.bias = -0.0004;
     this.sunLight.shadow.normalBias = 0.03;
@@ -127,6 +138,7 @@ export class Scene3D {
     const dt = Math.min(0.1, (t - this.lastTime) / 1000);
     this.lastTime = t;
     this.stepDoors(dt);
+    this.stepPrecip(dt);
     if (this.mode === 'walk') this.walk(dt);
     else if (this.controls.update()) this.dirty = true;
     if (this.dirty) {
@@ -148,6 +160,10 @@ export class Scene3D {
     this.renderer.domElement.removeEventListener('pointerdown', this.onClickDown);
     this.renderer.domElement.removeEventListener('pointerup', this.onClickUp);
     this.controls.dispose();
+    this.setPrecip(null);
+    this.clouds.children.forEach((c) => c.traverse((o) => (o as THREE.Mesh).geometry?.dispose?.()));
+    this.cloudMaterial.dispose();
+    this.skyMats.forEach((e) => e.m.dispose());
     for (const b of this.built.values()) this.disposeGroup(b.group);
     this.geo.box.dispose();
     this.geo.sphere.dispose();
@@ -295,8 +311,19 @@ export class Scene3D {
     return g;
   }
 
+  /** An unlit, fog-free material for the far-away horizon. */
+  private skyMaterial(color: string): THREE.MeshBasicMaterial {
+    let e = this.skyMats.get(color);
+    if (!e) {
+      e = { m: new THREE.MeshBasicMaterial({ color, fog: false }), base: new THREE.Color(color) };
+      this.skyMats.set(color, e);
+      this.tintHorizon();
+    }
+    return e.m;
+  }
+
   private makeMesh(p: Exclude<Part, { t: 'light' }>): THREE.Mesh | null {
-    const mat = this.material(p.color, p);
+    const mat = p.sky ? this.skyMaterial(p.color) : this.material(p.color, p);
     let mesh: THREE.Mesh;
     switch (p.t) {
       case 'box':
@@ -365,8 +392,8 @@ export class Scene3D {
         break;
       }
     }
-    mesh.castShadow = !p.glass;
-    mesh.receiveShadow = true;
+    mesh.castShadow = !p.glass && !p.sky;
+    mesh.receiveShadow = !p.sky;
     return mesh;
   }
 
@@ -386,6 +413,7 @@ export class Scene3D {
 
   setSun(s: SunSettings) {
     const { sun } = s;
+    const mood = moodOf(s.weather);
     this.dark = darkness(sun.elevation);
     const golden = goldenHour(sun.elevation);
     const up = sun.elevation > 1.5;
@@ -396,20 +424,122 @@ export class Scene3D {
     this.sunLight.position.copy(dir.clone().multiplyScalar(this.extent.radius * 3 + 20).add(new THREE.Vector3(this.extent.cx, 0, this.extent.cz)));
     this.sunLight.target.position.set(this.extent.cx, 0, this.extent.cz);
     this.sunLight.color.set(up ? new THREE.Color('#ffffff').lerp(new THREE.Color('#ffb673'), golden) : new THREE.Color('#9db4ff'));
-    this.sunLight.intensity = up ? 2.6 * Math.min(1, 0.25 + sun.elevation / 25) * (1 - this.dark * 0.9) : 0.25;
-    this.sunLight.castShadow = s.shadows && up;
-    this.sky.intensity = 0.25 + 0.75 * (1 - this.dark);
-    const day = new THREE.Color('#cfe3f3');
+    this.sunLight.intensity = up ? 2.6 * Math.min(1, 0.25 + sun.elevation / 25) * (1 - this.dark * 0.9) * mood.sun : 0.25;
+    this.sunLight.castShadow = s.shadows && up && mood.shadows; // an overcast sky casts no shadows
+    this.sky.intensity = (0.25 + 0.75 * (1 - this.dark)) * mood.hemi;
+    const day = new THREE.Color(mood.sky);
     const dusk = new THREE.Color('#f1c9a0');
     const night = new THREE.Color('#0b1220');
     const sky = day.clone().lerp(dusk, golden * 0.8).lerp(night, this.dark);
     this.scene.background = sky;
     // the ground fades into the sky at the horizon
-    this.scene.fog = new THREE.Fog(sky, this.extent.radius * 6 + 40, this.extent.radius * 20 + 200);
+    this.scene.fog = mood.fog ? new THREE.Fog(sky, mood.fog * 0.08, mood.fog) : new THREE.Fog(sky, this.extent.radius * 6 + 40, this.extent.radius * 20 + 200);
+    this.applyAtmosphere(mood, golden, sky);
     this.sky.color.set(this.dark > 0.5 ? '#5b6b9a' : '#dbeafe');
     this.glowMaterials.forEach((m) => (m.emissiveIntensity = this.glowStrength()));
     this.updateLamps();
     this.updateShadowCamera();
+    this.dirty = true;
+  }
+
+  /** Clouds, the horizon's light and the rain or snow that go with the weather and the time of day. */
+  private applyAtmosphere(mood: Mood, golden: number, sky: THREE.Color) {
+    const cloud = new THREE.Color(mood.cloudColor).lerp(new THREE.Color('#f7c9a0'), golden * 0.5).lerp(new THREE.Color('#161d30'), this.dark * 0.9);
+    this.cloudMaterial.color.copy(cloud);
+    const n = Math.round(mood.clouds * this.clouds.children.length);
+    this.clouds.children.forEach((c, i) => (c.visible = i < n));
+    // the far horizon is in the haze of the day: toward the color of the sky, and dark at night
+    this.haze = { sky: sky.clone(), foggy: !!mood.fog };
+    this.tintHorizon();
+    this.setPrecip(mood.precip);
+    this.dirty = true;
+  }
+
+  /** The far horizon in the haze of the day: toward the color of the sky, and dark at night. */
+  private tintHorizon() {
+    this.skyMats.forEach((e) => e.m.color.copy(e.base).lerp(this.haze.sky, 0.3 + (this.haze.foggy ? 0.2 : 0)).multiplyScalar(1 - this.dark * 0.85));
+  }
+
+  /** The clouds: clusters of flattened spheres high in the sky, always the same ones (more of them show in bad weather). */
+  private buildClouds() {
+    let a = 12345;
+    const rand = () => {
+      a = (a * 1664525 + 1013904223) >>> 0;
+      return a / 4294967296;
+    };
+    for (let i = 0; i < 46; i++) {
+      const g = new THREE.Group();
+      const ang = rand() * Math.PI * 2;
+      const dist = 120 + rand() * 640;
+      g.position.set(Math.cos(ang) * dist, 170 + rand() * 120, Math.sin(ang) * dist);
+      const puffs = 3 + Math.floor(rand() * 3);
+      for (let k = 0; k < puffs; k++) {
+        const m = new THREE.Mesh(this.geo.sphere, this.cloudMaterial);
+        const r = 30 + rand() * 38;
+        m.scale.set(r, r * 0.38, r * 0.8);
+        m.position.set((k - puffs / 2) * r * 0.9 + rand() * 10, rand() * 8, rand() * 18 - 9);
+        g.add(m);
+      }
+      this.clouds.add(g);
+    }
+  }
+
+  /** Rain (thin falling streaks) or snow (drifting flakes) in a box round the camera; nothing for fine weather. */
+  private setPrecip(kind: 'rain' | 'snow' | null) {
+    if ((this.precip?.kind ?? null) === kind) return;
+    if (this.precip) {
+      this.scene.remove(this.precip.object);
+      this.precip.object.geometry.dispose();
+      (this.precip.object.material as THREE.Material).dispose();
+      this.precip = null;
+    }
+    if (!kind) return;
+    const N = kind === 'rain' ? 2600 : 2200;
+    const seed = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      seed[i * 3] = (Math.random() - 0.5) * 80;
+      seed[i * 3 + 1] = Math.random() * 44 - 14;
+      seed[i * 3 + 2] = (Math.random() - 0.5) * 80;
+    }
+    const geo = new THREE.BufferGeometry();
+    let object: THREE.LineSegments | THREE.Points;
+    let pos: Float32Array;
+    if (kind === 'rain') {
+      pos = new Float32Array(N * 6);
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      object = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: '#b7c4d6', transparent: true, opacity: 0.55, fog: false }));
+    } else {
+      pos = new Float32Array(N * 3);
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      object = new THREE.Points(geo, new THREE.PointsMaterial({ color: '#ffffff', size: 0.16, sizeAttenuation: true, transparent: true, opacity: 0.9, fog: false }));
+    }
+    object.frustumCulled = false;
+    this.precip = { kind, object, pos, seed };
+    this.scene.add(object);
+    this.stepPrecip(0);
+  }
+
+  private stepPrecip(dt: number) {
+    const p = this.precip;
+    if (!p) return;
+    const N = p.seed.length / 3;
+    const fall = p.kind === 'rain' ? 17 : 1.6;
+    for (let i = 0; i < N; i++) {
+      let y = p.seed[i * 3 + 1] - fall * dt;
+      if (y < -14) y += 44;
+      p.seed[i * 3 + 1] = y;
+      const x = p.seed[i * 3] + (p.kind === 'snow' ? Math.sin(y * 0.8 + i) * 0.004 : 0);
+      const z = p.seed[i * 3 + 2];
+      if (p.kind === 'rain') {
+        p.pos.set([x, y, z, x + 0.05, y - 0.7, z + 0.02], i * 6);
+      } else {
+        p.pos[i * 3] = x;
+        p.pos[i * 3 + 1] = y;
+        p.pos[i * 3 + 2] = z;
+      }
+    }
+    (p.object.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
+    p.object.position.set(this.camera.position.x, this.camera.position.y, this.camera.position.z);
     this.dirty = true;
   }
 

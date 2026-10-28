@@ -10,7 +10,7 @@ describe('furniture catalog', () => {
       expect(c.label.length, c.type).toBeGreaterThan(0);
       expect(c.w, c.type).toBeGreaterThan(0.05);
       expect(c.d, c.type).toBeGreaterThan(0.05);
-      expect(Math.max(c.w, c.d), c.type).toBeLessThan(12);
+      expect(Math.max(c.w, c.d), c.type).toBeLessThan(30); // neighbouring blocks are big
       expect(c.color, c.type).toMatch(/^#[0-9a-f]{6}$/i);
       expect(c.shapes.length, c.type).toBeGreaterThan(0);
     }

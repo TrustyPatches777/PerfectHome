@@ -9,6 +9,7 @@ import { LayersPanel } from './components/LayersPanel';
 import { FloorsPanel } from './components/FloorsPanel';
 import { NotesPanel } from './components/NotesPanel';
 import { SunPanel } from './components/SunPanel';
+import { SkyPanel } from './components/SkyPanel';
 import { ChecksPanel } from './components/ChecksPanel';
 import { HelpDialog } from './components/HelpDialog';
 import { Dialogs } from './components/Dialogs';
@@ -60,6 +61,7 @@ export function App() {
         <Splitter side="right" />
         <aside className="sidebar right" style={{ width: rightWidth }}>
           <FloorsPanel />
+          <SkyPanel />
           {view === '2d' && <SunPanel />}
           {view === '2d' && <ChecksPanel />}
           {view === '2d' && <Properties />}

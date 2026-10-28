@@ -16,6 +16,8 @@ import { mergePolygons } from '../roomEdit';
 import { slabFor, usualCeiling } from '../storey';
 import { furnitureBase, groundAt, isPlainLevel, isTerrainZone, pitsIn, planeAt, retainingWalls, stairBase, SURFACE_THICKNESS, zonePlane } from '../terrain';
 import { doorwayPatches } from '../doorways';
+import { DECIDUOUS, groundColor, isFoliage, isSnowy, leafColor, seasonOf, snowColor } from '../sky';
+import { horizonParts } from './skyline';
 import { railRun } from './stairs3d';
 import { groundIndex } from '../shadows';
 import { ball, beam, box, cyl, place, prism, type Anim, type Look, type Part } from './parts';
@@ -798,6 +800,41 @@ function supportHeight(d: Design, f: Furniture): number {
   return top;
 }
 
+/**
+ * A tree or bush in a season: the leaves are the green parts. In spring they are fresher, in autumn red, orange and yellow, and in winter gone (and the
+ * fruit with them), leaving the trunk and a handful of bare branches.
+ */
+export function seasonalTree(parts: Part[], season: ReturnType<typeof seasonOf>, bush: boolean, k: { hw: number; hd: number; h: number }): Part[] {
+  if (season === 'summer') return parts;
+  const out: Part[] = [];
+  let n = 0;
+  for (const p of parts) {
+    if (p.t === 'light') {
+      out.push(p);
+      continue;
+    }
+    const foliage = (p.t === 'ball' || p.t === 'cyl') && isFoliage(p.color);
+    if (foliage) {
+      const c = leafColor(season, p.color, n++);
+      if (c) out.push({ ...p, color: c });
+    } else if (season === 'winter' && p.t === 'ball' && p.sx < 0.1) continue; // the fruit
+    else out.push(p);
+  }
+  if (season === 'winter') {
+    const R = Math.max(k.hw, k.hd) * (bush ? 0.7 : 0.75);
+    const y0 = bush ? 0.05 : k.h * 0.42;
+    const y1 = bush ? k.h * 0.6 : k.h * 0.74;
+    const wood = '#5b4636';
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + 0.3;
+      const mid: [number, number, number] = [Math.cos(a) * R * 0.5, (y0 + y1) / 2, Math.sin(a) * R * 0.5];
+      const tip: [number, number, number] = [Math.cos(a + 0.2) * R, y1 + (i % 3) * k.h * 0.04, Math.sin(a + 0.2) * R];
+      out.push(beam([0, y0, 0], mid, bush ? 0.04 : 0.1, bush ? 0.04 : 0.1, wood), beam(mid, tip, bush ? 0.025 : 0.06, bush ? 0.025 : 0.06, wood));
+    }
+  }
+  return out;
+}
+
 export function furnitureChunk(d: Design, f: Furniture, elev: number): Part[] {
   const custom = f.type.startsWith(CUSTOM_PREFIX) ? d.custom.find((c) => CUSTOM_PREFIX + c.id === f.type) : undefined;
   const type = custom?.shape === 'symbol' && custom.base ? custom.base : f.type;
@@ -805,6 +842,7 @@ export function furnitureChunk(d: Design, f: Furniture, elev: number): Part[] {
   const k = { w: f.w, d: f.d, h, c: f.color, c2: f.color2, hw: f.w / 2, hd: f.d / 2, on: f.on !== false, ceil: ceilingHeight(d) };
   let parts = furnitureParts(type, k, custom);
   if (f.color2) parts = parts.map((p) => (p.t !== 'light' && FRAME_COLORS.has(p.color) ? { ...p, color: f.color2! } : p));
+  if (DECIDUOUS.has(type)) parts = seasonalTree(parts, seasonOf(d.site), type === 'bush', k);
   const lift = SITS_ON_FURNITURE.has(f.type) ? supportHeight(d, f) : 0;
   return place(parts, f.x, f.y, rad(f.rotation), elev + lift);
 }
@@ -1029,6 +1067,8 @@ export function roofParts(d: Design, r: Roof, elev: number): Part[] {
         continue;
       }
       out.push({ t: 'panel', pts: f.pts, thick: r.thickness, facing: up, color: r.color, tex: { kind: r.material, color: r.color }, ...(holes.length ? { holes } : {}) });
+      // snow lies on a roof that is not too steep
+      if (isSnowy(d.site) && Math.abs(faceNormal(f.pts)[1]) > 0.5) out.push({ t: 'panel', pts: f.pts.map((q): [number, number, number] => [q[0], q[1] + 0.05, q[2]]), thick: 0.06, facing: up, color: '#f6f8fb' });
     } else {
       const sx = Math.sign(f.pts[0][0]) || 1;
       // a little lower than the roof, so the top edge of the wall hides under the roof instead of fighting with it
@@ -1077,6 +1117,7 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
   const activeIndex = hiddenFrom;
   const slab = slabThickness(d);
   const gi = groundIndex(d);
+  const snowy = isSnowy(d.site);
   const out: ChunkSpec[] = [];
 
   const opsByWall = new Map<string, Opening[]>();
@@ -1150,7 +1191,9 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
     const onGround = isTerrainZone(d, z); // ground areas follow the terrain, not the level of the floor they were drawn on
     const e = onGround ? 0 : (elev.get(z.floor) ?? 0);
     const lie = onGround ? [JSON.stringify(zonePlane(d, z)), JSON.stringify(retainingWalls(d, z)), JSON.stringify(pitsIn(d, z).map((o) => o.points))] : [];
-    out.push({ key: `zone:${z.id}`, deps: [z, e, ...lie, ...(z.railing ? d.walls.filter((w) => w.floor === z.floor) : []), ...lawnCutters(d, z).flatMap((c) => [c.key, JSON.stringify(c.pts)])], make: () => (onGround && !isPlainLevel(d, z) ? terrainZoneParts(d, z) : zoneParts(d, z, e)) });
+    const covered = snowy && z.kind !== 'water' && z.kind !== 'plot'; // under snow, areas are white
+    const zc = covered ? { ...z, color: snowColor(z.color) } : z;
+    out.push({ key: `zone:${z.id}`, deps: [z, e, covered, ...lie, ...(z.railing ? d.walls.filter((w) => w.floor === z.floor) : []), ...lawnCutters(d, z).flatMap((c) => [c.key, JSON.stringify(c.pts)])], make: () => (onGround && !isPlainLevel(d, z) ? terrainZoneParts(d, zc) : zoneParts(d, zc, e)) });
   }
   for (const s of d.strips) {
     if (!visible.has(s.floor) || !shown('outdoor')) continue;
@@ -1174,12 +1217,13 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
     if (!visible.has(r.floor) || !shown('roofs') || opts.showRoof === false || (activeIndex >= 0 && (index >= activeIndex || intoAttic))) continue;
     const e = elev.get(r.floor) ?? 0;
     const base = roofBaseHeight(d, r.floor);
-    out.push({ key: `roof:${r.id}`, deps: [r, e, base, ...skylightsOn(d, r), ...[0, 1].map((sx) => gableWall(d, r, sx ? 1 : -1)?.wall)], make: () => roofParts(d, r, e) });
+    out.push({ key: `roof:${r.id}`, deps: [r, e, base, snowy, ...skylightsOn(d, r), ...[0, 1].map((sx) => gableWall(d, r, sx ? 1 : -1)?.wall)], make: () => roofParts(d, r, e) });
   }
   for (const f of d.furniture) {
     if (!visible.has(f.floor) || !shown(catalogLayer(f.type))) continue;
     const e = furnitureBase(d, f, elev.get(f.floor) ?? 0);
     const deps: unknown[] = [f, e, d.settings.storeyHeight];
+    if (DECIDUOUS.has(f.type)) deps.push(seasonOf(d.site)); // the leaves follow the season
     if (SITS_ON_FURNITURE.has(f.type)) deps.push(d.furniture);
     if (f.type.startsWith(CUSTOM_PREFIX)) deps.push(d.custom);
     out.push({ key: `fur:${f.id}`, deps, make: () => furnitureChunk(d, f, e) });
@@ -1208,7 +1252,10 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
     }
     const half = size / 2;
     const square: Point[] = [{ x: cx - half, y: cz - half }, { x: cx + half, y: cz - half }, { x: cx + half, y: cz + half }, { x: cx - half, y: cz + half }];
-    out.push({ key: 'ground', deps: [cx, cz, size, ...holes.map((h) => h.key)], make: () => [prism(square, -0.1, -0.02, '#d4e2c6', undefined, {}, holes.map((h) => h.pts))] });
+    const ground = groundColor(seasonOf(d.site), snowy);
+    out.push({ key: 'ground', deps: [cx, cz, size, ground, ...holes.map((h) => h.key)], make: () => [prism(square, -0.1, -0.02, ground, undefined, {}, holes.map((h) => h.pts))] });
+    const horizon = d.site.horizon;
+    if (horizon && horizon !== 'none') out.push({ key: 'horizon', deps: [horizon, cx, cz], make: () => horizonParts(horizon, cx, cz) });
   }
   return out;
 }

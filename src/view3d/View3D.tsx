@@ -24,7 +24,7 @@ export default function View3D() {
   const invertLook = useUi((s) => s.invertLook);
   const hour = useUi((s) => s.timeOfDay);
   const playing = useUi((s) => s.sunPlaying);
-  const { lat, month, day, north } = design.site;
+  const { lat, month, day, north, weather } = design.site;
   const elevation = floorElevations(design).get(floorIdOf(design, floor)) ?? 0;
 
   // create the renderer once
@@ -37,7 +37,7 @@ export default function View3D() {
     const ui = useUi.getState();
     const f = floorIdOf(d, ui.activeFloor);
     s.setDesign(d, { hideAbove: ui.cutaway ? f : null, showRoof: ui.showRoof3d, showCeilings: ui.showCeilings3d || ui.walking, hiddenFloors: ui.hiddenFloors, texVersion: ui.texturesVersion, floorElevation: floorElevations(d).get(f) ?? 0 });
-    s.setSun({ sun: sunPosition(d.site.lat, d.site.month, d.site.day, ui.timeOfDay), north: d.site.north, shadows: ui.shadows3d });
+    s.setSun({ sun: sunPosition(d.site.lat, d.site.month, d.site.day, ui.timeOfDay), north: d.site.north, shadows: ui.shadows3d, weather: d.site.weather });
     s.resetView();
     s.onFar = () => useUi.getState().showToast('Walk closer to open that door.');
     (window as unknown as { __ph3d: unknown }).__ph3d = { stats: () => s.stats(), scene: s };
@@ -56,8 +56,8 @@ export default function View3D() {
 
   // sun and time of day
   useEffect(() => {
-    scene?.setSun({ sun: sunPosition(lat, month, day, hour), north, shadows });
-  }, [scene, lat, month, day, hour, north, shadows]);
+    scene?.setSun({ sun: sunPosition(lat, month, day, hour), north, shadows, weather });
+  }, [scene, lat, month, day, hour, north, shadows, weather]);
 
   // walking: start in the first room of this floor (or the middle of the plan)
   useEffect(() => {
