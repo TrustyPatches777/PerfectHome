@@ -10,6 +10,8 @@ export const ZONE_STYLES: Record<ZoneKind, { label: string; color: string; swatc
   porch: { label: 'Porch (raised)', color: '#cfc6bb', swatches: ['#cfc6bb', '#d9d2c5', '#b8b3a7', '#e9e4da'] },
   water: { label: 'Pond / pool', color: '#bfe0f5', swatches: ['#bfe0f5', '#a8d4ee', '#cfeaf0'] },
   plot: { label: 'Plot boundary', color: '#f4f1e6', swatches: ['#f4f1e6', '#ffffff', '#ecf2e4'] },
+  terrain: { label: 'Terrain (ground level / slope)', color: '#c8b99a', swatches: ['#c8b99a', '#b7c79a', '#d6c9a8', '#a8b58a'] },
+  lightwell: { label: 'Light well', color: '#b8bcc4', swatches: ['#b8bcc4', '#a3a9b3', '#cfd2d8'] },
 };
 
 export const STRIP_STYLES: Record<StripKind, { label: string; color: string }> = {
@@ -25,8 +27,9 @@ export const STRIP_STYLES: Record<StripKind, { label: string; color: string }> =
  */
 export const plotFirst = <T extends { kind: string }>(zones: readonly T[]): T[] => [
   ...zones.filter((z) => z.kind === 'plot'),
+  ...zones.filter((z) => z.kind === 'terrain'), // the earth itself, under everything that covers it
   ...zones.filter((z) => z.kind === 'lawn'),
-  ...zones.filter((z) => z.kind !== 'plot' && z.kind !== 'lawn'),
+  ...zones.filter((z) => z.kind !== 'plot' && z.kind !== 'terrain' && z.kind !== 'lawn'),
 ];
 
 export const polylineLength = (pts: Point[]): number => {

@@ -14,6 +14,7 @@ import { roomSpec, skinSpec } from '../paintSpec';
 import { RAIL_HEIGHT_DEFAULT, RAIL_LOOKS, flatProfile, guardAvoid, reachesNextFloor, stairOutline, stairPieces } from '../stairs';
 import { mergePolygons } from '../roomEdit';
 import { slabFor, usualCeiling } from '../storey';
+import { furnitureBase, groundAt, isPlainLevel, isTerrainZone, pitsIn, planeAt, retainingWalls, stairBase, SURFACE_THICKNESS, zonePlane } from '../terrain';
 import { doorwayPatches } from '../doorways';
 import { railRun } from './stairs3d';
 import { groundIndex } from '../shadows';
@@ -45,7 +46,8 @@ const rad = (deg: number) => (deg * Math.PI) / 180;
 /** Height of each floor's level above the garden (basements are negative). */
 export function floorElevations(d: Design): Map<string, number> {
   const g = groundIndex(d);
-  return new Map(d.floors.map((f, i) => [f.id, (i - g) * d.settings.storeyHeight]));
+  const level = d.settings.groundLevel ?? 0; // a raised ground floor lies this far above the ground outside
+  return new Map(d.floors.map((f, i) => [f.id, (i - g) * d.settings.storeyHeight + level]));
 }
 
 /** Thickness of the floor slab between two storeys. */
@@ -424,7 +426,8 @@ function glassWallParts(w: Wall, s0: number, s1: number, y0: number, y1: number)
 
 function wallChunk(d: Design, w: Wall, ops: Opening[], elev: number, corners: WallCorners = {}): Part[] {
   const above = elev > 0.01;
-  const wy0 = above ? elev - slabThickness(d) : elev;
+  const lowest = d.floors[0]?.id === w.floor; // a raised lowest floor stands on a plinth down to the ground
+  const wy0 = above ? (lowest ? -0.1 : elev - slabThickness(d)) : elev;
   // the walls of a basement reach up to the ground (a hair under it, so they do not fight with its top)
   const top = elev < -0.01 ? Math.max(elev + w.height, -0.03) : elev + w.height;
   const color = WALL_COLOR[w.type];
@@ -588,7 +591,7 @@ export function ceilingParts(d: Design, r: Room, e: number, stairsHere: Stair[])
 
 // ---- outdoors ----------------------------------------------------------------------------------------------------------
 
-const ZONE_HEIGHT: Record<Zone['kind'], number> = { lawn: 0.03, terrace: 0.06, balcony: 0.02, porch: 0.3, driveway: 0.04, flowerbed: 0.08, water: 0.0, plot: 0 };
+const ZONE_HEIGHT: Record<Zone['kind'], number> = { lawn: 0.03, terrace: 0.06, balcony: 0.02, porch: 0.3, driveway: 0.04, flowerbed: 0.08, water: 0.0, plot: 0, terrain: 0, lightwell: 0 };
 
 /** A pond or pool as a basin: a floor, walls all around, and the water a little below the edge. */
 function pondParts(z: Zone, elev: number): Part[] {
@@ -604,6 +607,26 @@ function pondParts(z: Zone, elev: number): Part[] {
     out.push({ t: 'panel', pts: [[a.x, elev, a.y], [b.x, elev, b.y], [b.x, elev - depth, b.y], [a.x, elev - depth, a.y]], thick: 0.12, facing: [cx - mid.x, 0, cy - mid.y], color: '#cbd5dc' });
     out.push({ t: 'box', x: mid.x, y: elev + 0.02, z: mid.y, sx: Math.hypot(b.x - a.x, b.y - a.y), sy: 0.05, sz: 0.3, ry: yaw({ x: b.x - a.x, y: b.y - a.y }), color: '#e5e7eb' });
   });
+  return out;
+}
+
+/** A ground area at a level other than 0 or on a slope: its sloping top, and the retaining walls that hold it up (or, for a light well, the walls round the pit). */
+function terrainZoneParts(d: Design, z: Zone): Part[] {
+  const pl = zonePlane(d, z);
+  if (z.kind === 'water') return pondParts(z, planeAt(pl, pl.ref));
+  const lift = z.kind === 'porch' ? (z.raise ?? ZONE_HEIGHT.porch) : SURFACE_THICKNESS[z.kind];
+  const top = z.points.map((p): [number, number, number] => [p.x, planeAt(pl, p) + lift, p.y]);
+  const pits = pitsIn(d, z).map((o) => o.points.map((p): [number, number, number] => [p.x, planeAt(pl, p) + lift, p.y]));
+  const out: Part[] = [{ t: 'panel', pts: top, thick: Math.max(0.05, lift), facing: [0, 1, 0], color: z.color, ...(pits.length ? { holes: pits } : {}) }];
+  const stone = '#b8b3a7';
+  for (const w of retainingWalls(d, z)) {
+    out.push({ t: 'panel', pts: [[w.a.x, w.highA, w.a.y], [w.b.x, w.highB, w.b.y], [w.b.x, w.lowB, w.b.y], [w.a.x, w.lowA, w.a.y]], thick: 0.15, facing: [w.facing.x, 0, w.facing.y], color: stone });
+    out.push(beam([w.a.x, w.highA + 0.02, w.a.y], [w.b.x, w.highB + 0.02, w.b.y], 0.24, 0.05, '#d6d3cd'));
+  }
+  if (z.railing && z.railing !== 'none' && (z.kind === 'terrace' || z.kind === 'terrain')) {
+    const h = planeAt(pl, pl.ref) + lift;
+    for (const run of joinEdges(freeEdges(z, d.walls))) out.push(...railRun({ nodes: flatProfile(run, h), style: z.railing, frame: RAIL_LOOKS[z.railing].color, height: RAIL_HEIGHT_DEFAULT, floorAt: () => h }));
+  }
   return out;
 }
 
@@ -1053,6 +1076,7 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
   const shown = (layer: keyof Design['layers']) => d.layers[layer].visible;
   const activeIndex = hiddenFrom;
   const slab = slabThickness(d);
+  const gi = groundIndex(d);
   const out: ChunkSpec[] = [];
 
   const opsByWall = new Map<string, Opening[]>();
@@ -1090,7 +1114,17 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
       });
       continue;
     }
-    out.push({ key: `room:${r.id}`, deps: [r, e, thick, ...stairsBelow, ...(r.material === 'custom' ? [opts.texVersion ?? 0] : [])], make: () => [prism(r.points, e - thick, e + 0.01, r.color, tex, {}, stairHoles(r, stairsBelow))] });
+    // a dais is higher than the floor of its storey, a sunken area lower; the lowest floor of a raised house also stands on a plinth
+    const lvl = r.level ?? 0;
+    const plinth = at === 0 && e > 0.01;
+    out.push({
+      key: `room:${r.id}`,
+      deps: [r, e, thick, plinth, ...stairsBelow, ...(r.material === 'custom' ? [opts.texVersion ?? 0] : [])],
+      make: () => [
+        prism(r.points, e + Math.min(lvl, 0) - thick, e + lvl + 0.01, r.color, tex, {}, stairHoles(r, stairsBelow)),
+        ...(plinth ? [prism(r.points, -0.1, e - thick, '#c7c3ba')] : []),
+      ],
+    });
   }
   // the floor goes on through the doorways (a room's floor ends at the inner faces of its walls)
   doorwayPatches(d).forEach((patch, i) => {
@@ -1100,7 +1134,8 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
     const e = elev.get(r.floor) ?? 0;
     const thick = e > 0.01 ? slab : 0.1;
     const tex = r.material !== 'plain' ? { kind: r.material, color: roomSpec(r) } : undefined;
-    out.push({ key: `doorway:${patch.openingId}:${i}`, deps: [r, e, thick, JSON.stringify(patch.pts), ...(r.material === 'custom' ? [opts.texVersion ?? 0] : [])], make: () => [prism(patch.pts, e - thick, e + 0.01, r.color, tex)] });
+    const lvl = r.level ?? 0;
+    out.push({ key: `doorway:${patch.openingId}:${i}`, deps: [r, e, thick, JSON.stringify(patch.pts), ...(r.material === 'custom' ? [opts.texVersion ?? 0] : [])], make: () => [prism(patch.pts, e + Math.min(lvl, 0) - thick, e + lvl + 0.01, r.color, tex)] });
   });
   if (opts.showCeilings) {
     for (const r of d.rooms) {
@@ -1112,18 +1147,20 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
   }
   for (const z of d.zones) {
     if (!visible.has(z.floor) || !shown('outdoor')) continue;
-    const e = elev.get(z.floor) ?? 0;
-    out.push({ key: `zone:${z.id}`, deps: [z, e, ...(z.railing ? d.walls.filter((w) => w.floor === z.floor) : []), ...lawnCutters(d, z).flatMap((c) => [c.key, JSON.stringify(c.pts)])], make: () => zoneParts(d, z, e) });
+    const onGround = isTerrainZone(d, z); // ground areas follow the terrain, not the level of the floor they were drawn on
+    const e = onGround ? 0 : (elev.get(z.floor) ?? 0);
+    const lie = onGround ? [JSON.stringify(zonePlane(d, z)), JSON.stringify(retainingWalls(d, z)), JSON.stringify(pitsIn(d, z).map((o) => o.points))] : [];
+    out.push({ key: `zone:${z.id}`, deps: [z, e, ...lie, ...(z.railing ? d.walls.filter((w) => w.floor === z.floor) : []), ...lawnCutters(d, z).flatMap((c) => [c.key, JSON.stringify(c.pts)])], make: () => (onGround && !isPlainLevel(d, z) ? terrainZoneParts(d, z) : zoneParts(d, z, e)) });
   }
   for (const s of d.strips) {
     if (!visible.has(s.floor) || !shown('outdoor')) continue;
-    const e = elev.get(s.floor) ?? 0;
+    const e = d.floors.findIndex((f) => f.id === s.floor) <= gi ? groundAt(d, s.points[0]).base : (elev.get(s.floor) ?? 0); // a road or fence on the ground lies at the ground's height
     out.push({ key: `strip:${s.id}`, deps: [s, e], make: () => stripParts(s, e) });
   }
   for (const s of d.stairs) {
     if (!visible.has(s.floor) || !shown('structure')) continue;
-    const e = elev.get(s.floor) ?? 0;
     const at = d.floors.findIndex((f) => f.id === s.floor);
+    const e = stairBase(d, s, elev.get(s.floor) ?? 0); // steps outside the house (to the front door) start on the ground
     const hasAbove = at < d.floors.length - 1 && reachesNextFloor(s, d.settings.storeyHeight);
     // the stairs that start on the floor above: the guard rail leaves their way in free
     const stairsAbove = hasAbove ? d.stairs.filter((o) => o.floor === d.floors[at + 1].id) : [];
@@ -1141,7 +1178,7 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
   }
   for (const f of d.furniture) {
     if (!visible.has(f.floor) || !shown(catalogLayer(f.type))) continue;
-    const e = elev.get(f.floor) ?? 0;
+    const e = furnitureBase(d, f, elev.get(f.floor) ?? 0);
     const deps: unknown[] = [f, e, d.settings.storeyHeight];
     if (SITS_ON_FURNITURE.has(f.type)) deps.push(d.furniture);
     if (f.type.startsWith(CUSTOM_PREFIX)) deps.push(d.custom);
@@ -1159,10 +1196,15 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
       if ((elev.get(r.floor) ?? 0) < -0.01 && visible.has(r.floor) && shown('rooms')) holes.push({ key: r, pts: r.points });
     }
     for (const f of d.furniture) {
-      if (f.type === 'pool' && (elev.get(f.floor) ?? 0) === 0 && visible.has(f.floor) && shown('furniture')) holes.push({ key: f, pts: rectPoints(f) });
+      if (f.type === 'pool' && d.floors.findIndex((x) => x.id === f.floor) === gi && visible.has(f.floor) && shown('furniture')) holes.push({ key: f, pts: rectPoints(f) });
     }
     for (const z of d.zones) {
-      if (z.kind === 'water' && (elev.get(z.floor) ?? 0) === 0 && visible.has(z.floor) && shown('outdoor')) holes.push({ key: z, pts: z.points });
+      if (z.kind === 'water' && d.floors.findIndex((x) => x.id === z.floor) === gi && visible.has(z.floor) && shown('outdoor')) holes.push({ key: z, pts: z.points });
+      // a sunk area (a light well, a sunken garden) is cut out of the ground and has its own floor and walls
+      if (z.kind !== 'water' && isTerrainZone(d, z) && visible.has(z.floor) && shown('outdoor') && !isPlainLevel(d, z)) {
+        const pl = zonePlane(d, z);
+        if (Math.max(...z.points.map((p) => planeAt(pl, p))) < -0.02) holes.push({ key: JSON.stringify([z.id, pl]), pts: z.points });
+      }
     }
     const half = size / 2;
     const square: Point[] = [{ x: cx - half, y: cz - half }, { x: cx + half, y: cz - half }, { x: cx + half, y: cz + half }, { x: cx - half, y: cz + half }];

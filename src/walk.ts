@@ -8,6 +8,8 @@ import { exemptFromWalls, footprint, pushOut } from './fit';
 import { pointInPolygon, wallLength, wallRangePieces, wallSolidSegments } from './geometry';
 import type { Design, Point, Stair } from './model';
 import { atticClearance } from './roofs';
+import { groundIndex } from './shadows';
+import { groundAt, isTerrainZone, stairBase } from './terrain';
 import { flatProfile, guardAvoid, guardRuns, planToStair, reachesNextFloor, railPaths, railProfile, stairOutline, stairSteps, stairToPlan, stairTopAt } from './stairs';
 import { POOL_DEPTH } from './view3d/furniture3d';
 import { freeEdges, gateGeometry, gateSpans, joinEdges, solidSpans } from './outdoor';
@@ -79,6 +81,13 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
   // ---- what blocks the way, floor by floor
   const solids: Obstacle[][] = floors.map(() => []);
   const add = (index: number, poly: Point[]) => solids[index]?.push(obstacle(poly));
+  const gi = groundIndex(d);
+  // what stands outdoors (trees, fences, hedges) is in the way of someone on the ground, which lies below the ground floor when that is raised
+  const addOutdoor = (index: number, poly: Point[]) => {
+    add(index, poly);
+    if (index === gi) for (let k = 0; k < gi; k++) add(k, poly);
+  };
+  const outdoors = (fu: { floor: string; x: number; y: number }) => !d.rooms.some((r) => r.floor === fu.floor && pointInPolygon({ x: fu.x, y: fu.y }, r.points));
 
   for (const w of d.walls) {
     const f = byFloor(w.floor);
@@ -100,28 +109,28 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
     const f = byFloor(fu.floor);
     if (!f) continue;
     if (/^tree/.test(fu.type)) {
-      add(f.index, footprint({ x: fu.x, y: fu.y, w: 0.35, d: 0.35, rotation: 0 })); // only the trunk
+      (outdoors(fu) ? addOutdoor : add)(f.index, footprint({ x: fu.x, y: fu.y, w: 0.35, d: 0.35, rotation: 0 })); // only the trunk
       continue;
     }
     if (exemptFromWalls(fu) || furnitureHeight(fu) < 0.35) continue;
-    add(f.index, footprint(fu));
+    (outdoors(fu) ? addOutdoor : add)(f.index, footprint(fu));
   }
   for (const st of d.strips) {
     const f = byFloor(st.floor);
     if (!f || (st.kind !== 'fence' && st.kind !== 'hedge')) continue;
-    for (const run of solidSpans(st)) for (let i = 0; i + 1 < run.length; i++) add(f.index, bar(run[i], run[i + 1], Math.max(st.width, 0.08)));
+    for (const run of solidSpans(st)) for (let i = 0; i + 1 < run.length; i++) addOutdoor(f.index, bar(run[i], run[i + 1], Math.max(st.width, 0.08)));
     // a gate that is shut is a fence; one that is open is a way through
     for (const { gate } of gateSpans(st)) {
       if (openDoors.has(gate.id)) continue;
       const g = gateGeometry(st, gate);
-      add(f.index, bar(g.a, g.b, Math.max(st.width, 0.08)));
+      addOutdoor(f.index, bar(g.a, g.b, Math.max(st.width, 0.08)));
     }
   }
   // the railing round a balcony or a terrace
   for (const z of d.zones) {
     const f = byFloor(z.floor);
     if (!f || !z.railing || z.railing === 'none' || (z.kind !== 'balcony' && z.kind !== 'terrace')) continue;
-    for (const run of joinEdges(freeEdges(z, d.walls))) for (let i = 0; i + 1 < run.length; i++) add(f.index, bar(run[i], run[i + 1], 0.06));
+    for (const run of joinEdges(freeEdges(z, d.walls))) for (let i = 0; i + 1 < run.length; i++) (isTerrainZone(d, z) ? addOutdoor : add)(f.index, bar(run[i], run[i + 1], 0.06));
   }
   // railings along the flights and the guard rails round the stairwells: only in the way at the height they are at
   const rails: Obstacle[] = [];
@@ -151,8 +160,8 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
   const outlineOf = new Map(d.stairs.map((s) => [s.id, stairOutline(s).map((q) => stairToPlan(s, q))]));
   // entrance steps and garden steps do not reach the next floor: they leave no hole in it
   const stairHole = (floorIndex: number, p: Point): boolean => (floorIndex > 0 ? stairsOf(floors[floorIndex - 1].id).some((s) => reachesNextFloor(s, d.settings.storeyHeight) && pointInPolygon(p, outlineOf.get(s.id)!)) : false);
-  const pools = d.furniture.filter((f) => f.type === 'pool' && (byFloor(f.floor)?.elev ?? 0) === 0);
-  const ponds = d.zones.filter((z) => z.kind === 'water' && (byFloor(z.floor)?.elev ?? 0) === 0);
+  const pools = d.furniture.filter((f) => f.type === 'pool' && byFloor(f.floor)?.index === gi);
+  const ponds = d.zones.filter((z) => z.kind === 'water' && byFloor(z.floor)?.index === gi);
   const basementRooms = d.rooms.filter((r) => (byFloor(r.floor)?.elev ?? 0) < -0.01);
 
   const candidates = (x: number, z: number): number[] => {
@@ -163,20 +172,20 @@ export function buildWalkWorld(d: Design, openDoors: ReadonlySet<string>, elev: 
     const pond = ponds.find((zn) => pointInPolygon(p, zn.points));
     if (pool) out.push(-POOL_DEPTH);
     else if (pond) out.push(-0.9);
-    else if (!basementRooms.some((r) => pointInPolygon(p, r.points))) out.push(0);
+    else if (!basementRooms.some((r) => pointInPolygon(p, r.points))) out.push(groundAt(d, p).h); // the ground outside: level, sloping, or a pit
     for (const f of floors) {
       for (const r of d.rooms) {
         if (r.floor !== f.id || !pointInPolygon(p, r.points) || stairHole(f.index, p)) continue;
-        out.push(f.elev + 0.01);
+        out.push(f.elev + 0.01 + (r.level ?? 0)); // a dais or a sunken part of the room
       }
       for (const s of stairsOf(f.id)) {
         const top = stairTopAt(s, planToStair(s, p), 0, stepsOf.get(s.id));
-        if (top !== null) out.push(f.elev + top);
+        if (top !== null) out.push(stairBase(d, s, f.elev) + top);
       }
     }
     // balconies lie at the level of their floor, porches stand a little above the ground
     for (const z of d.zones) {
-      if ((z.kind !== 'balcony' && z.kind !== 'porch') || !pointInPolygon(p, z.points)) continue;
+      if ((z.kind !== 'balcony' && (z.kind !== 'porch' || isTerrainZone(d, z))) || !pointInPolygon(p, z.points)) continue; // a porch on the ground is part of the ground
       const f = byFloor(z.floor);
       if (f) out.push(f.elev + (z.kind === 'porch' ? (z.raise ?? 0.3) : 0.02));
     }

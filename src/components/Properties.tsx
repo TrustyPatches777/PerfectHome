@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { isGround, isTerrainZone, planeAt, stairBase, zonePlane } from '../terrain';
+import { floorElevations } from '../view3d/build';
 import { CUSTOM_PREFIX, catalogItem, FURNITURE_COLORS, furnitureHeight } from '../catalog';
 import { CHIMNEY_LABEL, CHIMNEY_STYLES, HANDLE_STYLES, type ChimneyStyle, type HandleStyle } from '../model';
 import { CEILING_LABEL, CEILING_STYLES, ROOM_TYPES, ROOM_TYPE_LABEL, isSingleDoor, type CeilingStyle, type RoomType } from '../model';
@@ -444,6 +446,7 @@ function RoomProps({ id }: { id: string }) {
         </select>
       </label>
       <NumberField label="Ceiling height" value={room.ceiling ?? 2.5} scale={100} unit="cm" min={150} max={1200} testId="room-ceiling" onCommit={(v) => edit((r) => void (r.ceiling = v))} />
+      <NumberField label="Floor level (cm above the storey's floor; a dais is +, a sunken area -)" value={room.level ?? 0} scale={100} unit="cm" min={-300} max={300} testId="room-level" onCommit={(v) => edit((r) => (Math.abs(v) < 0.005 ? void delete r.level : void (r.level = v)))} />
       <button onClick={() => { useUi.getState().setSplitRoomId(id); useUi.getState().setTool('split-room'); useUi.getState().setSplitRoomId(id); }} title="Draw a line through the room to cut it in two" data-testid="room-split">
         Split this room…
       </button>
@@ -583,7 +586,10 @@ function DimensionProps({ id }: { id: string }) {
 
 function ZoneProps({ id }: { id: string }) {
   const zone = useDesign((s) => s.design.zones.find((z) => z.id === id));
+  const design = useDesign((s) => s.design);
   if (!zone) return null;
+  const onGround = isTerrainZone(design, zone);
+  const plane = zonePlane(design, zone);
   const edit = (fn: (z: Zone) => void) =>
     useDesign.getState().update((d) => {
       const z = d.zones.find((x) => x.id === id);
@@ -617,6 +623,38 @@ function ZoneProps({ id }: { id: string }) {
       )}
       {zone.kind === 'balcony' && <p className="muted">A balcony lies at the level of the floor it is drawn on, outside the wall. Draw it on the upper floor, against the wall.</p>}
       {zone.kind === 'porch' && <NumberField label="Raised by" value={zone.raise ?? 0.3} scale={100} unit="cm" min={0} max={150} testId="zone-raise" onCommit={(v) => edit((z) => void (z.raise = v))} />}
+      {isGround(zone.kind) && onGround && (
+        <>
+          <NumberField
+            label="Ground height (cm above the plot, below 0 = sunk)"
+            value={zone.height ?? plane.h}
+            scale={100}
+            unit="cm"
+            min={-2000}
+            max={4000}
+            testId="zone-height"
+            onCommit={(v) => edit((z) => void (z.height = v))}
+          />
+          {zone.height !== undefined && zone.kind !== 'lightwell' && (
+            <button onClick={() => edit((z) => void delete z.height)} title="Take the level of the terrain under this area" data-testid="zone-height-reset">
+              Same as the ground under it
+            </button>
+          )}
+          <NumberField
+            label="Slope (%)"
+            value={zone.slope?.pct ?? 0}
+            min={0}
+            max={100}
+            testId="zone-slope"
+            onCommit={(v) => edit((z) => (v >= 0.5 ? void (z.slope = { dir: z.slope?.dir ?? 90, pct: v }) : void delete z.slope))}
+          />
+          {zone.slope && (
+            <NumberField label="Falls towards (° from east, 90 = south)" value={zone.slope.dir} unit="°" min={0} max={359} testId="zone-slope-dir" onCommit={(v) => edit((z) => void (z.slope && (z.slope.dir = ((Math.round(v) % 360) + 360) % 360)))} />
+          )}
+          <p className="muted">The ground is {Math.round(planeAt(plane, plane.ref) * 100)} cm in the middle of this area. Where two areas are at different levels a retaining wall stands between them.</p>
+        </>
+      )}
+      {isGround(zone.kind) && !onGround && <p className="muted">An area on an upper floor lies at the level of that floor (a roof terrace). Ground height and slope are for areas drawn on the ground floor or the basement.</p>}
       <p className="stat" data-testid="zone-area">
         Area <strong>{formatArea(polygonArea(zone.points))}</strong>
       </p>
@@ -877,7 +915,11 @@ const STAIR_SWATCHES = ['#e5e7eb', '#c19a6b', '#6b4a2f', '#a8a29e', '#7b8794', '
 function StairProps({ id }: { id: string }) {
   const stair = useDesign((s) => s.design.stairs.find((x) => x.id === id));
   const storey = useDesign((s) => s.design.settings.storeyHeight);
+  const design = useDesign((s) => s.design);
   if (!stair) return null;
+  // steps outside the house start on the ground and can climb up to the floor of the house
+  const floorElev = floorElevations(design).get(stair.floor) ?? 0;
+  const toFloor = Math.round((floorElev - stairBase(design, stair, floorElev)) * 100) / 100;
   const edit = (fn: (s: Stair) => void) =>
     useDesign.getState().update((d) => {
       const x = d.stairs.find((i) => i.id === id);
@@ -1048,6 +1090,11 @@ function StairProps({ id }: { id: string }) {
         {(stair.kind === 'l' || stair.kind === 'u') && (
           <button onClick={() => edit((s) => void (s.flip = !s.flip))} data-testid="stair-flip">
             Flip direction
+          </button>
+        )}
+        {toFloor > 0.05 && Math.abs(toFloor - stair.rise) > 0.01 && (
+          <button onClick={() => edit((s) => void (s.rise = toFloor))} title="Make the steps climb exactly from the ground here up to the floor of the house" data-testid="stair-reach-door">
+            Rise = up to the floor ({Math.round(toFloor * 100)} cm)
           </button>
         )}
         <button onClick={() => edit((s) => void (s.rise = storey))} title="Use the storey height from the design" data-testid="stair-match">

@@ -164,6 +164,8 @@ export interface Room {
   ceiling?: number;
   /** How the ceiling looks (absent = flat). */
   ceilingStyle?: CeilingStyle;
+  /** The floor of this room lies this high above the floor of its storey (meters; a dais is positive, a sunken area negative). */
+  level?: number;
   /** The grout between tiles (or the second color of a checkerboard), and a picture you uploaded for a floor of material 'custom'. */
   grout?: string;
   texture?: string;
@@ -377,8 +379,14 @@ export interface Dimension {
 }
 
 /** A ground-surface area outside (or around) the house: lawn, terrace, driveway... drawn as a polygon. */
-export type ZoneKind = 'lawn' | 'terrace' | 'balcony' | 'porch' | 'driveway' | 'flowerbed' | 'water' | 'plot';
-export const ZONE_KINDS: ZoneKind[] = ['lawn', 'terrace', 'balcony', 'porch', 'driveway', 'flowerbed', 'water', 'plot'];
+export type ZoneKind = 'lawn' | 'terrace' | 'balcony' | 'porch' | 'driveway' | 'flowerbed' | 'water' | 'plot' | 'terrain' | 'lightwell';
+export const ZONE_KINDS: ZoneKind[] = ['lawn', 'terrace', 'balcony', 'porch', 'driveway', 'flowerbed', 'water', 'plot', 'terrain', 'lightwell'];
+
+/** The fall of a ground area: `dir` is the plan direction the ground falls towards (degrees, 0 = east, 90 = south), `pct` how steep (percent). */
+export interface Slope {
+  dir: number;
+  pct: number;
+}
 
 export interface Zone {
   id: string;
@@ -391,6 +399,10 @@ export interface Zone {
   railing?: RailStyle;
   /** A porch: how far it is raised above the ground, in meters. */
   raise?: number;
+  /** The height of this ground area above the level of the plot (meters; negative = sunk, like a light well). Absent = the ground under it (see terrain.ts). */
+  height?: number;
+  /** The fall of the ground in this area (see `Slope`). */
+  slope?: Slope;
 }
 
 /** A line feature with a width: street, footpath, fence or hedge. */
@@ -443,6 +455,8 @@ export interface Settings {
   wallThickness: number;
   /** Height of one storey in meters (shadows of upper floors). */
   storeyHeight: number;
+  /** How high the ground floor lies above the ground outside (meters). A raised ground floor over a semi-basement has the entrance steps up to it. */
+  groundLevel?: number;
 }
 
 export interface Design {
@@ -563,6 +577,15 @@ function str(v: unknown, def: string, maxLen = 200): string {
   return typeof v === 'string' ? v.slice(0, maxLen) : def;
 }
 
+/** `{ slope }` for a valid fall of the ground (at least half a percent), else nothing. */
+function slopeOf(v: unknown): { slope?: Slope } {
+  if (!v || typeof v !== 'object') return {};
+  const o = v as Record<string, unknown>;
+  const pct = num(o.pct, 0, 0, 100);
+  if (pct < 0.5) return {};
+  return { slope: { dir: ((num(o.dir, 0, -720, 720) % 360) + 360) % 360, pct } };
+}
+
 function color(v: unknown, def: string): string {
   return typeof v === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : def;
 }
@@ -656,6 +679,7 @@ export function parseDesign(input: unknown): Design {
       gridStep: num(settings.gridStep, DEFAULT_GRID_STEP, 0.01, 5),
       wallThickness: num(settings.wallThickness, DEFAULT_WALL_THICKNESS, 0.02, 1),
       storeyHeight: num(settings.storeyHeight, DEFAULT_STOREY_HEIGHT, 1.8, 6),
+      ...(typeof settings.groundLevel === 'number' && Math.abs(settings.groundLevel) > 0.001 ? { groundLevel: num(settings.groundLevel, 0, -10, 10) } : {}),
     },
     layers: outLayers,
     floors,
@@ -695,6 +719,7 @@ export function parseDesign(input: unknown): Design {
         ...(ROOM_TYPES.includes(o.type as RoomType) ? { type: o.type as RoomType } : {}),
         ...(typeof o.ceiling === 'number' ? { ceiling: num(o.ceiling, 2.5, 1.5, 12) } : {}),
         ...(CEILING_STYLES.includes(o.ceilingStyle as CeilingStyle) && o.ceilingStyle !== 'flat' ? { ceilingStyle: o.ceilingStyle as CeilingStyle } : {}),
+        ...(typeof o.level === 'number' && Math.abs(o.level) > 0.001 ? { level: num(o.level, 0, -3, 3) } : {}),
         ...(typeof o.grout === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(o.grout) ? { grout: o.grout } : {}),
         ...(typeof o.texture === 'string' && /^[a-z0-9-]{1,24}$/.test(o.texture) ? { texture: o.texture } : {}),
       };
@@ -742,6 +767,8 @@ export function parseDesign(input: unknown): Design {
         points: pts,
         ...(RAIL_STYLES.includes(o.railing as RailStyle) && o.railing !== 'none' ? { railing: o.railing as RailStyle } : {}),
         ...(typeof o.raise === 'number' ? { raise: num(o.raise, 0.3, 0, 1.5) } : {}),
+        ...(typeof o.height === 'number' ? { height: num(o.height, 0, -20, 40) } : {}),
+        ...slopeOf(o.slope),
       };
     }),
     strips: list<Strip>(input.strips, (o) => {

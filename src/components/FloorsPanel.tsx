@@ -1,4 +1,4 @@
-import { addAttic, addFloor, deleteFloor, duplicateFloor, rebuildAttic, renameFloor, setStoreyHeight } from '../floors';
+import { addAttic, addFloor, deleteFloor, duplicateFloor, rebuildAttic, renameFloor, setGroundLevel, setStoreyHeight } from '../floors';
 import { NumberField } from './fields';
 import { useDesign } from '../store/design';
 import { floorBelow, isBasement, useFloorId } from '../store/floor';
@@ -17,6 +17,7 @@ export function FloorsPanel() {
   const roofs = useDesign((s) => s.design.roofs);
   const walls = useDesign((s) => s.design.walls);
   const storey = useDesign((s) => s.design.settings.storeyHeight);
+  const groundLevel = useDesign((s) => s.design.settings.groundLevel ?? 0);
   const canAttic = !top.attic && (roofs.some((r) => r.floor === top.id && r.kind !== 'flat') || walls.some((w) => w.floor === top.id));
 
   return (
@@ -59,6 +60,7 @@ export function FloorsPanel() {
         )}
       </div>
       <NumberField label="Storey height (all floors)" value={storey} scale={100} unit="cm" min={180} max={600} testId="storey-height" onCommit={setStoreyHeight} />
+      <NumberField label="Ground floor above the ground outside" value={groundLevel} scale={100} unit="cm" min={-1000} max={1000} testId="ground-level" onCommit={setGroundLevel} />
       <div className="row">
         <button onClick={duplicateFloor} title="Copy everything on this floor to a new floor above" data-testid="duplicate-floor">
           Duplicate floor

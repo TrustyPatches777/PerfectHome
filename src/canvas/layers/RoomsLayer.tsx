@@ -70,7 +70,7 @@ export function RoomsLayer() {
             y={c.y - fs * 1.2}
             width={width}
             align="center"
-            text={`${r.name}\n${formatArea(polygonArea(r.points))}`}
+            text={`${r.name}\n${formatArea(polygonArea(r.points))}${r.level ? `\n${r.level > 0 ? '+' : '−'}${Math.abs(Math.round(r.level * 100))} cm` : ''}`}
             fontSize={fs}
             fontStyle="bold"
             lineHeight={1.25}

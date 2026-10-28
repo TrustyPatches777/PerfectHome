@@ -8,6 +8,9 @@ import { useDesign } from './store/design';
 import { floorIdOf } from './store/floor';
 import { useUi } from './store/ui';
 import { applyStoreyHeight } from './storey';
+import { groundIndex } from './shadows';
+import { stairBase } from './terrain';
+import { pointInPolygon } from './geometry';
 
 const ORDINALS = ['Ground floor', '1st floor', '2nd floor', '3rd floor'];
 
@@ -140,6 +143,30 @@ export function setStoreyHeight(meters: number) {
   });
   const parts = [change.walls ? `${change.walls} wall${change.walls === 1 ? '' : 's'}` : '', change.stairs ? `${change.stairs} staircase${change.stairs === 1 ? '' : 's'}` : ''].filter(Boolean);
   useUi.getState().showToast(`Storey height ${Math.round(next * 100)} cm${parts.length ? `: ${parts.join(' and ')} adjusted to fit` : ''}.`);
+}
+
+/**
+ * How high the ground floor lies above the ground outside (a raised ground floor over a semi-basement). Steps outside the house that led up to the
+ * old level climb to the new one.
+ */
+export function setGroundLevel(meters: number) {
+  const next = Math.round(Math.min(10, Math.max(-10, meters)) * 100) / 100;
+  const old = useDesign.getState().design.settings.groundLevel ?? 0;
+  if (Math.abs(next - old) < 1e-6) return;
+  let moved = 0;
+  useDesign.getState().update((d) => {
+    if (Math.abs(next) < 0.005) delete d.settings.groundLevel;
+    else d.settings.groundLevel = next;
+    const gi = groundIndex(d as Design);
+    for (const s of d.stairs) {
+      if (d.floors.findIndex((f) => f.id === s.floor) !== gi || d.rooms.some((r) => r.floor === s.floor && pointInPolygon({ x: s.x, y: s.y }, r.points))) continue;
+      const base = stairBase(d as Design, s, 0);
+      if (Math.abs(base + s.rise - old) > 0.03 || next - base < 0.05) continue; // not steps up to the door, or nothing left to climb
+      s.rise = Math.round((next - base) * 100) / 100;
+      moved++;
+    }
+  });
+  useUi.getState().showToast(`The ground floor lies ${Math.round(next * 100)} cm above the ground outside${moved ? `; ${moved} flight${moved === 1 ? '' : 's'} of entrance steps follow` : ''}.`);
 }
 
 /** Make the floor of the active attic again from the rooms of the floor below (what you put in the attic stays). */

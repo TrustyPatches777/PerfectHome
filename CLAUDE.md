@@ -31,6 +31,8 @@ src/distance.ts       closest points/distances between segments and polygon outl
 src/selection.ts      pure group operations: item bounds, move/rotate/align/distribute, copy/paste clipboard, remove, layer of an item
 src/catalog.ts        furniture catalog (~200 items incl. cars, garden, lamps, electrical, plumbing) + custom items registry,
                       heights for shadows, which layer an item lives on, wall-mounted and lamp flags
+src/terrain.ts        the lie of the land (pure): zone planes (height + slope), `groundAt`, `retainingWalls`, `pitsIn`, `stairBase`, `furnitureBase`
+src/entrance.ts       entrance steps: `entranceSteps` (as many steps as the height needs) and `snapEntrance` (centered on a door, top against the wall)
 src/storey.ts         the storey height and what follows from it: slabFor, fullWallHeight, usualCeiling, wallHeightFor, applyStoreyHeight (one command moves
                       every full-height wall and every stair that climbs a storey)
 src/doorways.ts       patches of floor under door openings (the floor of the room next to the opening goes on through the wall; two rooms meet in the
@@ -233,6 +235,14 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
 - **Storey height**: `settings.storeyHeight` fixes where every floor lies; a full-height wall is `fullWallHeight` (storey minus the slab, 2.5 m at 2.8 m), new walls
   of the usual types get it (`wallHeightFor`), and `setStoreyHeight` (Floors panel, one undo step) brings along walls that were full height (or 2.5) and stairs
   whose rise was one storey. Entrance steps, low walls and railings keep their height.
+- **Terrain**: level 0 is the ground of the plot; `settings.groundLevel` is how far the ground floor lies above it (a raised floor over a semi-basement; `floorElevations`
+  adds it to every floor). Ground areas (everything but `plot`/`balcony`) drawn on the ground floor or a basement are *terrain zones* (`isTerrainZone`; areas on upper
+  floors are roof terraces at their floor's level). A zone has `height`/`slope` of its own, or takes the plane of the `terrain` area under its middle (`zonePlane`), so
+  its top is always ONE plane. Kinds `terrain` (bare earth, drawn first) and `lightwell` (default level -1.2 m). Draw order: plot, terrain, lawns, the rest.
+  3D: a non-plain zone is a sloping top panel + `retainingWalls` (the higher area holds up its edge; a pit inside another area holds up its own: `pitsIn` cuts it out of the
+  panel and `ground` gets a hole); plain level-0 zones keep the old flat prisms. Steps (`stairBase`) and furniture (`furnitureBase`) outside the house stand on the ground,
+  inside on the floor of their room. A `Room.level` is a dais (+) or a sunken part (-). `walk.ts` stands you on `groundAt(...).h` and on room levels; outdoor obstacles also
+  block the ground below a raised ground floor. Entrance steps measure their rise from the ground to the floor; `setGroundLevel` moves them along.
 - **Floor holes**: `stairHoles` cuts the part of a stair outline that lies inside a room, piece by piece (L = 2 rectangles, U = 3), also in an L-shaped room.
 - **Wall types** also include `slats` (vertical wooden boards with gaps, 6 cm) and `glass` (frame + panes, casts no shadow); a roof of material `glass` is
   see-through panels with glazing bars. Slats and glass walls take doors like any wall. On the plan's sun layer glass casts no shadow and

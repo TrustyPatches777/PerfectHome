@@ -1,5 +1,6 @@
 import { Fragment } from 'react';
-import { Ellipse, Group, Line, Rect, Text } from 'react-konva';
+import { Arrow, Ellipse, Group, Line, Rect, Text } from 'react-konva';
+import { isGround, isTerrainZone, planeAt, zonePlane } from '../../terrain';
 import type { Gate, Strip, Wall, Zone } from '../../model';
 import { RAIL_LOOKS } from '../../stairs';
 import { shade } from '../../catalog';
@@ -18,7 +19,14 @@ function pressArea(e: { evt: MouseEvent; cancelBubble: boolean }, kind: 'zone' |
   pressItem(e.evt, { kind, id }, 'area');
 }
 
-function ZoneShape({ zone, selected, zoom, walls }: { zone: Zone; selected: boolean; zoom: number; walls: Wall[] }) {
+/** What the plan shows of the lie of the land in an area: its height in the middle and the fall of the ground. */
+interface Lie {
+  h: number;
+  pct: number;
+  dir: number;
+}
+
+function ZoneShape({ zone, selected, zoom, walls, lie }: { zone: Zone; selected: boolean; zoom: number; walls: Wall[]; lie?: Lie }) {
   const pts = zone.points.flatMap((p) => [p.x, p.y]);
   const plot = zone.kind === 'plot';
   const xs = zone.points.map((p) => p.x);
@@ -27,20 +35,35 @@ function ZoneShape({ zone, selected, zoom, walls }: { zone: Zone; selected: bool
   const c = labelPoint(zone.points);
   const fs = 13 / zoom;
   const width = 220 / zoom;
-  const text = `${zone.name || ''}${zone.name ? '\n' : ''}${formatArea(polygonArea(zone.points))}`;
+  const level = lie && Math.abs(lie.h) >= 0.005 ? `${lie.h > 0 ? '+' : '−'}${Math.abs(lie.h).toFixed(2)} m` : '';
+  const fall = lie && lie.pct >= 0.5 ? `${lie.pct % 1 ? lie.pct.toFixed(1) : lie.pct}% ↘` : '';
+  const text = `${zone.name || ''}${zone.name ? '\n' : ''}${formatArea(polygonArea(zone.points))}${level ? `\n${level}` : ''}${fall ? ` ${fall}` : ''}`;
+  const steep = !!lie && Math.abs(lie.h) > 0.05; // a level change: the retaining wall shows as a heavy line
+  const arrow = lie && lie.pct >= 0.5 ? Math.min(2.2, Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 3) : 0;
   return (
     <>
       <Line
         points={pts}
         closed
         fill={zone.color}
-        stroke={selected ? SELECT_COLOR : plot ? '#6b7280' : shade(zone.color, -0.18)}
-        strokeWidth={selected ? 2.5 : 1}
+        stroke={selected ? SELECT_COLOR : plot ? '#6b7280' : steep ? '#57534e' : shade(zone.color, -0.18)}
+        strokeWidth={selected ? 2.5 : steep ? 2.5 : 1}
         dash={plot && !selected ? [10, 6] : undefined}
         strokeScaleEnabled={false}
         onMouseDown={(e) => pressArea(e, 'zone', zone.id)}
       />
       {zone.railing && zone.railing !== 'none' && (zone.kind === 'balcony' || zone.kind === 'terrace') && joinEdges(freeEdges(zone, walls)).map((run, i) => <Line key={`rail${i}`} points={run.flatMap((p) => [p.x, p.y])} stroke={RAIL_LOOKS[zone.railing as keyof typeof RAIL_LOOKS].color} strokeWidth={0.06} lineCap="round" lineJoin="round" listening={false} />)}
+      {lie && arrow > 0 && big && (
+        <Arrow
+          points={[c.x - Math.cos((lie.dir * Math.PI) / 180) * arrow * 0.5, c.y - Math.sin((lie.dir * Math.PI) / 180) * arrow * 0.5 - fs * 1.4, c.x + Math.cos((lie.dir * Math.PI) / 180) * arrow * 0.5, c.y + Math.sin((lie.dir * Math.PI) / 180) * arrow * 0.5 - fs * 1.4]}
+          stroke="#57534e"
+          fill="#57534e"
+          strokeWidth={0.05}
+          pointerLength={0.25}
+          pointerWidth={0.2}
+          listening={false}
+        />
+      )}
       {big && (
         <Text
           x={c.x - width / 2}
@@ -147,8 +170,21 @@ function StripShape({ strip, selected, zoom }: { strip: Strip; selected: boolean
   );
 }
 
+/** The height and fall of the ground of an area, when it has any (null for the usual flat ground at level 0). */
+function lieOf(zones: Zone[], floors: { id: string; name: string }[], z: Zone): Lie | null {
+  const d = { zones, floors };
+  if (!isGround(z.kind) || !isTerrainZone(d, z)) return null;
+  const pl = zonePlane(d, z);
+  const pct = Math.hypot(pl.gx, pl.gy) * 100;
+  const h = planeAt(pl, pl.ref);
+  if (Math.abs(h) < 0.005 && pct < 0.5) return null;
+  return { h, pct, dir: pct < 0.5 ? 0 : ((Math.atan2(-pl.gy, -pl.gx) * 180) / Math.PI + 360) % 360 };
+}
+
 export function OutdoorLayer() {
   const zones = useOnFloor((d) => d.zones);
+  const allZones = useDesign((s) => s.design.zones);
+  const floors = useDesign((s) => s.design.floors);
   const walls = useDesign((s) => s.design.walls);
   const strips = useOnFloor((d) => d.strips);
   const layer = useDesign((s) => s.design.layers.outdoor);
@@ -162,7 +198,7 @@ export function OutdoorLayer() {
   return (
     <Group listening={tool === 'select' && !layer.locked}>
       {plotFirst(zones).map((z) => (
-        <ZoneShape key={z.id} zone={z} zoom={zoom} selected={zoneIds.has(z.id)} walls={walls} />
+        <ZoneShape key={z.id} zone={z} zoom={zoom} selected={zoneIds.has(z.id)} walls={walls} lie={lieOf(allZones, floors, z) ?? undefined} />
       ))}
       {[...strips].sort((a, b) => rank(a) - rank(b)).map((s) => (
         <StripShape key={s.id} strip={s} zoom={zoom} selected={stripIds.has(s.id)} />
