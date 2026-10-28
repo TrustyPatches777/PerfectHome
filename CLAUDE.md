@@ -25,8 +25,10 @@ src/geometry.ts       pure math: snapping, walls (straight AND arcs: wallArc/wal
                       wallCorners/faceSpan/wallSegmentOutline (mitred corners)
 src/distance.ts       closest points/distances between segments and polygon outlines
 src/selection.ts      pure group operations: item bounds, move/rotate/align/distribute, copy/paste clipboard, remove, layer of an item
-src/catalog.ts        furniture catalog (~110 items incl. cars, garden, lamps, electrical, plumbing) + custom items registry,
+src/catalog.ts        furniture catalog (~200 items incl. cars, garden, lamps, electrical, plumbing) + custom items registry,
                       heights for shadows, which layer an item lives on, wall-mounted and lamp flags
+src/catalogMore.ts    the second half of the catalog: kitchen runs/appliances, bedroom, living, bathroom, built-ins, garden, heating & cooling,
+                      people & pets, window dressing (same format; `wallMounted` = snaps to a wall and may stand in its line)
 src/walk.ts            walking in 3D: what blocks you (walls, shut doors, windows, furniture, rails, fences), the height of the ground under your feet
                       (floors, stairs, pools, holes), attic headroom. Pure; scene.ts asks it every frame.
 src/fit.ts             furniture cannot stand in walls: SAT push-out, sweep along a drag, settleFurniture (called by store/design.ts update)
@@ -71,6 +73,7 @@ src/store/ui.ts       Zustand: tool, selection (selected[] + selection when exac
 src/store/floor.ts    the active floor, validated against the design (floorId(), useFloorId(), useOnFloor(pick))
 src/view3d/             the house in 3D (three.js, loaded only when the 3D view opens; view only, editing stays in 2D)
   parts.ts              the scene as plain data: boxes/cylinders/balls/rings/prisms/lights, `place()` (plan rotation -> three rotation)
+  furniture3d2.ts       the recipes of catalogMore.ts; COUNTERTOP lists the appliances that stand on whatever worktop is under them
   furniture3d.ts        a recipe per catalog type (item-local coords, back at -z); no recipe = plain block. A unit test keeps every
                         model inside its footprint, so a new recipe cannot wander off
   roofTex.ts            canvas textures for roof coverings (tiles, slate, metal ribs, thatch...)
@@ -217,6 +220,9 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
   edges not against a wall) carry the railing on the plan, in 3D and in `walk.ts` (where balcony/porch tops are walkable). Entrance steps
   are a normal stair that does not `reachesNextFloor` (rise <= 0.7 storey): it leaves no stairwell hole and no guard rail, in 3D, walking,
   the plan ghost and SVG.
+- **Adding catalog items**: an entry in `catalogMore.ts` (symbol, size, color, optional `wallMounted`/`layer`/`height`) and a recipe in `furniture3d2.ts` (no
+  recipe = plain block). Things on worktops go in `COUNTERTOP`. Wall-hung parts (wall units, mirrors, curtains) carry their own height in the recipe.
+  Columns and beams are on the `structure` layer; ducts, vents, flues and underfloor zones on `tech`. A wall niche is a framed mark ON the wall, not a cut.
 - **Plan symbol = 3D model**: `footprint.test.ts` compares the plan symbol of every catalog item with its 3D model from above (grid
   overlap > 60%); schematic exceptions are listed there. A new recipe must match the symbol, including which end is which.
 - **Debug hook**: `window.__ph = { design, ui }` exposes both stores; Playwright tests read state through it.

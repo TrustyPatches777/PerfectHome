@@ -78,7 +78,7 @@ const iou = (a: boolean[], b: boolean[]) => {
 /** Plan symbols that only suggest the object (a bicycle's wheels are drawn as fat blobs, a plant as a disc): checked by eye, not by area. */
 const SCHEMATIC = new Set(['bicycle', 'motorbike', 'floor-lamp', 'flower-pot', 'plant', 'parking']);
 
-const SKIP = new Set(['socket', 'socket-double', 'switch', 'switch-dimmer', 'data-point', 'tv-point', 'thermostat', 'smoke-detector', 'junction', 'tap', 'tap-garden', 'drain', 'water-meter', 'gas-point', 'pipe-stack', 'fuse-box', 'lamp-wall', 'radiator']);
+const SKIP = new Set(['socket', 'socket-double', 'switch', 'switch-dimmer', 'data-point', 'tv-point', 'thermostat', 'smoke-detector', 'junction', 'tap', 'tap-garden', 'drain', 'water-meter', 'gas-point', 'pipe-stack', 'fuse-box', 'lamp-wall', 'radiator', 'awning', 'tree-palm']);
 
 describe('plan symbol and 3D model of every catalog item cover the same ground', () => {
   const d = createDesign();

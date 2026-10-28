@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { clickAt, design, fresh } from './helpers';
+import { clickAt, design, fresh, pickFurniture } from './helpers';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -54,4 +54,35 @@ test('a lawn drawn after a pond or a patio goes behind them, and in 3D it does n
   await expect.poll(() => page.evaluate(() => (window as any).__ph3d?.stats().meshes ?? 0)).toBeGreaterThan(3);
   await page.evaluate(() => (window as any).__ph3d.scene.setView([7, 14, 14], [7, 0, 4]));
   await page.screenshot({ path: 'e2e/.results/m32-lawn-pond.png' });
+});
+
+test('the new catalog: categories, search, a worktop that snaps to a wall, an appliance that stands on it (3D)', async ({ page }) => {
+  for (const cat of ['Built-in', 'Heating & cooling', 'People & pets', 'Window dressing']) await expect(page.getByTestId(`cat-${cat}`)).toHaveCount(1);
+  await page.getByLabel('Search furniture').fill('coffee');
+  await expect(page.getByTestId('furn-coffee-machine')).toBeVisible();
+  await page.getByLabel('Search furniture').fill('');
+  await page.evaluate(() => {
+    (window as any).__ph.design.getState().update((d: any) => {
+      d.walls.push({ id: 'n', floor: d.floors[0].id, a: { x: 1, y: 1 }, b: { x: 9, y: 1 }, thickness: 0.2, type: 'interior', height: 2.5 });
+    });
+  });
+  await pickFurniture(page, 'worktop');
+  await clickAt(page, 4, 1.5); // the cursor is south of the wall, within reach: the worktop goes on that face with its back to it
+  let f = (await design(page)).furniture;
+  expect(f).toHaveLength(1);
+  expect(f[0].type).toBe('worktop');
+  expect(f[0].y).toBeCloseTo(1 + 0.1 + 0.3, 1); // wall face + half the depth
+  expect(((f[0].rotation % 360) + 360) % 360).toBeCloseTo(0, 5);
+  await page.keyboard.press('Escape');
+  await page.getByTestId('tool-select').click();
+  await page.evaluate(() => {
+    (window as any).__ph.design.getState().update((d: any) => {
+      d.furniture.push({ id: 'cm', floor: d.floors[0].id, type: 'coffee-machine', x: f0x(d), y: 1.4, w: 0.3, d: 0.38, rotation: 0, color: '#374151', label: '' });
+      function f0x(dd: any) { return dd.furniture[0].x; }
+    });
+  });
+  await page.getByRole('button', { name: '3D', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).__ph3d?.stats().meshes ?? 0)).toBeGreaterThan(10);
+  await page.evaluate(() => (window as any).__ph3d.scene.setView([4, 2.2, 4.5], [4, 0.9, 1.4]));
+  await page.screenshot({ path: 'e2e/.results/m32-worktop.png' });
 });

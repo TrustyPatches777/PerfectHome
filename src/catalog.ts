@@ -12,9 +12,10 @@ export type Prim =
   /** Open polyline. */
   | { t: 'line'; pts: number[] };
 
-export type Category = 'My items' | 'Lighting' | 'Electrical' | 'Plumbing' | 'Bedroom' | 'Living' | 'Kitchen & dining' | 'Office' | 'Bathroom' | 'Utility' | 'Garage & cars' | 'Outdoor' | 'Other';
+export type Category = 'My items' | 'Lighting' | 'Electrical' | 'Plumbing' | 'Bedroom' | 'Living' | 'Kitchen & dining' | 'Office' | 'Bathroom' | 'Utility' | 'Garage & cars' | 'Outdoor' | 'Built-in' | 'Heating & cooling' | 'People & pets' | 'Window dressing' | 'Other';
 
 import type { CustomItem, LayerId } from './model';
+import { MORE_ITEMS } from './catalogMore';
 
 export interface CatalogItem {
   type: string;
@@ -509,11 +510,13 @@ export const CATALOG: CatalogItem[] = [
   },
 ];
 
+CATALOG.push(...MORE_ITEMS);
+
 // Extra properties of a few older items.
 Object.assign(CATALOG.find((c) => c.type === 'floor-lamp')!, { lamp: { radius: 2.6, color: '#ffd98a' } });
 Object.assign(CATALOG.find((c) => c.type === 'radiator')!, { wallMounted: true });
 
-export const CATEGORIES: Category[] = ['My items', 'Bedroom', 'Living', 'Kitchen & dining', 'Office', 'Bathroom', 'Utility', 'Lighting', 'Electrical', 'Plumbing', 'Garage & cars', 'Outdoor', 'Other'];
+export const CATEGORIES: Category[] = ['My items', 'Bedroom', 'Living', 'Kitchen & dining', 'Office', 'Bathroom', 'Utility', 'Lighting', 'Electrical', 'Plumbing', 'Garage & cars', 'Outdoor', 'Built-in', 'Heating & cooling', 'People & pets', 'Window dressing', 'Other'];
 
 const byType = new Map(CATALOG.map((c) => [c.type, c]));
 const GENERIC = byType.get('box')!;
@@ -531,6 +534,10 @@ const CATEGORY_HEIGHT: Record<Category, number> = {
   Plumbing: 0.3,
   'Garage & cars': 1.5,
   Outdoor: 1.0,
+  'Built-in': 2.4,
+  'Heating & cooling': 0.6,
+  'People & pets': 1.0,
+  'Window dressing': 2.4,
   Other: 0.5,
 };
 const HEIGHT: Record<string, number> = {
