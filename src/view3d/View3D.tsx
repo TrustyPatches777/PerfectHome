@@ -41,7 +41,6 @@ export default function View3D() {
     s.setSun({ sun: sunPosition(d.site.lat, d.site.month, d.site.day, ui.timeOfDay), north: d.site.north, shadows: ui.shadows3d, weather: d.site.weather });
     s.resetView();
     s.onFar = () => useUi.getState().showToast('Walk closer to open that door.');
-    (window as unknown as { __ph3d: unknown }).__ph3d = { stats: () => s.stats(), scene: s };
     setScene(s);
     return () => {
       ro.disconnect();
@@ -74,6 +73,11 @@ export default function View3D() {
   useEffect(() => {
     if (scene) scene.invertY = invertLook;
   }, [scene, invertLook]);
+
+  // the debug hook of the tests: only once the effects above have set the view up (a test that walks in before them would be put back in orbit mode)
+  useEffect(() => {
+    if (scene) (window as unknown as { __ph3d: unknown }).__ph3d = { stats: () => scene.stats(), scene };
+  }, [scene]);
 
   // play a whole day
   useEffect(() => {

@@ -12,6 +12,7 @@ import { faceNormal } from '../roofs';
 import { buildWalkWorld, type WalkWorld } from '../walk';
 import { floorElevations, sceneChunks, sceneExtent, type BuildOptions } from './build';
 import { roofImage } from './roofTex';
+import { SkyEnvironment, setSkyProbe, type SkyLook } from './skyLight';
 import type { Anim, Part } from './parts';
 
 const MAX_LAMPS = 6;
@@ -47,7 +48,15 @@ export class Scene3D {
   private world = new THREE.Group();
   private built = new Map<string, Built>();
   private sunLight = new THREE.DirectionalLight('#ffffff', 2);
+  /** A little flat skylight on top of the sky image (`skyLight`), which does most of the soft light. */
   private sky = new THREE.HemisphereLight('#dbeafe', '#cfd8c4', 0.8);
+  private skyLight!: SkyEnvironment;
+  /** The soft light of the sky on every surface (cheap), and the sky as an image for the glass only. */
+  private probe = new THREE.LightProbe();
+  private skyView: SkyLook | null = null;
+  private skyStrength = 0;
+  private glassMaterials: THREE.MeshStandardMaterial[] = [];
+  private aniso = 4;
   private lampLights: THREE.PointLight[] = [];
   private materials = new Map<string, THREE.MeshStandardMaterial>();
   private glowMaterials: THREE.MeshStandardMaterial[] = [];
@@ -61,7 +70,7 @@ export class Scene3D {
   private dark = 0;
   /** Clouds in the sky (more or fewer of them show), and rain or snow falling round the camera. */
   private clouds = new THREE.Group();
-  private cloudMaterial = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.93, fog: false, depthWrite: false });
+  private cloudMaterial = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.93, fog: false, depthWrite: false, toneMapped: false });
   private precip: { kind: 'rain' | 'snow'; object: THREE.LineSegments | THREE.Points; pos: Float32Array; seed: Float32Array } | null = null;
   /** The materials of the horizon (unlit): darkened and tinted with the light of the day. */
   private skyMats = new Map<string, { m: THREE.MeshBasicMaterial; base: THREE.Color }>();
@@ -89,16 +98,22 @@ export class Scene3D {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // bright sun and white walls are compressed instead of clipped, while the colors you chose stay as they are
+    this.renderer.toneMapping = THREE.NeutralToneMapping;
+    this.renderer.toneMappingExposure = 1;
+    this.skyLight = new SkyEnvironment(this.renderer);
+    this.aniso = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
     this.renderer.domElement.style.display = 'block';
     this.renderer.domElement.tabIndex = 0;
     this.renderer.domElement.dataset.testid = 'view3d-canvas';
     host.appendChild(this.renderer.domElement);
 
-    this.scene.add(this.world, this.sky, this.sunLight, this.sunLight.target, this.clouds);
+    this.scene.add(this.probe, this.world, this.sky, this.sunLight, this.sunLight.target, this.clouds);
     this.buildClouds();
-    this.sunLight.shadow.mapSize.set(2048, 2048);
-    this.sunLight.shadow.bias = -0.0004;
-    this.sunLight.shadow.normalBias = 0.03;
+    const shadowSize = 2048;
+    this.sunLight.shadow.mapSize.set(shadowSize, shadowSize);
+    this.sunLight.shadow.bias = -0.0003;
+    this.sunLight.shadow.normalBias = 0.02;
     for (let i = 0; i < MAX_LAMPS; i++) {
       const l = new THREE.PointLight('#ffd98a', 0, 6, 1.6);
       l.visible = false;
@@ -170,6 +185,7 @@ export class Scene3D {
     this.geo.cyl.forEach((g) => g.dispose());
     this.materials.forEach((m) => m.dispose());
     this.textures.forEach((t) => t.dispose());
+    this.skyLight.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
@@ -239,7 +255,11 @@ export class Scene3D {
     let m = this.materials.get(key);
     if (!m) {
       m = new THREE.MeshStandardMaterial({ color, roughness: o.glass ? 0.1 : 0.85, metalness: o.glass ? 0.1 : 0.02 });
-      if (o.glass) Object.assign(m, { transparent: true, opacity: 0.32, depthWrite: false });
+      if (o.glass) {
+        Object.assign(m, { transparent: true, opacity: 0.32, depthWrite: false });
+        this.glassMaterials.push(m);
+        this.reflectSky();
+      }
       if (o.glow) {
         m.emissive = new THREE.Color(color);
         m.emissiveIntensity = this.glowStrength();
@@ -264,7 +284,7 @@ export class Scene3D {
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.repeat.set(1 / pat.meters, 1 / pat.meters);
       t.colorSpace = THREE.SRGBColorSpace;
-      t.anisotropy = 4;
+      t.anisotropy = this.aniso;
       this.textures.set(key, t);
     }
     return t;
@@ -279,7 +299,7 @@ export class Scene3D {
       t = new THREE.CanvasTexture(img);
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.colorSpace = THREE.SRGBColorSpace;
-      t.anisotropy = 4;
+      t.anisotropy = this.aniso;
       this.textures.set(key, t);
     }
     return t;
@@ -315,7 +335,7 @@ export class Scene3D {
   private skyMaterial(color: string): THREE.MeshBasicMaterial {
     let e = this.skyMats.get(color);
     if (!e) {
-      e = { m: new THREE.MeshBasicMaterial({ color, fog: false }), base: new THREE.Color(color) };
+      e = { m: new THREE.MeshBasicMaterial({ color, fog: false, toneMapped: false }), base: new THREE.Color(color) };
       this.skyMats.set(color, e);
       this.tintHorizon();
     }
@@ -426,12 +446,14 @@ export class Scene3D {
     this.sunLight.color.set(up ? new THREE.Color('#ffffff').lerp(new THREE.Color('#ffb673'), golden) : new THREE.Color('#9db4ff'));
     this.sunLight.intensity = up ? 2.6 * Math.min(1, 0.25 + sun.elevation / 25) * (1 - this.dark * 0.9) * mood.sun : 0.25;
     this.sunLight.castShadow = s.shadows && up && mood.shadows; // an overcast sky casts no shadows
-    this.sky.intensity = (0.25 + 0.75 * (1 - this.dark)) * mood.hemi;
+    const ambient = (0.25 + 0.75 * (1 - this.dark)) * mood.hemi;
+    this.sky.intensity = ambient * 0.3;
     const day = new THREE.Color(mood.sky);
     const dusk = new THREE.Color('#f1c9a0');
     const night = new THREE.Color('#0b1220');
     const sky = day.clone().lerp(dusk, golden * 0.8).lerp(night, this.dark);
     this.scene.background = sky;
+    this.lightFromSky(mood, sky, dir, up, golden);
     // the ground fades into the sky at the horizon
     this.scene.fog = mood.fog ? new THREE.Fog(sky, mood.fog * 0.08, mood.fog) : new THREE.Fog(sky, this.extent.radius * 6 + 40, this.extent.radius * 20 + 200);
     this.applyAtmosphere(mood, golden, sky);
@@ -440,6 +462,41 @@ export class Scene3D {
     this.updateLamps();
     this.updateShadowCamera();
     this.dirty = true;
+  }
+
+  /**
+   * The soft light of the whole sky: deeper blue overhead, pale at the horizon, a warm bounce from the ground, the sun as a bright spot
+   * (it shows in glass and water). Shaded walls take their color from it instead of a flat grey.
+   */
+  private lightFromSky(mood: Mood, sky: THREE.Color, sunDir: THREE.Vector3, up: boolean, golden: number) {
+    const day = 1 - this.dark;
+    const blue = mood.sun * day * (1 - golden * 0.6);
+    const zenith = sky.clone().lerp(new THREE.Color('#5b8fd0'), 0.55 * blue).lerp(new THREE.Color('#4b5f9a'), this.dark);
+    const horizon = sky.clone().lerp(new THREE.Color('#ffffff'), 0.25 * day).lerp(new THREE.Color('#6a7cb0'), this.dark);
+    const ground = new THREE.Color(mood.precip === 'snow' ? '#e6ebf0' : '#8d8272').multiplyScalar((0.55 + 0.45 * mood.sun) * (1 - this.dark * 0.92));
+    this.skyView = {
+      zenith,
+      horizon,
+      ground,
+      sunDir: up ? sunDir.clone().normalize() : new THREE.Vector3(0, 1, 0),
+      sunColor: this.sunLight.color.clone(),
+      sunStrength: up ? day * mood.sun : 0,
+    };
+    // by night the sky is all the soft light there is, so it keeps a floor
+    this.skyStrength = 0.7 * (0.35 + 0.65 * day) * mood.hemi;
+    setSkyProbe(this.probe, this.skyView, this.skyStrength);
+    this.reflectSky();
+  }
+
+  /** The sky in the glass: the image is made only once there is glass to show it in. */
+  private reflectSky() {
+    if (!this.skyView || !this.glassMaterials.length) return;
+    const image = this.skyLight.update(this.skyView);
+    for (const m of this.glassMaterials) {
+      if (!m.envMap) m.needsUpdate = true;
+      m.envMap = image;
+      m.envMapIntensity = this.skyStrength;
+    }
   }
 
   /** Clouds, the horizon's light and the rain or snow that go with the weather and the time of day. */
@@ -507,11 +564,11 @@ export class Scene3D {
     if (kind === 'rain') {
       pos = new Float32Array(N * 6);
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      object = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: '#b7c4d6', transparent: true, opacity: 0.55, fog: false }));
+      object = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: '#b7c4d6', transparent: true, opacity: 0.55, fog: false, toneMapped: false }));
     } else {
       pos = new Float32Array(N * 3);
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      object = new THREE.Points(geo, new THREE.PointsMaterial({ color: '#ffffff', size: 0.16, sizeAttenuation: true, transparent: true, opacity: 0.9, fog: false }));
+      object = new THREE.Points(geo, new THREE.PointsMaterial({ color: '#ffffff', size: 0.16, sizeAttenuation: true, transparent: true, opacity: 0.9, fog: false, toneMapped: false }));
     }
     object.frustumCulled = false;
     this.precip = { kind, object, pos, seed };
@@ -882,6 +939,10 @@ export class Scene3D {
       camera: this.camera.position.toArray(),
       target: this.controls.target.toArray(),
       shadows: this.sunLight.castShadow,
+      skyImage: this.probe.intensity > 0,
+      glassSky: this.glassMaterials.filter((m) => !!m.envMap).length,
+      toneMapping: this.renderer.toneMapping,
+      shadowMap: this.sunLight.shadow.mapSize.x,
       doorsOpen: this.openDoors().length,
       feet: this.feetY,
       dark: this.dark,

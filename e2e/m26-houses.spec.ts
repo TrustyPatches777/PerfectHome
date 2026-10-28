@@ -206,7 +206,7 @@ test('stairs make a hole in the floor above, with railings in several styles', a
 });
 
 test('walking: walls and furniture stop you, and you can climb the stairs to the floor above and come back down', async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000); // the walker moves in real time, and the test browser draws 3D in software
   await twoStoreyHouse(page);
   await edit(page, `d.furniture.push({ id: 'sofa', floor: d.floors[0].id, type: 'sofa', x: 8, y: 5, w: 2, d: 0.9, rotation: 90, color: '#b7c9a8', label: '' });`);
   await page.getByTestId('view-3d').click();
@@ -248,7 +248,7 @@ test('walking: walls and furniture stop you, and you can climb the stairs to the
 });
 
 test('walking: a shut door stops you and an open one lets you through; the roof of an attic is a ceiling you bump your head on', async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000); // the walker moves in real time, and the test browser draws 3D in software
   await twoStoreyHouse(page);
   await page.getByTestId('view-3d').click();
   await expect.poll(async () => (await stats(page)).meshes, { timeout: 30_000 }).toBeGreaterThan(50);
@@ -298,6 +298,7 @@ test('floors can be switched on and off in the 3D view, so the ground and the ba
 });
 
 test('three kinds of door, a roof with a skylight that lets light in, and the Porsche', async ({ page }) => {
+  test.setTimeout(90_000);
   await twoStoreyHouse(page);
   await edit(page, `
     d.openings.push({ id: 'garden', wallId: 'w', kind: 'garden', pos: 2, width: 1.3, swing: 1, hinge: 'a' });

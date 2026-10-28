@@ -49,17 +49,18 @@ test('click a door in 3D to open or close it', async ({ page }) => {
   const door = await scene(page, (s) => s.screenOf(8, 1.0, 7));
   await page.mouse.click(door.x, door.y);
   await expect.poll(async () => (await stats(page)).doorsOpen).toBe(1);
-  await page.waitForTimeout(900); // it swings open
+  // how far the leaf has swung (it moves frame by frame: wait for it instead of a fixed time, the frame rate varies)
+  const swingOf = () =>
+    scene(page, (s) => {
+      let max = 0;
+      s.world.traverse((o: any) => {
+        if (o.userData?.door === 'front' && o.isGroup) max = Math.max(max, Math.abs(o.rotation.y));
+      });
+      return max;
+    });
+  await expect.poll(swingOf).toBeCloseTo(Math.PI / 2, 1); // it swings open
   await page.screenshot({ path: 'e2e/.results/m25-door-open.png' });
   // its leaf now stands across the wall: the middle of the doorway shows what is behind it
-  const swung = await scene(page, (s) => {
-    let max = 0;
-    s.world.traverse((o: any) => {
-      if (o.userData?.door === 'front' && o.isGroup) max = Math.max(max, Math.abs(o.rotation.y));
-    });
-    return max;
-  });
-  expect(swung).toBeCloseTo(Math.PI / 2, 1);
   // click the open leaf, or the doorway: the leaf is what reacts; click it again to close
   const leafNow = await scene(page, (s) => {
     let p: any = null;
@@ -70,7 +71,7 @@ test('click a door in 3D to open or close it', async ({ page }) => {
   });
   await page.mouse.click(leafNow.x, leafNow.y);
   await expect.poll(async () => (await stats(page)).doorsOpen).toBe(0);
-  await page.waitForTimeout(900); // it swings shut
+  await expect.poll(swingOf).toBeCloseTo(0, 1); // it swings shut
 
   // a door too far away does not react
   await scene(page, (s) => s.walkTo(6.5, 2.6, 0));

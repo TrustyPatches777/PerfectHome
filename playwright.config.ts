@@ -14,6 +14,7 @@ export default defineConfig({
   fullyParallel: false, // files run in parallel, the tests inside a file one after another
   workers: Number(process.env.E2E_WORKERS) || 4,
   retries: 1, // a few specs steer a real-time 3D walker or wait on animations and can miss a beat when 4 browsers share the CPU; a retry that passes is reported as flaky
+  expect: { timeout: 10_000 }, // the test browser draws 3D in software: a scene needs seconds to show when 4 of them share the CPU
   reporter: 'list',
   outputDir: 'e2e/.results',
   use: {

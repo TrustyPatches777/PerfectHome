@@ -101,6 +101,8 @@ src/view3d/             the house in 3D (three.js, loaded only when the 3D view 
   roofTex.ts            canvas textures for roof coverings (tiles, slate, metal ribs, thatch...)
   build.ts              design -> chunks (one per wall/room/item) with `deps`; walls get cut for doors/windows, floors stack by storey
   stairs3d.ts           steps (closed / open / floating, materials) and railings of staircases; build.ts re-exports stairParts/railParts
+  skyLight.ts           the light of the whole sky: `setSkyProbe` (the soft light on every surface as spherical harmonics: nine numbers per color, no cost per pixel) and
+                        `SkyEnvironment` (the sky as a small image for the glass to reflect, made only when there is glass)
   scene.ts              Three.js: meshes from parts, sun + shadows + lamps, orbit and walk cameras, only rebuilds changed chunks
   View3D.tsx            the 3D view with its controls (orbit/walk, cut-away, shadows, time of day, save image)
   options.ts            `sceneOptions(design, floor, uiState)`: what the 3D view builds (floors shown, roof, ceilings, explode, dollhouse) - ONE place
@@ -261,6 +263,12 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
   fills of the design's own colors go through `look.tone`, lines through `look.ink`/`ink2` and `look.lw` (line weight), text through `look.text`/`font`. Walls that are not
   solid ('hatch', 'outline') are drawn in TWO passes (every wall's thick edge first, then every fill on top, with a 1 px fill-colored stroke to close the seam at mitres),
   on the canvas (`edge` pass in StructureLayer, not clickable; the fill pass keeps `hitStrokeWidth`) and in the SVG. Only the plan, the exports and the print change; the 3D view does not.
+- **3D light**: `scene.ts` uses NEUTRAL tone mapping (white and bright colors are compressed instead of clipped, the colors you chose stay as they are) and a
+  light probe of the sky (`setSun` -> `lightFromSky`: blue overhead, pale horizon, warm ground, from the weather and the time of day; at night it keeps a floor so the house
+  stays readable). Do NOT put the sky image on `scene.environment`: sampling it for every pixel of every material made the 3D view (and the e2e run) several times slower;
+  only glass materials carry it (`reflectSky`). The flat hemisphere light is only a third of what it was, so a change to the strength of ONE of them needs the other looked at: compare the noon,
+  dusk and night pictures of `e2e/m38-light.spec.ts` (in `e2e/.results/`) with the code before. Unlit things (horizon, clouds, rain/snow) are `toneMapped: false`, or they would
+  not match the background and the fog. The sun's shadow map stays 2048 (shadows are on by default and drawn every frame; 4096 made the 3D view clearly slower); textures use anisotropic filtering up to 8.
 - **Sky and surroundings** (`design.site.weather/season/horizon`, all optional, in the link): `scene.ts setSun` takes the weather's `Mood` (sun and sky strength, no shadows when
   overcast, sky color, fog), keeps a ring of cloud clusters (more show in bad weather) and a rain/snow particle box that follows the camera (it redraws every frame
   only while it falls). The season (`seasonOf`: chosen, or from the date, flipped in the south) recolors the leaves of `DECIDUOUS` catalog trees in `furnitureChunk`
@@ -298,3 +306,4 @@ then: editing tools (mirror, groups, wall tools, scale, find, snapshots) · atti
 then: visual detail (wallpaper/tile layouts/pictures, furniture frame color, ceilings, dormers/solar/gutters/chimneys/roof wings, balconies/porches/entrance steps, shutters/trim/handles, facade)
 then: presentation (dollhouse per floor and a sheet of all floors, exploded view, saved 3D views, elevations and sections for print)
 then: plan styles (colour, architectural black and white, blueprint; walls solid/hatched/outline, floors, furniture, line weight, room labels, lettering)
+then: better 3D light (neutral tone mapping, a sky image that lights and is reflected, sharper shadows and textures)
