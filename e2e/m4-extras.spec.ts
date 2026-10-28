@@ -31,8 +31,10 @@ test('text labels: place, type, resize, move, rotate, delete', async ({ page }) 
   await page.screenshot({ path: 'e2e/.results/m4-label.png' });
   await page.keyboard.press('Escape');
   await clickAt(page, 5, 4);
-  await page.keyboard.press('Delete');
-  expect((await design(page)).labels).toHaveLength(0);
+  await expect.poll(() => page.evaluate(() => (window as any).__ph.ui.getState().selected.length)).toBe(1); // selected before it is deleted, however busy the machine is
+  // selecting a label puts the cursor in its text field (a moment later, depending on how busy the machine is): the Delete key would then edit the text, so use the button
+  await page.getByTestId('delete').click();
+  await expect.poll(async () => (await design(page)).labels).toHaveLength(0);
 });
 
 test('measure tool snaps to wall corners, keeps the dimension, and it can be edited and deleted', async ({ page }) => {

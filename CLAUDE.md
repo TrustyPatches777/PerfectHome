@@ -13,7 +13,11 @@ Node is in `C:\Program Files\nodejs`; shells opened before it was installed may 
 - `npm run dev` — dev server on http://localhost:5173 (port is fixed; Playwright reuses a running one)
 - `npm run typecheck` — `tsc --noEmit`; `npm run build` runs it, then Vite into `dist/`
 - `npm test` — Vitest unit tests (`src/**/*.test.ts`): geometry, room detection, model validation, share links
-- `npm run e2e` — Playwright (Chromium) specs in `e2e/`, one per milestone; they start the dev server themselves.
+- `npm run e2e` — Playwright (Chromium) specs in `e2e/`, one per milestone. They build the app once and serve the PRODUCTION build with
+  `vite preview` on :5174 (the dev server sends hundreds of modules per page load: far slower), 4 spec files at a time, one retry for the few
+  timing-sensitive ones (a pass on retry shows as "flaky"). `E2E_DEV=1` uses the dev server on :5173 instead; `E2E_WORKERS=1` runs serially.
+  A spec must not hard-code a port (use relative `page.goto('/...')`), and anything that steers the real-time 3D walker must WAIT for the movement
+  (`expect.poll`) instead of holding a key for a fixed time. A full run takes ~5 minutes (was 10).
   Screenshots land in `e2e/.results/` (git-ignored) — look at them when changing visuals.
 - CI (`.github/workflows/deploy.yml`) runs `npm test` + `npm run build` and deploys `dist/` to GitHub Pages on push to `main`.
   `vite.config.ts` uses `base: './'`, so it works under any repo name.

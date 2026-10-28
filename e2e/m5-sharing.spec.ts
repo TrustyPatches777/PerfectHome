@@ -99,7 +99,7 @@ test('opening a link when you already have your own work asks first and never lo
   await expect(her.getByTestId('save-state')).toContainText('Saved');
   const mine = await design(her);
 
-  await her.goto(url.replace(/^https?:\/\/[^/]+/, 'http://localhost:5173'));
+  await her.goto(url.replace(/^https?:\/\/[^/]+/, '')); // the same address on whatever server the run uses (a relative address follows baseURL)
   await her.reload();
   await expect(her.getByTestId('conflict-dialog')).toBeVisible();
   await her.screenshot({ path: 'e2e/.results/m5-conflict.png' });

@@ -116,10 +116,9 @@ test('walking: dragging right or pressing the right arrow turns right, up looks 
   // the left arrow turns back
   await page.getByTestId('view3d-canvas').focus();
   await page.keyboard.down('ArrowLeft');
-  await page.waitForTimeout(500);
+  // held until it has turned (the walker moves with the frame rate, which drops when the machine is busy), not for a fixed time
+  await expect.poll(async () => (await stats(page)).look[0], { timeout: 10_000 }).toBeLessThan(look[0] - 0.3);
   await page.keyboard.up('ArrowLeft');
-  const back = (await stats(page)).look;
-  expect(back[0]).toBeLessThan(look[0] - 0.3);
   // dragging up looks up; with "invert" it looks down
   await scene(page, (s) => s.walkTo(6, 5, Math.PI));
   await page.mouse.move(cx, cy);
@@ -139,13 +138,11 @@ test('walking: dragging right or pressing the right arrow turns right, up looks 
   await scene(page, (s) => s.walkTo(6, 5, Math.PI));
   await page.getByTestId('view3d-canvas').focus();
   await page.keyboard.down('w');
-  await page.waitForTimeout(400);
+  await expect.poll(async () => (await stats(page)).camera[2], { timeout: 10_000 }).toBeLessThan(4.7);
   await page.keyboard.up('w');
-  expect((await stats(page)).camera[2]).toBeLessThan(4.7);
   await page.keyboard.down('d'); // and D to the right: +x
-  await page.waitForTimeout(400);
+  await expect.poll(async () => (await stats(page)).camera[0], { timeout: 10_000 }).toBeGreaterThan(6.3);
   await page.keyboard.up('d');
-  expect((await stats(page)).camera[0]).toBeGreaterThan(6.3);
 });
 
 test('a swimming pool and a pond have depth: the ground is cut away under them', async ({ page }) => {
