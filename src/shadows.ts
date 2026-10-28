@@ -5,6 +5,7 @@
 import { catalogItem, catalogLayer, furnitureHeight } from './catalog';
 import { wallOutlinePoints, rotatePoint } from './geometry';
 import type { Design, Furniture, Point } from './model';
+import { roofAt } from './roofs';
 import { rectCorners } from './selection';
 import { shadowOffset, type SunPosition } from './sun';
 
@@ -60,9 +61,17 @@ export function furnitureFootprint(f: Furniture): Point[] {
   return round ? ellipsePolygon(f.x, f.y, f.w / 2, f.d / 2, f.rotation) : rectCorners(f.x, f.y, f.w, f.d, f.rotation);
 }
 
+/** How much of the sun a see-through screen (slats, a pergola, sheer cloth) lets through: its shadow is painted this much lighter. */
+export const VEIL_STRENGTH = 0.55;
+
+/** Catalog items that are only partly solid: they cast a lighter shadow. */
+export const VEILED_ITEMS: ReadonlySet<string> = new Set(['pergola', 'gate-garden', 'gate-sliding', 'gate-driveway', 'kr-hanji-door', 'kr-hanji-screen', 'curtain-sheer', 'wg-birdcage', 'headboard-wood']);
+
 export interface ShadowSet {
   /** Dark areas to paint. */
   shadows: Point[][];
+  /** Shadows of see-through things (a slat partition, a pergola): painted lighter, in proportion to how much of them is solid. */
+  veils: Point[][];
   /** Areas to keep light even if a shadow covers them (the inside of the building, under its own roof). */
   cutouts: Point[][];
 }
@@ -75,19 +84,21 @@ export function groundIndex(d: Design): number {
 
 export function computeShadows(d: Design, floor: string, sun: SunPosition): ShadowSet {
   const shadows: Point[][] = [];
+  const veils: Point[][] = [];
   const cutouts: Point[][] = [];
   const north = d.site.north;
-  const add = (poly: Point[], height: number) => {
+  const add = (poly: Point[], height: number, veil = false) => {
     const off = shadowOffset(sun, north, height);
-    if (off) shadows.push(...sweepPolygon(poly, off.dx, off.dy));
+    if (off) (veil ? veils : shadows).push(...sweepPolygon(poly, off.dx, off.dy));
   };
 
-  for (const w of d.walls.filter((x) => x.floor === floor && x.type !== 'glass')) add(wallOutlinePoints(w), w.height); // glass lets the light through
+  // glass lets the light through; slats let part of it through (the 3D view casts the real striped shadow, the plan a lighter one)
+  for (const w of d.walls.filter((x) => x.floor === floor && x.type !== 'glass')) add(wallOutlinePoints(w), w.height, w.type === 'slats');
 
   for (const f of d.furniture.filter((x) => x.floor === floor)) {
     if (catalogLayer(f.type) === 'tech') continue; // sockets, switches and ceiling lights cast nothing worth drawing
     const h = furnitureHeight(f);
-    if (h >= 0.2) add(furnitureFootprint(f), h);
+    if (h >= 0.2) add(furnitureFootprint(f), h, VEILED_ITEMS.has(f.type));
   }
 
   for (const s of d.strips.filter((x) => x.floor === floor)) {
@@ -110,9 +121,14 @@ export function computeShadows(d: Design, floor: string, sun: SunPosition): Shad
   if (here === gi) {
     const ground = d.floors[gi].id;
     const height = (d.floors.length - gi) * d.settings.storeyHeight + 0.4;
-    const footprint = [...d.rooms.filter((r) => r.floor === ground).map((r) => r.points), ...d.walls.filter((w) => w.floor === ground).map((w) => wallOutlinePoints(w))];
-    for (const poly of footprint) add(poly, height);
-    cutouts.push(...footprint.map(normalized));
+    const rooms = d.rooms.filter((r) => r.floor === ground);
+    // a room under a glass roof (a winter garden) lets part of the light through; glass walls and slat partitions are not part of the solid house
+    const glassRoofed = (pts: Point[]) => roofAt(d.roofs, ground, { x: pts.reduce((s, p) => s + p.x, 0) / pts.length, y: pts.reduce((s, p) => s + p.y, 0) / pts.length })?.material === 'glass';
+    const wallsHere = d.walls.filter((w) => w.floor === ground);
+    const solid = [...rooms.filter((r) => !glassRoofed(r.points)).map((r) => r.points), ...wallsHere.filter((w) => w.type !== 'glass' && w.type !== 'slats').map((w) => wallOutlinePoints(w))];
+    for (const poly of solid) add(poly, height);
+    for (const r of rooms.filter((x) => glassRoofed(x.points))) add(r.points, height, true);
+    cutouts.push(...[...rooms.map((r) => r.points), ...wallsHere.map((w) => wallOutlinePoints(w))].map(normalized));
   }
-  return { shadows, cutouts };
+  return { shadows, veils, cutouts };
 }

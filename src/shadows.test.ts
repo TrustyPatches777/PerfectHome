@@ -124,3 +124,58 @@ describe('shadows of a design', () => {
     expect(computeShadows(d, 'cellar', noonSouth).cutouts).toHaveLength(0);
   });
 });
+
+describe('see-through things cast a lighter shadow', () => {
+  const noonSouth = { azimuth: 180, elevation: 45 };
+  const lone = (type: string) => {
+    const d = createDesign();
+    const F = d.floors[0].id;
+    d.walls.push({ id: 'w', floor: F, a: { x: 0, y: 0 }, b: { x: 4, y: 0 }, thickness: type === 'glass' ? 0.1 : 0.06, type: type as never, height: 2.5 });
+    return { d, F };
+  };
+
+  it('a solid wall casts a full shadow, a slat partition a veil of it (same place), a glass wall none', () => {
+    const solid = lone('interior');
+    const s = computeShadows(solid.d, solid.F, noonSouth);
+    expect(s.shadows.length).toBeGreaterThan(0);
+    expect(s.veils).toHaveLength(0);
+
+    const slats = lone('slats');
+    const v = computeShadows(slats.d, slats.F, noonSouth);
+    expect(v.shadows).toHaveLength(0);
+    expect(v.veils.length).toBeGreaterThan(0);
+    expect(covered(v.veils, { x: 2, y: -2 })).toBe(true); // 2.5 m high, sun at 45 degrees: 2.5 m to the north
+    expect(covered(v.veils, { x: 2, y: -3 })).toBe(false);
+
+    const glass = lone('glass');
+    const g = computeShadows(glass.d, glass.F, noonSouth);
+    expect(g.shadows).toHaveLength(0);
+    expect(g.veils).toHaveLength(0);
+  });
+
+  it('a pergola is a veil too, a sofa is solid', () => {
+    const d = createDesign();
+    const F = d.floors[0].id;
+    d.furniture.push({ id: 'p', floor: F, type: 'pergola', x: 5, y: 5, w: 3, d: 3, rotation: 0, color: '#a5835a', label: '' });
+    d.furniture.push({ id: 's', floor: F, type: 'sofa', x: 12, y: 5, w: 2, d: 0.9, rotation: 0, color: '#b7c9a8', label: '' });
+    const r = computeShadows(d, F, noonSouth);
+    expect(covered(r.veils, { x: 5, y: 5 })).toBe(true);
+    expect(covered(r.shadows, { x: 5, y: 5 })).toBe(false);
+    expect(covered(r.shadows, { x: 12, y: 5 })).toBe(true);
+  });
+});
+
+describe('the shadow of a winter garden', () => {
+  it('a room under a glass roof casts a veil, not the solid shadow of the house', () => {
+    const d = createDesign();
+    const F = d.floors[0].id;
+    d.rooms.push({ id: 'g', floor: F, name: 'G', color: '#ddd', material: 'tile', living: true, points: [{ x: 0, y: 0 }, { x: 5, y: 0 }, { x: 5, y: 4 }, { x: 0, y: 4 }] });
+    d.roofs.push({ id: 'r', floor: F, kind: 'gable', x: 2.5, y: 2, w: 5, d: 4, rotation: 0, pitch: 25, overhang: 0.2, thickness: 0.05, material: 'glass', color: '#bfe3f5', chimney: false, parapet: false });
+    const r = computeShadows(d, F, { azimuth: 180, elevation: 45 });
+    expect(r.shadows).toHaveLength(0);
+    expect(r.veils.length).toBeGreaterThan(0);
+    d.roofs[0].material = 'tiles';
+    const solid = computeShadows(d, F, { azimuth: 180, elevation: 45 });
+    expect(solid.shadows.length).toBeGreaterThan(0);
+  });
+});

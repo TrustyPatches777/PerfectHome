@@ -235,7 +235,8 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
   whose rise was one storey. Entrance steps, low walls and railings keep their height.
 - **Floor holes**: `stairHoles` cuts the part of a stair outline that lies inside a room, piece by piece (L = 2 rectangles, U = 3), also in an L-shaped room.
 - **Wall types** also include `slats` (vertical wooden boards with gaps, 6 cm) and `glass` (frame + panes, casts no shadow); a roof of material `glass` is
-  see-through panels with glazing bars. Slats and glass walls take doors like any wall.
+  see-through panels with glazing bars. Slats and glass walls take doors like any wall. On the plan's sun layer glass casts no shadow and
+  slats / a pergola / sheer cloth cast a lighter one (`ShadowSet.veils`, `VEIL_STRENGTH`); a room under a glass roof casts a veil too. 3D casts the real shadows.
 - **Adding catalog items**: an entry in `catalogMore.ts` (symbol, size, color, optional `wallMounted`/`layer`/`height`) and a recipe in `furniture3d2.ts` (no
   recipe = plain block). Things on worktops go in `COUNTERTOP`. Wall-hung parts (wall units, mirrors, curtains) carry their own height in the recipe.
   Columns and beams are on the `structure` layer; ducts, vents, flues and underfloor zones on `tech`. A wall niche is a framed mark ON the wall, not a cut.

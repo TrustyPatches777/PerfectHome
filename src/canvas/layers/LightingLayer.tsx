@@ -3,7 +3,7 @@ import { Layer, Shape } from 'react-konva';
 import type { Context } from 'konva/lib/Context';
 import { catalogItem } from '../../catalog';
 import type { Point } from '../../model';
-import { computeShadows } from '../../shadows';
+import { computeShadows, VEIL_STRENGTH } from '../../shadows';
 import { darkness, goldenHour, sunPosition } from '../../sun';
 import { useDesign } from '../../store/design';
 import { useFloorId } from '../../store/floor';
@@ -30,7 +30,7 @@ export function LightingLayer() {
   const { lat, month, day } = design.site;
 
   const sun = useMemo(() => sunPosition(lat, month, day, hour), [lat, month, day, hour]);
-  const shadowSet = useMemo(() => (visible ? computeShadows(design, floor, sun) : { shadows: [], cutouts: [] }), [visible, design, floor, sun]);
+  const shadowSet = useMemo(() => (visible ? computeShadows(design, floor, sun) : { shadows: [], veils: [], cutouts: [] }), [visible, design, floor, sun]);
   const lamps = useMemo(
     () =>
       visible
@@ -53,10 +53,17 @@ export function LightingLayer() {
         <Shape
           sceneFunc={(ctx) => {
             // 1. sun shadows, with the building's own footprint kept light
-            if (shadowSet.shadows.length) {
-              path(ctx, shadowSet.shadows);
-              ctx.setAttr('fillStyle', `rgba(15,23,42,${0.34 * (1 - dark)})`);
-              ctx.fill();
+            if (shadowSet.shadows.length || shadowSet.veils.length) {
+              if (shadowSet.shadows.length) {
+                path(ctx, shadowSet.shadows);
+                ctx.setAttr('fillStyle', `rgba(15,23,42,${0.34 * (1 - dark)})`);
+                ctx.fill();
+              }
+              if (shadowSet.veils.length) {
+                path(ctx, shadowSet.veils);
+                ctx.setAttr('fillStyle', `rgba(15,23,42,${0.34 * (1 - dark) * VEIL_STRENGTH})`);
+                ctx.fill();
+              }
               if (shadowSet.cutouts.length) {
                 ctx.setAttr('globalCompositeOperation', 'destination-out');
                 path(ctx, shadowSet.cutouts);
