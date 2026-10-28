@@ -48,6 +48,7 @@ export function FileMenu() {
           {item('Export PNG', exportPng, 'menu-export-png')}
           {item('Export SVG', exportSvg, 'menu-export-svg')}
           {item('Print / save as PDF…', () => useUi.getState().setDialog({ type: 'print' }), 'menu-print')}
+          {item('Elevations and sections…', () => useUi.getState().setDialog({ type: 'drawing' }), 'menu-drawing')}
           {item('Restore previous design', restoreBackup, 'menu-restore', !hasBackup())}
         </div>
       )}

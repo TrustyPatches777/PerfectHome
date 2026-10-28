@@ -466,6 +466,27 @@ export interface Group {
   refs: ItemRef[];
 }
 
+/** A camera position of the 3D view that you can come back to (where the camera is and what it looks at, in 3D meters: plan x, up, plan y). */
+export interface SavedView {
+  id: string;
+  name: string;
+  pos: [number, number, number];
+  target: [number, number, number];
+}
+
+/**
+ * A line across the plan along which the house is cut for a section drawing. You look from the line towards its LEFT (as you walk from `a` to `b`
+ * on the screen), or the other way when `flip` is set.
+ */
+export interface SectionLine {
+  id: string;
+  /** The letter on the plan and in the title: "A" for section A-A. */
+  name: string;
+  a: Point;
+  b: Point;
+  flip?: boolean;
+}
+
 export interface Settings {
   /** Snap step in meters. */
   gridStep: number;
@@ -502,6 +523,9 @@ export interface Design {
   custom: CustomItem[];
   /** Absent in older designs. */
   groups: Group[];
+  /** Saved 3D camera positions and section lines (absent in older designs). */
+  views: SavedView[];
+  sections: SectionLine[];
   site: Site;
 }
 
@@ -574,6 +598,8 @@ export function createDesign(): Design {
     guides: [],
     custom: [],
     groups: [],
+    views: [],
+    sections: [],
     site: { ...DEFAULT_SITE },
   };
 }
@@ -606,6 +632,11 @@ function slopeOf(v: unknown): { slope?: Slope } {
 
 function color(v: unknown, def: string): string {
   return typeof v === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : def;
+}
+
+function vec3(v: unknown): [number, number, number] {
+  const a = Array.isArray(v) ? v : [];
+  return [num(a[0], 0, -1e5, 1e5), num(a[1], 0, -1e5, 1e5), num(a[2], 0, -1e5, 1e5)];
 }
 
 function point(v: unknown): Point {
@@ -892,6 +923,18 @@ export function parseDesign(input: unknown): Design {
     groups: list<Group>(input.groups, (o) => {
       const refs = (Array.isArray(o.refs) ? o.refs : []).filter((r): r is Json => isObj(r) && typeof r.id === 'string' && typeof r.kind === 'string').map((r) => ({ kind: r.kind as ItemKind, id: r.id as string })).filter((r) => r.kind !== 'opening' && r.kind !== 'guide');
       return refs.length >= 2 ? { id: str(o.id, newId(), 20), name: str(o.name, 'Group', 60), refs } : null;
+    }),
+    views: list<SavedView>(input.views, (o) => ({
+      id: str(o.id, newId(), 20),
+      name: str(o.name, 'View', 60),
+      pos: vec3(o.pos),
+      target: vec3(o.target),
+    })),
+    sections: list<SectionLine>(input.sections, (o) => {
+      const a = point(o.a);
+      const b = point(o.b);
+      if (Math.hypot(b.x - a.x, b.y - a.y) < 0.05) return null;
+      return { id: str(o.id, newId(), 20), name: str(o.name, 'A', 20), a, b, ...(o.flip === true ? { flip: true } : {}) };
     }),
     custom: list<CustomItem>(input.custom, (o) => ({
       id: str(o.id, newId(), 20),

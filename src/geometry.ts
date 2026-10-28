@@ -1,5 +1,5 @@
 /** Pure geometry helpers. No React, no Konva, no state: easy to unit test. All units are meters. */
-import type { Opening, Point, Wall } from './model';
+import type { Opening, Point, Wall, SectionLine } from './model';
 
 export const dist = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
 
@@ -648,4 +648,11 @@ export function wallSegmentOutline(w: Wall, s0: number, s1: number, corners: Wal
     return { x: wp.p.x + wp.n.x * off, y: wp.p.y + wp.n.y * off };
   };
   return [at(r0, h), at(r1, h), at(l1, -h), at(l0, -h)];
+}
+
+/** The direction a section looks in (a unit vector on the plan): to the left of the line as you walk from a to b on the screen, or the other way when flipped. */
+export function sectionDirection(line: Pick<SectionLine, 'a' | 'b' | 'flip'>): Point {
+  const len = Math.hypot(line.b.x - line.a.x, line.b.y - line.a.y) || 1;
+  const t = { x: (line.b.x - line.a.x) / len, y: (line.b.y - line.a.y) / len };
+  return line.flip ? { x: -t.y, y: t.x } : { x: t.y, y: -t.x };
 }

@@ -7,7 +7,7 @@ import { isSingleDoor } from './model';
 import { catalogItem, catalogLayer, fillColor, shade } from './catalog';
 import { contentBounds } from './bounds';
 import { autoDimensions } from './dims';
-import { doorGeometry, formatArea, labelPoint, niceLength, polygonArea, wallArc, wallCorners, wallPointAt, wallSegmentOutline, type WallCorners, faceSpan, wallSolidSegments } from './geometry';
+import { doorGeometry, formatArea, labelPoint, sectionDirection, niceLength, polygonArea, wallArc, wallCorners, wallPointAt, wallSegmentOutline, type WallCorners, faceSpan, wallSolidSegments } from './geometry';
 import type { Design, FloorMaterial, Furniture, Gate, Opening, Point, Strip, Wall } from './model';
 import { doorwayPatches } from './doorways';
 import { gateGeometry, gateSpans, pathMarks, plotFirst, samplePolyline, solidSpans, stripColor } from './outdoor';
@@ -355,6 +355,23 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
         `<g stroke="${c}" stroke-width="1.5" ${hairline}><line x1="${n(m.a.x)}" y1="${n(m.a.y)}" x2="${n(m.b.x)}" y2="${n(m.b.y)}"/><line x1="${n(m.a.x - nx * tick)}" y1="${n(m.a.y - ny * tick)}" x2="${n(m.a.x + nx * tick)}" y2="${n(m.a.y + ny * tick)}"/><line x1="${n(m.b.x - nx * tick)}" y1="${n(m.b.y - ny * tick)}" x2="${n(m.b.x + nx * tick)}" y2="${n(m.b.y + ny * tick)}"/></g>`,
         `<g transform="translate(${n(mid.x)} ${n(mid.y)}) rotate(${n(ang)})">${L(`${(Math.round(len * 100) / 100).toFixed(2)} m`, 0, 0.07, 0.2, `font-weight="700" fill="${c}"`)}</g>`,
       );
+    }
+  }
+
+  if (vis('notes')) {
+    // section lines cut the whole house, so they are on every floor
+    for (const s of d.sections) {
+      const v = sectionDirection(s);
+      const len = Math.hypot(s.b.x - s.a.x, s.b.y - s.a.y) || 1;
+      const t = { x: (s.b.x - s.a.x) / len, y: (s.b.y - s.a.y) / len };
+      const c = '#b91c1c';
+      const ends = [s.a, s.b].map((p) => {
+        const tip = { x: p.x + v.x * 0.45, y: p.y + v.y * 0.45 };
+        const head = `<polyline points="${n(tip.x - v.x * 0.12 - t.x * 0.09)},${n(tip.y - v.y * 0.12 - t.y * 0.09)} ${n(tip.x)},${n(tip.y)} ${n(tip.x - v.x * 0.12 + t.x * 0.09)},${n(tip.y - v.y * 0.12 + t.y * 0.09)}" fill="none"/>`;
+        const ring = { x: tip.x + v.x * 0.2, y: tip.y + v.y * 0.2 };
+        return `<line x1="${n(p.x)}" y1="${n(p.y)}" x2="${n(tip.x)}" y2="${n(tip.y)}" stroke-width="3"/>${head}<circle cx="${n(ring.x)}" cy="${n(ring.y)}" r="0.17" fill="#fff"/><text x="${n(ring.x)}" y="${n(ring.y + 0.06)}" text-anchor="middle" font-size="0.2" font-weight="700" stroke="none" fill="${c}" ${FONT}>${esc(s.name.slice(0, 3))}</text>`;
+      });
+      body.push(`<g stroke="${c}" stroke-width="1.5" ${hairline}><line x1="${n(s.a.x)}" y1="${n(s.a.y)}" x2="${n(s.b.x)}" y2="${n(s.b.y)}" stroke-dasharray="0.3 0.08 0.06 0.08"/>${ends.join('')}</g>`);
     }
   }
 

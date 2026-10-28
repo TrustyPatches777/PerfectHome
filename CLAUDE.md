@@ -75,7 +75,11 @@ src/checks.ts         "Plan check": blocked doors, furniture in walls, narrow pa
 src/areas.ts          area table and plot figures (coverage, distance to boundary), text/CSV
 src/bounds.ts         bounding box of a floor's content
 src/svgExport.ts      SECOND RENDERER: a floor as SVG (export + print). Keep in sync with the canvas drawing code.
-src/printLayout.ts    print pages at true scale (HTML for a hidden frame), paper sizes, "fit" scale
+src/printLayout.ts    print pages at true scale (HTML for a hidden frame), paper sizes, "fit" scale; also the shared page CSS and title block (`pageCss`, `titleBlock`)
+src/section.ts        ELEVATIONS and SECTIONS as SVG: turns the parts of `sceneChunks` into convex solids, paints the faces that look at you far to near; a section drops
+                      everything in front of the cutting plane and hatches what the plane passes through (exact for walls/slabs, hull for other solids). Earth profile,
+                      floor levels. `prepareDrawing` (geometry, once) + `renderDrawing(scale)` (line weights and text are millimeters on paper)
+src/drawingPrint.ts   a drawing on a sheet at a true scale (reuses printLayout's paper, margins, title block); `specFor` turns the dialog's choice into a spec
 src/share.ts          pure: link encode/decode (lz-string), JSON parsing, localStorage read/write
 src/session.ts        whole-design flows: bootstrap, link opening, autosave, PNG/SVG/JSON export, print, new/restore backup
 src/actions.ts        commands on the selection (delete, copy/cut/paste, duplicate, nudge, rotate, align) + layer lock guards
@@ -96,6 +100,9 @@ src/view3d/             the house in 3D (three.js, loaded only when the 3D view 
   stairs3d.ts           steps (closed / open / floating, materials) and railings of staircases; build.ts re-exports stairParts/railParts
   scene.ts              Three.js: meshes from parts, sun + shadows + lamps, orbit and walk cameras, only rebuilds changed chunks
   View3D.tsx            the 3D view with its controls (orbit/walk, cut-away, shadows, time of day, save image)
+  options.ts            `sceneOptions(design, floor, uiState)`: what the 3D view builds (floors shown, roof, ceilings, explode, dollhouse) - ONE place
+  PresentMenu.tsx       "Present" menu of the 3D bar: dollhouse per floor, exploded slider, saved camera views, picture of every floor
+  sheet.ts              the picture of every floor: photographs each floor as a dollhouse, lays them out in one PNG, puts the scene back
 src/live/              working together live (see the "Live sessions" rule below)
   crdt.ts               PURE: design <-> Yjs document (writeChange / readDesign / reuse), field-level merge, list order keys
   transport.ts          Yjs updates + presence over BroadcastChannel (same browser) and Trystero/WebRTC (other computers)
@@ -238,6 +245,14 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
 - **Storey height**: `settings.storeyHeight` fixes where every floor lies; a full-height wall is `fullWallHeight` (storey minus the slab, 2.5 m at 2.8 m), new walls
   of the usual types get it (`wallHeightFor`), and `setStoreyHeight` (Floors panel, one undo step) brings along walls that were full height (or 2.5) and stairs
   whose rise was one storey. Entrance steps, low walls and railings keep their height.
+- **Presentation views**: `design.views` (saved camera: `pos`/`target`, rounded to a millimeter by `Scene3D.getView`) and `design.sections` (section lines: `a`, `b`,
+  `flip`; you look to the LEFT of a->b on the screen, `sectionDirection` in geometry.ts) are lists in the design, so they travel in links and sync live without extra code.
+  **Exploded view** (`BuildOptions.explode`, UI `explode3d`): `explodedElevations` adds a gap per floor, the ground floor stays, basements go down; the walls of
+  basements are not clamped to the ground then. **Dollhouse** (`BuildOptions.dollhouse` = floor + height 1.3 m, UI `dollhouse`): that floor is the top, no roof/ceilings, its
+  wall chunks pass through `clipAbove` (windows and door leaves too); the two modes and walking exclude each other in the ui store. **Elevations/sections** read the SAME parts as
+  the 3D view (so nothing is kept in step by hand): `LAYERS` in section.ts says which chunk keys count (walls, rooms, zones, strips, stairs, roofs, optionally furniture; not ground,
+  ceilings, horizon). The drawing dialog is lazy-loaded (`Dialogs.tsx`), so `section.ts`/`drawingPrint.ts` stay out of the first load: import them only from there; the plan, the store and `svgExport` use geometry.ts only.
+  Section marks are drawn on the plan on EVERY floor (`SectionMarks`, `svgExport`); the tool is `SectionTool` (key E) and opens the dialog after the second click.
 - **Sky and surroundings** (`design.site.weather/season/horizon`, all optional, in the link): `scene.ts setSun` takes the weather's `Mood` (sun and sky strength, no shadows when
   overcast, sky color, fog), keeps a ring of cloud clusters (more show in bad weather) and a rain/snow particle box that follows the camera (it redraws every frame
   only while it falls). The season (`seasonOf`: chosen, or from the date, flipped in the south) recolors the leaves of `DECIDUOUS` catalog trees in `furnitureChunk`
@@ -273,3 +288,4 @@ then: live co-editing (Yjs, peer-to-peer) · 3D view (orbit, walk, sun, furnitur
 then: rectangles of walls · drag sides · wall paint · doors that open in 3D · walk-mode fix · deep pools · corner sofa fix · furniture kept out of walls · skylights
 then: editing tools (mirror, groups, wall tools, scale, find, snapshots) · attic from the roof · plot boundary at the back
 then: visual detail (wallpaper/tile layouts/pictures, furniture frame color, ceilings, dormers/solar/gutters/chimneys/roof wings, balconies/porches/entrance steps, shutters/trim/handles, facade)
+then: presentation (dollhouse per floor and a sheet of all floors, exploded view, saved 3D views, elevations and sections for print)

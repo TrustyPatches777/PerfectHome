@@ -41,6 +41,10 @@ export interface BuildOptions {
   showCeilings?: boolean;
   /** Bumped when an uploaded picture has loaded: what is covered with one is built again. */
   texVersion?: number;
+  /** Exploded view: every floor is lifted this many meters further from the one below (the ground floor stays; basements go down). */
+  explode?: number;
+  /** Dollhouse: the walls (and everything in them) of this floor are cut off at `height` above its floor, so you look into the rooms. */
+  dollhouse?: { floor: string; height: number };
 }
 
 const rad = (deg: number) => (deg * Math.PI) / 180;
@@ -50,6 +54,61 @@ export function floorElevations(d: Design): Map<string, number> {
   const g = groundIndex(d);
   const level = d.settings.groundLevel ?? 0; // a raised ground floor lies this far above the ground outside
   return new Map(d.floors.map((f, i) => [f.id, (i - g) * d.settings.storeyHeight + level]));
+}
+
+/** The same, with every floor pushed `gap` meters further from the one below it (the exploded view). */
+export function explodedElevations(d: Design, gap: number): Map<string, number> {
+  const g = groundIndex(d);
+  const level = d.settings.groundLevel ?? 0;
+  return new Map(d.floors.map((f, i) => [f.id, (i - g) * (d.settings.storeyHeight + gap) + level]));
+}
+
+/**
+ * Cut parts off at a height: what lies above goes, what crosses is shortened (a vertical thing) or kept when its middle is below.
+ * Used for the dollhouse, where the walls of a floor stop at about a meter.
+ */
+export function clipAbove(parts: Part[], y: number): Part[] {
+  const out: Part[] = [];
+  for (const p of parts) {
+    switch (p.t) {
+      case 'box': {
+        const bottom = p.y - p.sy / 2;
+        if (bottom >= y - 1e-6) break;
+        const top = Math.min(p.y + p.sy / 2, y);
+        out.push(top === p.y + p.sy / 2 ? p : { ...p, y: (bottom + top) / 2, sy: top - bottom });
+        break;
+      }
+      case 'cyl': {
+        if ((p.ax ?? 'y') !== 'y') {
+          if (p.y < y) out.push(p);
+          break;
+        }
+        const bottom = p.y - p.h / 2;
+        if (bottom >= y - 1e-6) break;
+        const top = Math.min(p.y + p.h / 2, y);
+        out.push(top === p.y + p.h / 2 ? p : { ...p, y: (bottom + top) / 2, h: top - bottom });
+        break;
+      }
+      case 'prism':
+        if (p.y0 >= y - 1e-6) break;
+        out.push(p.y1 <= y ? p : { ...p, y1: y });
+        break;
+      case 'panel': {
+        const low = Math.min(...p.pts.map((q) => q[1]));
+        if (low >= y - 1e-6) break;
+        if (Math.max(...p.pts.map((q) => q[1])) <= y) out.push(p);
+        else if (Math.abs(p.facing[1]) < 0.3) out.push({ ...p, pts: p.pts.map((q) => (q[1] > y ? ([q[0], y, q[2]] as [number, number, number]) : q)) }); // upright: lower its top edge
+        break;
+      }
+      case 'beam':
+        if (Math.min(p.a[1], p.b[1]) - p.h / 2 >= y - 1e-6) break;
+        out.push({ ...p, a: [p.a[0], Math.min(p.a[1], y), p.a[2]], b: [p.b[0], Math.min(p.b[1], y), p.b[2]] });
+        break;
+      default:
+        if ('y' in p && p.y < y) out.push(p);
+    }
+  }
+  return out;
 }
 
 /** Thickness of the floor slab between two storeys. */
@@ -426,12 +485,12 @@ function glassWallParts(w: Wall, s0: number, s1: number, y0: number, y1: number)
   return out;
 }
 
-function wallChunk(d: Design, w: Wall, ops: Opening[], elev: number, corners: WallCorners = {}): Part[] {
+function wallChunk(d: Design, w: Wall, ops: Opening[], elev: number, corners: WallCorners = {}, exploded = false): Part[] {
   const above = elev > 0.01;
   const lowest = d.floors[0]?.id === w.floor; // a raised lowest floor stands on a plinth down to the ground
   const wy0 = above ? (lowest ? -0.1 : elev - slabThickness(d)) : elev;
   // the walls of a basement reach up to the ground (a hair under it, so they do not fight with its top)
-  const top = elev < -0.01 ? Math.max(elev + w.height, -0.03) : elev + w.height;
+  const top = elev < -0.01 && !exploded ? Math.max(elev + w.height, -0.03) : elev + w.height;
   const color = WALL_COLOR[w.type];
   const out: Part[] = [];
   const attic = d.floors.find((f) => f.id === w.floor)?.attic;
@@ -1109,7 +1168,8 @@ export function roofParts(d: Design, r: Roof, elev: number): Part[] {
 // ---- the whole scene -------------------------------------------------------------------------------------------------------
 
 export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
-  const elev = floorElevations(d);
+  const gap = opts.explode && opts.explode > 0.01 ? opts.explode : 0;
+  const elev = gap ? explodedElevations(d, gap) : floorElevations(d);
   const hiddenFrom = opts.hideAbove ? d.floors.findIndex((f) => f.id === opts.hideAbove) : -1;
   const off = new Set(opts.hiddenFloors ?? []);
   const visible = new Set(d.floors.filter((f, i) => !off.has(f.id) && (hiddenFrom < 0 || i <= hiddenFrom)).map((f) => f.id));
@@ -1131,11 +1191,12 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
     const e = elev.get(w.floor) ?? 0;
     const ops = opsByWall.get(w.id) ?? [];
     const corners = wallCorners(w, wallsOf(w.floor));
+    const clip = opts.dollhouse?.floor === w.floor && w.type !== 'railing' ? opts.dollhouse.height : 0;
     // the corners are part of what the chunk looks like (a neighbor that moves changes them)
     // a wall in an attic stops under the roof: it changes with the roof of the floor below
     const atticIndex = d.floors.findIndex((f) => f.id === w.floor && f.attic);
     const underRoof = atticIndex > 0 ? [...d.roofs.filter((r) => r.floor === d.floors[atticIndex - 1].id), d.settings.storeyHeight, roofBaseHeight(d, d.floors[atticIndex - 1].id)] : [];
-    out.push({ key: `wall:${w.id}`, deps: [w, e, slab, JSON.stringify(corners), ...underRoof, ...(w.paint && (w.paint.l?.finish === 'custom' || w.paint.r?.finish === 'custom') ? [opts.texVersion ?? 0] : []), ...ops], make: () => wallChunk(d, w, ops, e, corners) });
+    out.push({ key: `wall:${w.id}`, deps: [w, e, slab, JSON.stringify(corners), ...underRoof, ...(w.paint && (w.paint.l?.finish === 'custom' || w.paint.r?.finish === 'custom') ? [opts.texVersion ?? 0] : []), ...ops, gap, ...(clip ? [clip] : [])], make: () => (clip ? clipAbove(wallChunk(d, w, ops, e, corners, gap > 0), e + clip) : wallChunk(d, w, ops, e, corners, gap > 0)) });
   }
   for (const r of d.rooms) {
     if (!visible.has(r.floor) || !shown('rooms')) continue;

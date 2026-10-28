@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { copyShareLink } from '../session';
 import { IDENTITY_COLORS, saveIdentity } from '../identity';
 import { createNote } from '../canvas/tools/NoteTool';
@@ -10,6 +10,9 @@ import { SymbolIcon } from './FurniturePalette';
 import { AreaDialog } from './AreaDialog';
 import { FindDialog, RoomsDialog, SnapshotsDialog } from './EditDialogs';
 import { PrintDialog } from './PrintDialog';
+
+// elevations and sections come with the 3D model code, which is only fetched when they are asked for
+const DrawingDialog = lazy(() => import('./DrawingDialog').then((m) => ({ default: m.DrawingDialog })));
 import { LiveDialog } from './LiveDialog';
 import { useUi, type DialogState } from '../store/ui';
 
@@ -24,6 +27,7 @@ export function Dialogs() {
   if (dialog.type === 'rooms') return <RoomsDialog />;
   if (dialog.type === 'snapshots') return <SnapshotsDialog />;
   if (dialog.type === 'print') return <PrintDialog />;
+  if (dialog.type === 'drawing') return <Suspense fallback={null}><DrawingDialog /></Suspense>;
   if (dialog.type === 'live') return <LiveDialog />;
   if (dialog.type === 'floor-roof') return <FloorRoofDialog dialog={dialog} />;
   if (dialog.type === 'identity') return <IdentityDialog then={dialog.then} />;

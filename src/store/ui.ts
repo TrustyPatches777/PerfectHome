@@ -17,6 +17,7 @@ export type DialogState =
   | { type: 'rooms' }
   | { type: 'snapshots' }
   | { type: 'print' }
+  | { type: 'drawing' }
   | { type: 'live' }
   | { type: 'floor-roof'; floorName: string; canAttic: boolean; choose: (what: 'attic' | 'move') => void }
   | { type: 'identity'; then?: Point }
@@ -24,9 +25,9 @@ export type DialogState =
   | { type: 'confirm'; title: string; message: string; confirmLabel: string; onConfirm: () => void }
   | { type: 'link-conflict'; incoming: Design; current: Design; sameDesign: boolean; choose: (useShared: boolean) => void };
 
-import { DEFAULT_PRINT, type PrintOptions } from '../printLayout';
+import { DEFAULT_DRAWING_OPTIONS, DEFAULT_PRINT, type DrawingOptions, type PrintOptions } from '../printLayout';
 
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'gate' | 'stairs' | 'roof' | 'skylight' | 'paint' | 'note' | 'stretch' | 'split-room';
+export type Tool = 'select' | 'wall' | 'door' | 'window' | 'room' | 'furniture' | 'measure' | 'text' | 'zone' | 'strip' | 'gate' | 'stairs' | 'roof' | 'skylight' | 'paint' | 'note' | 'stretch' | 'split-room' | 'section';
 
 /** Camera: screen = world * zoom + (x, y). `zoom` is pixels per meter. */
 export interface Viewport {
@@ -108,6 +109,12 @@ interface UiStore {
   /** 3D: hide the floors above the one being edited (a cut-away). */
   cutaway: boolean;
   setCutaway: (v: boolean) => void;
+  /** 3D: the floors pulled apart by this many meters (0 = the house as it is). */
+  explode3d: number;
+  setExplode3d: (v: number) => void;
+  /** 3D: the floor shown as a dollhouse (its walls cut low, nothing above it, no roof), or null. */
+  dollhouse: string | null;
+  setDollhouse: (floor: string | null) => void;
   /** 3D: walk through the house instead of orbiting around it. */
   walking: boolean;
   setWalking: (v: boolean) => void;
@@ -125,6 +132,9 @@ interface UiStore {
   /** Choices in the print dialog (not saved). */
   printOptions: PrintOptions;
   setPrintOptions: (patch: Partial<PrintOptions>) => void;
+  /** Choices in the elevation / section drawing dialog (not saved). */
+  drawingOptions: DrawingOptions;
+  setDrawingOptions: (patch: Partial<DrawingOptions>) => void;
 
   /** Plan check: look for problems, the narrowest passage in meters, and boundary distances shown on the plan. */
   showChecks: boolean;
@@ -351,6 +361,8 @@ export const useUi = create<UiStore>((set) => ({
 
   printOptions: DEFAULT_PRINT,
   setPrintOptions: (patch) => set((s) => ({ printOptions: { ...s.printOptions, ...patch } })),
+  drawingOptions: DEFAULT_DRAWING_OPTIONS,
+  setDrawingOptions: (patch) => set((s) => ({ drawingOptions: { ...s.drawingOptions, ...patch } })),
 
   showChecks: false,
   setShowChecks: (showChecks) => set({ showChecks }),
@@ -368,8 +380,15 @@ export const useUi = create<UiStore>((set) => ({
   setView: (view) => set({ view, walking: false }),
   cutaway: false,
   setCutaway: (cutaway) => set({ cutaway }),
+  explode3d: 0,
+  setExplode3d: (v) => {
+    const explode3d = Math.max(0, Math.min(8, v));
+    set(explode3d > 0 ? { explode3d, dollhouse: null } : { explode3d });
+  },
+  dollhouse: null,
+  setDollhouse: (dollhouse) => set(dollhouse ? { dollhouse, walking: false, explode3d: 0 } : { dollhouse: null }),
   walking: false,
-  setWalking: (walking) => set({ walking }),
+  setWalking: (walking) => set(walking ? { walking, explode3d: 0, dollhouse: null } : { walking }),
   invertLook: false,
   setInvertLook: (invertLook) => set({ invertLook }),
   shadows3d: true,

@@ -10,6 +10,7 @@ import { OpeningTool } from '../tools/OpeningTool';
 import { RoomTool } from '../tools/RoomTool';
 import { FurnitureTool } from '../tools/FurnitureTool';
 import { MeasureTool } from '../tools/MeasureTool';
+import { SectionTool } from '../tools/SectionTool';
 import { TextTool } from '../tools/TextTool';
 import { ZoneTool } from '../tools/ZoneTool';
 import { StripTool } from '../tools/StripTool';
@@ -127,6 +128,7 @@ export function OverlayLayer() {
       {tool === 'room' && <RoomTool />}
       {tool === 'furniture' && <FurnitureTool />}
       {tool === 'measure' && <MeasureTool />}
+      {tool === 'section' && <SectionTool />}
       {tool === 'text' && <TextTool />}
       {tool === 'zone' && <ZoneTool />}
       {tool === 'strip' && <StripTool />}

@@ -5,7 +5,8 @@ import { useDesign } from '../store/design';
 import { floorIdOf, useFloorId } from '../store/floor';
 import { useUi } from '../store/ui';
 import { compassPoint, darkness, formatHour, sunPosition } from '../sun';
-import { floorElevations } from './build';
+import { sceneOptions } from './options';
+import { PresentMenu } from './PresentMenu';
 import { Scene3D } from './scene';
 
 /** The house in 3D: orbit around it, or walk through it. It only shows the design; editing happens in the plan. */
@@ -20,12 +21,13 @@ export default function View3D() {
   const showRoof = useUi((s) => s.showRoof3d);
   const ceilingsOn = useUi((s) => s.showCeilings3d);
   const hiddenFloors = useUi((s) => s.hiddenFloors);
+  const explode = useUi((s) => s.explode3d);
+  const dollhouse = useUi((s) => s.dollhouse);
   const texturesVersion = useUi((s) => s.texturesVersion);
   const invertLook = useUi((s) => s.invertLook);
   const hour = useUi((s) => s.timeOfDay);
   const playing = useUi((s) => s.sunPlaying);
   const { lat, month, day, north, weather } = design.site;
-  const elevation = floorElevations(design).get(floorIdOf(design, floor)) ?? 0;
 
   // create the renderer once
   useEffect(() => {
@@ -35,8 +37,7 @@ export default function View3D() {
     ro.observe(el);
     const d = useDesign.getState().design;
     const ui = useUi.getState();
-    const f = floorIdOf(d, ui.activeFloor);
-    s.setDesign(d, { hideAbove: ui.cutaway ? f : null, showRoof: ui.showRoof3d, showCeilings: ui.showCeilings3d || ui.walking, hiddenFloors: ui.hiddenFloors, texVersion: ui.texturesVersion, floorElevation: floorElevations(d).get(f) ?? 0 });
+    s.setDesign(d, sceneOptions(d, floorIdOf(d, ui.activeFloor), ui));
     s.setSun({ sun: sunPosition(d.site.lat, d.site.month, d.site.day, ui.timeOfDay), north: d.site.north, shadows: ui.shadows3d, weather: d.site.weather });
     s.resetView();
     s.onFar = () => useUi.getState().showToast('Walk closer to open that door.');
@@ -51,8 +52,8 @@ export default function View3D() {
 
   // the design (or which floors to show) changed
   useEffect(() => {
-    scene?.setDesign(design, { hideAbove: cutaway ? floor : null, showRoof, showCeilings: ceilingsOn || walking, hiddenFloors, texVersion: texturesVersion, floorElevation: elevation });
-  }, [scene, design, floor, cutaway, showRoof, ceilingsOn, walking, hiddenFloors, texturesVersion, elevation]);
+    scene?.setDesign(design, sceneOptions(design, floor, { cutaway, showRoof3d: showRoof, showCeilings3d: ceilingsOn, walking, hiddenFloors, texturesVersion, explode3d: explode, dollhouse }));
+  }, [scene, design, floor, cutaway, showRoof, ceilingsOn, walking, hiddenFloors, texturesVersion, explode, dollhouse]);
 
   // sun and time of day
   useEffect(() => {
@@ -123,6 +124,7 @@ export default function View3D() {
         <button onClick={() => (ui.setWalking(false), scene?.topView())} title="Straight down, like the plan" data-testid="view3d-top">
           From above
         </button>
+        {!walking && <PresentMenu scene={scene} design={design} />}
         {walking && (
           <label className="check" title="Dragging up looks down">
             <input type="checkbox" checked={invertLook} onChange={(e) => ui.setInvertLook(e.target.checked)} data-testid="view3d-invert" />

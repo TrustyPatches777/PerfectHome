@@ -195,7 +195,7 @@ export async function copyShareLink(url: string): Promise<boolean> {
 
 // ---- files --------------------------------------------------------------------
 
-function download(blob: Blob, name: string) {
+export function download(blob: Blob, name: string) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;
@@ -342,12 +342,17 @@ export function exportSvg() {
 export function printPlan(opts: PrintOptions) {
   const layout = buildPrintLayout(useDesign.getState().design, floorId(), opts);
   if (!layout.html) return toast('Nothing to print on this floor yet.');
+  printHtml(layout.html);
+}
+
+/** Send a finished HTML document (pages at a true scale) to the browser's print window, from a hidden frame. */
+export function printHtml(html: string) {
   document.querySelectorAll('iframe.print-frame').forEach((f) => f.remove());
   const frame = document.createElement('iframe');
   frame.className = 'print-frame';
   frame.setAttribute('aria-hidden', 'true');
   frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
-  frame.srcdoc = layout.html;
+  frame.srcdoc = html;
   frame.onload = () => {
     try {
       frame.contentWindow?.focus();

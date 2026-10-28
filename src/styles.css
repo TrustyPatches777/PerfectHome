@@ -1355,3 +1355,63 @@ body.resizing canvas {
   width: 100%;
   box-sizing: border-box;
 }
+
+/* ---------- presenting the house in 3D: dollhouse, exploded floors, saved views ---------- */
+.present {
+  position: relative;
+}
+.present-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 5;
+  width: 290px;
+  max-height: 70vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--border, #d6dbe3);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+.present-pop h4 {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+.present-pop p {
+  margin: 0;
+  font-size: 12px;
+}
+.present-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.present-slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.present-slider input {
+  flex: 1;
+}
+.present-views {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.present-views li {
+  display: flex;
+  gap: 4px;
+}
+.present-views input {
+  flex: 1;
+  min-width: 0;
+}

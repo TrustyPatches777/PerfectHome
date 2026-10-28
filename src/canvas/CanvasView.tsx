@@ -13,6 +13,7 @@ import { RoomsLayer } from './layers/RoomsLayer';
 import { StructureLayer } from './layers/StructureLayer';
 import { FurnitureLayer } from './layers/FurnitureLayer';
 import { NotesLayer } from './layers/NotesLayer';
+import { SectionMarks } from './layers/SectionMarks';
 import { RoofLayer } from './layers/RoofLayer';
 import { OutdoorLayer } from './layers/OutdoorLayer';
 import { Underlay } from './layers/Underlay';
@@ -169,6 +170,7 @@ export function CanvasView() {
           <FurnitureLayer />
           <RoofLayer />
           <NotesLayer />
+          <SectionMarks />
           <AutoDimensions />
           <StickyLayer />
           <ChecksLayer />

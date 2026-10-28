@@ -609,6 +609,35 @@ export class Scene3D {
     this.dirty = true;
   }
 
+  /** Where the camera is and what it looks at: an exact copy for a saved view (while walking: the eye and a point two meters ahead). */
+  getView(): { pos: [number, number, number]; target: [number, number, number] } {
+    const p = this.camera.position;
+    const mm = (v: number) => Math.round(v * 1000) / 1000; // a millimeter is exact enough, and keeps links short
+    if (this.mode === 'walk') {
+      const dir = this.camera.getWorldDirection(new THREE.Vector3());
+      return { pos: [mm(p.x), mm(p.y), mm(p.z)], target: [mm(p.x + dir.x * 2), mm(p.y + dir.y * 2), mm(p.z + dir.z * 2)] };
+    }
+    const t = this.controls.target;
+    return { pos: [mm(p.x), mm(p.y), mm(p.z)], target: [mm(t.x), mm(t.y), mm(t.z)] };
+  }
+
+  /** Look at a ball of the scene (middle `c`, `radius`) from the south-east and well above, so it fills the picture: the dollhouse and exploded shots. */
+  frameBall(c: [number, number, number], radius: number) {
+    this.setMode('orbit');
+    const dir = new THREE.Vector3(0.5, 0.8, 0.7).normalize();
+    const dist = radius * 2.3 + 2;
+    this.controls.target.set(...c);
+    this.camera.position.set(c[0] + dir.x * dist, c[1] + dir.y * dist, c[2] + dir.z * dist);
+    this.controls.update();
+    this.dirty = true;
+  }
+
+  /** Step back far enough to see the whole house when its floors are pulled apart into a stack `rise` meters tall. */
+  frameStack(rise: number) {
+    const { cx, cz, radius } = this.extent;
+    this.frameBall([cx, rise / 2 + 1, cz], Math.max(radius, rise / 2 + 2));
+  }
+
   /** Straight down, with the plan's "up" at the top of the screen. */
   topView() {
     this.setMode('orbit');

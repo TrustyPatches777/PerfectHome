@@ -56,6 +56,22 @@ describe('design <-> Yjs document', () => {
     expect(readDesign(new Y.Doc(), null)).toBeNull();
   });
 
+  it('syncs saved 3D views and section lines, and a rename of one reaches the other person', () => {
+    const { a, b, d } = start();
+    const next = edit(a, d, (x) => {
+      x.views.push({ id: 'v1', name: 'Front', pos: [20, 6, 18], target: [4, 1, 3] });
+      x.sections.push({ id: 's1', name: 'A', a: { x: 4.5, y: -1 }, b: { x: 4.5, y: 7 } });
+    });
+    expect(readDesign(b, null)!.views).toEqual(next.views);
+    expect(readDesign(b, null)!.sections).toEqual(next.sections);
+    edit(b, readDesign(b, null)!, (x) => {
+      x.views[0].name = 'From the street';
+      x.sections[0].flip = true;
+    });
+    expect(readDesign(a, null)!.views[0]).toEqual({ id: 'v1', name: 'From the street', pos: [20, 6, 18], target: [4, 1, 3] });
+    expect(readDesign(a, null)!.sections[0].flip).toBe(true);
+  });
+
   it('shows the same design to the other person', () => {
     const { a, b } = start();
     expect(readDesign(b, null)).toEqual(readDesign(a, null));

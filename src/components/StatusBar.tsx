@@ -8,6 +8,7 @@ const HINTS: Record<string, string> = {
   room: 'Click inside closed walls to create a room',
   furniture: 'Click to place · R rotates · Shift+click places several · Esc stops',
   measure: 'Click two points to measure · or click one and type a length · Esc cancels',
+  section: 'Click where the cut begins, then where it ends · the drawing of the section opens · Esc cancels',
   text: 'Click where the label should go',
   note: 'Click where the sticky note should go · it is signed with your name and color',
   stairs: 'Click to place the stairs · R rotates · choose straight, L, U or spiral above · Esc cancels',
