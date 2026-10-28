@@ -6,25 +6,26 @@ import { useOnFloor } from '../../store/floor';
 import { useIsMulti, useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
 import { pressItem } from '../press';
+import { useLook } from '../look';
 import { SELECT_COLOR } from '../style';
-
-const OUTLINE = '#475569';
 
 /** The shapes of one furniture symbol in local coordinates (0..w, 0..d). Shared by items and the placement ghost. */
 export function SymbolShapes({ type, w, d, color, color2 }: { type: string; w: number; d: number; color: string; color2?: string }) {
   const item = catalogItem(type);
   const m = Math.min(w, d);
-  const common = { stroke: OUTLINE, strokeWidth: 1, strokeScaleEnabled: false, listening: false } as const;
+  const look = useLook();
+  const common = { stroke: look.ink2, strokeWidth: look.lw, strokeScaleEnabled: false, listening: false } as const;
+  const paint = (fill: string) => look.furnFill(fill) === 'none' ? undefined : look.furnFill(fill);
   return (
     <>
       {item.shapes.map((p, i) => {
         if (p.t === 'rect')
           return (
-            <Rect key={i} x={p.x * w} y={p.y * d} width={p.w * w} height={p.h * d} cornerRadius={(p.r ?? 0) * m} fill={fillColor(p.fill, color, color2)} {...common} />
+            <Rect key={i} x={p.x * w} y={p.y * d} width={p.w * w} height={p.h * d} cornerRadius={(p.r ?? 0) * m} fill={paint(fillColor(p.fill, color, color2))} {...common} />
           );
         if (p.t === 'ellipse')
           return (
-            <Ellipse key={i} x={(p.x + p.w / 2) * w} y={(p.y + p.h / 2) * d} radiusX={(p.w / 2) * w} radiusY={(p.h / 2) * d} fill={fillColor(p.fill, color, color2)} {...common} />
+            <Ellipse key={i} x={(p.x + p.w / 2) * w} y={(p.y + p.h / 2) * d} radiusX={(p.w / 2) * w} radiusY={(p.h / 2) * d} fill={paint(fillColor(p.fill, color, color2))} {...common} />
           );
         return <Line key={i} points={p.pts.map((v, j) => (j % 2 ? v * d : v * w))} {...common} />;
       })}
@@ -39,6 +40,7 @@ function labelFont(f: Furniture, zoom: number) {
 }
 
 export function FurnitureLayer() {
+  const look = useLook();
   const furniture = useOnFloor((d) => d.furniture);
   useDesign((s) => s.design.custom); // redraw when a custom item is edited
   const furnitureLayer = useDesign((s) => s.design.layers.furniture);
@@ -92,7 +94,8 @@ export function FurnitureLayer() {
                   align="center"
                   text={f.label || catalogItem(f.type).label}
                   fontSize={size}
-                  fill="#1f2937"
+                  fontFamily={look.font.canvas}
+                  fill={look.ink}
                   opacity={0.85}
                   wrap="none"
                   listening={false}

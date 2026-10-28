@@ -9,6 +9,7 @@ import { niceLength } from './geometry';
 import { isLive, joinLive, parseLiveHash, restoreLiveHash } from './live/live';
 import { createDesign, serializeDesign, type Design } from './model';
 import { buildPrintLayout, type PrintOptions } from './printLayout';
+import { lookOf } from './planStyle';
 import { buildSvg } from './svgExport';
 import {
   AUTOSAVE_KEY,
@@ -227,6 +228,7 @@ export function exportPng() {
   const stage = getStage();
   const d = useDesign.getState().design;
   const floor = floorId();
+  const look = lookOf(d.style);
   const b = contentBounds(d, floor);
   if (!stage || !b) return toast('Nothing to export on this floor yet.');
 
@@ -254,11 +256,11 @@ export function exportPng() {
   out.width = plan.width;
   out.height = plan.height;
   const ctx = out.getContext('2d')!;
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = look.paper;
   ctx.fillRect(0, 0, out.width, out.height);
   ctx.drawImage(plan, 0, 0);
   const pad = Math.round(pxPerM * 0.25);
-  ctx.fillStyle = '#1f2937';
+  ctx.fillStyle = look.ink;
   ctx.font = `600 ${Math.round(pxPerM * 0.28)}px system-ui, sans-serif`;
   ctx.textBaseline = 'top';
   const floorName = d.floors.find((f) => f.id === floor)?.name;
@@ -270,7 +272,7 @@ export function exportPng() {
   ctx.save();
   ctx.translate(cx, cy);
   ctx.rotate((d.site.north * Math.PI) / 180);
-  ctx.fillStyle = '#1f2937';
+  ctx.fillStyle = look.ink;
   ctx.beginPath();
   ctx.moveTo(0, -r);
   ctx.lineTo(r * 0.3, r * 0.5);
@@ -285,7 +287,7 @@ export function exportPng() {
   ctx.textAlign = 'left';
   const len = niceLength(pxPerM, pxPerM * 1.2);
   const barY = out.height - pad - Math.round(pxPerM * 0.3);
-  ctx.strokeStyle = '#1f2937';
+  ctx.strokeStyle = look.ink;
   ctx.lineWidth = Math.max(2, pxPerM * 0.03);
   ctx.beginPath();
   ctx.moveTo(pad, barY - pxPerM * 0.1);

@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { Arrow, Group, Line, Rect } from 'react-konva';
-import { shade } from '../../catalog';
 import type { Roof, Skylight } from '../../model';
 import { roofBaseHeight, roofPlan, roofUndersideLocal, skylightPlacement } from '../../roofs';
 import { Shape } from 'react-konva';
@@ -9,6 +8,7 @@ import { useFloorId, useOnFloor } from '../../store/floor';
 import { useSelectedIds, useUi } from '../../store/ui';
 import { pressItem } from '../press';
 import { input } from '../input';
+import { useLook } from '../look';
 import { SELECT_COLOR } from '../style';
 
 const flat = (pts: { x: number; y: number }[]) => pts.flatMap((p) => [p.x, p.y]);
@@ -16,7 +16,8 @@ const flat = (pts: { x: number; y: number }[]) => pts.flatMap((p) => [p.x, p.y])
 /** One roof on the plan: the eaves as a dashed outline, the ridge and hip lines inside. Only the outline can be clicked, so a roof never covers what is under it. */
 function RoofShape({ roof, selected }: { roof: Roof; selected: boolean }) {
   const plan = useMemo(() => roofPlan(roof), [roof.kind, roof.w, roof.d, roof.pitch, roof.overhang]); // eslint-disable-line react-hooks/exhaustive-deps
-  const stroke = selected ? SELECT_COLOR : shade(roof.color, -0.15);
+  const look = useLook();
+  const stroke = selected ? SELECT_COLOR : look.roofLine(roof.color);
   const thin = { strokeScaleEnabled: false, listening: false } as const;
   return (
     <Group x={roof.x} y={roof.y} rotation={roof.rotation}>
@@ -93,7 +94,8 @@ function SkylightShape({ sky, roofs, selected }: { sky: Skylight; roofs: Roof[];
  */
 function AtticRoof({ roof, lift }: { roof: Roof; lift: number }) {
   const plan = useMemo(() => roofPlan(roof), [roof.kind, roof.w, roof.d, roof.pitch, roof.overhang]); // eslint-disable-line react-hooks/exhaustive-deps
-  const stroke = shade(roof.color, -0.15);
+  const look = useLook();
+  const stroke = look.roofLine(roof.color);
   return (
     <Group x={roof.x} y={roof.y} rotation={roof.rotation} listening={false}>
       <Shape

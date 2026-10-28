@@ -487,6 +487,37 @@ export interface SectionLine {
   flip?: boolean;
 }
 
+/** How the plan is drawn: a base look and a few choices that override it (all absent = what the preset does). Only the plan, the exports and the print change. */
+export type PlanPreset = 'colour' | 'architectural' | 'blueprint';
+export const PLAN_PRESETS: PlanPreset[] = ['colour', 'architectural', 'blueprint'];
+export type WallDrawing = 'solid' | 'hatch' | 'outline';
+export const WALL_DRAWINGS: WallDrawing[] = ['solid', 'hatch', 'outline'];
+export type RoomFill = 'material' | 'tint' | 'none';
+export const ROOM_FILLS: RoomFill[] = ['material', 'tint', 'none'];
+export type FurnitureDrawing = 'colour' | 'plain' | 'outline';
+export const FURNITURE_DRAWINGS: FurnitureDrawing[] = ['colour', 'plain', 'outline'];
+export type LineWeight = 'fine' | 'normal' | 'heavy';
+export const LINE_WEIGHTS: LineWeight[] = ['fine', 'normal', 'heavy'];
+export type RoomLabels = 'full' | 'name' | 'none';
+export const ROOM_LABELS: RoomLabels[] = ['full', 'name', 'none'];
+export type LabelFont = 'sans' | 'serif' | 'mono';
+export const LABEL_FONTS: LabelFont[] = ['sans', 'serif', 'mono'];
+export type LabelSize = 'small' | 'normal' | 'large';
+export const LABEL_SIZES: LabelSize[] = ['small', 'normal', 'large'];
+
+export interface PlanStyle {
+  preset: PlanPreset;
+  /** How walls are filled: solid, hatched, or just their outline. */
+  walls?: WallDrawing;
+  /** What the floor of a room shows: its material, a pale tint of its color, or nothing. */
+  rooms?: RoomFill;
+  furniture?: FurnitureDrawing;
+  lines?: LineWeight;
+  labels?: RoomLabels;
+  font?: LabelFont;
+  labelSize?: LabelSize;
+}
+
 export interface Settings {
   /** Snap step in meters. */
   gridStep: number;
@@ -526,6 +557,8 @@ export interface Design {
   /** Saved 3D camera positions and section lines (absent in older designs). */
   views: SavedView[];
   sections: SectionLine[];
+  /** How the plan looks (absent = the usual colour plan). */
+  style?: PlanStyle;
   site: Site;
 }
 
@@ -632,6 +665,25 @@ function slopeOf(v: unknown): { slope?: Slope } {
 
 function color(v: unknown, def: string): string {
   return typeof v === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v) ? v : def;
+}
+
+/** `{ style }` for a plan style that differs from the usual colour plan, else nothing. */
+function parseStyle(v: unknown): { style?: PlanStyle } {
+  if (!isObj(v)) return {};
+  const pick = <T extends string>(x: unknown, all: readonly T[]): T | undefined => (all.includes(x as T) ? (x as T) : undefined);
+  const style: PlanStyle = { preset: pick(v.preset, PLAN_PRESETS) ?? 'colour' };
+  const set = <K extends Exclude<keyof PlanStyle, 'preset'>>(k: K, all: readonly NonNullable<PlanStyle[K]>[]) => {
+    const x = pick(v[k], all as readonly string[]);
+    if (x) (style as unknown as Record<string, string>)[k] = x;
+  };
+  set('walls', WALL_DRAWINGS);
+  set('rooms', ROOM_FILLS);
+  set('furniture', FURNITURE_DRAWINGS);
+  set('lines', LINE_WEIGHTS);
+  set('labels', ROOM_LABELS);
+  set('font', LABEL_FONTS);
+  set('labelSize', LABEL_SIZES);
+  return style.preset === 'colour' && Object.keys(style).length === 1 ? {} : { style };
 }
 
 function vec3(v: unknown): [number, number, number] {
@@ -946,6 +998,7 @@ export function parseDesign(input: unknown): Design {
       shape: (['rect', 'round', 'ellipse', 'symbol'] as const).includes(o.shape as 'rect') ? (o.shape as CustomItem['shape']) : 'rect',
       ...(typeof o.base === 'string' ? { base: str(o.base, '', 40) } : {}),
     })),
+    ...parseStyle(input.style),
     site: (() => {
       const s = isObj(input.site) ? input.site : {};
       return {

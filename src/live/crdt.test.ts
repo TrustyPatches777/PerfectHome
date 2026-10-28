@@ -72,6 +72,14 @@ describe('design <-> Yjs document', () => {
     expect(readDesign(a, null)!.sections[0].flip).toBe(true);
   });
 
+  it('syncs the plan style, and going back to the plain colour plan removes it for the other person too', () => {
+    const { a, b, d } = start();
+    const next = edit(a, d, (x) => void (x.style = { preset: 'blueprint', lines: 'heavy' }));
+    expect(readDesign(b, null)!.style).toEqual({ preset: 'blueprint', lines: 'heavy' });
+    edit(a, next, (x) => void delete x.style);
+    expect(readDesign(b, null)!.style).toBeUndefined();
+  });
+
   it('shows the same design to the other person', () => {
     const { a, b } = start();
     expect(readDesign(b, null)).toEqual(readDesign(a, null));

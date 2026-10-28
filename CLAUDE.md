@@ -74,6 +74,9 @@ src/shadows.ts        shadow polygons for walls/furniture/trees/fences/the house
 src/checks.ts         "Plan check": blocked doors, furniture in walls, narrow passages
 src/areas.ts          area table and plot figures (coverage, distance to boundary), text/CSV
 src/bounds.ts         bounding box of a floor's content
+src/planStyle.ts       how the PLAN is drawn: `PlanStyle` (preset colour/architectural/blueprint + single choices) -> `lookOf(style)` = the concrete colors and options
+                      (paper, ink, `tone(color)`, wall fill/hatch/outline, room fill, furniture fill, labels, line weight). The canvas (`canvas/look.ts useLook`) and the SVG
+                      export/print/PNG all ask it, so a preset is defined in ONE place; `normalizeStyle` keeps the stored style minimal
 src/svgExport.ts      SECOND RENDERER: a floor as SVG (export + print). Keep in sync with the canvas drawing code.
 src/printLayout.ts    print pages at true scale (HTML for a hidden frame), paper sizes, "fit" scale; also the shared page CSS and title block (`pageCss`, `titleBlock`)
 src/section.ts        ELEVATIONS and SECTIONS as SVG: turns the parts of `sceneChunks` into convex solids, paints the faces that look at you far to near; a section drops
@@ -253,6 +256,11 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
   the 3D view (so nothing is kept in step by hand): `LAYERS` in section.ts says which chunk keys count (walls, rooms, zones, strips, stairs, roofs, optionally furniture; not ground,
   ceilings, horizon). The drawing dialog is lazy-loaded (`Dialogs.tsx`), so `section.ts`/`drawingPrint.ts` stay out of the first load: import them only from there; the plan, the store and `svgExport` use geometry.ts only.
   Section marks are drawn on the plan on EVERY floor (`SectionMarks`, `svgExport`); the tool is `SectionTool` (key E) and opens the dialog after the second click.
+- **Plan style** (`design.style`, optional, in the link and synced live; absent = the colour plan): the colour preset must stay EXACTLY the plan as it was
+  (`lookOf()` returns every color unchanged for it; a test compares the SVG). New things drawn on the plan take their colors from `useLook()` / `lookOf(d.style)`:
+  fills of the design's own colors go through `look.tone`, lines through `look.ink`/`ink2` and `look.lw` (line weight), text through `look.text`/`font`. Walls that are not
+  solid ('hatch', 'outline') are drawn in TWO passes (every wall's thick edge first, then every fill on top, with a 1 px fill-colored stroke to close the seam at mitres),
+  on the canvas (`edge` pass in StructureLayer, not clickable; the fill pass keeps `hitStrokeWidth`) and in the SVG. Only the plan, the exports and the print change; the 3D view does not.
 - **Sky and surroundings** (`design.site.weather/season/horizon`, all optional, in the link): `scene.ts setSun` takes the weather's `Mood` (sun and sky strength, no shadows when
   overcast, sky color, fog), keeps a ring of cloud clusters (more show in bad weather) and a rain/snow particle box that follows the camera (it redraws every frame
   only while it falls). The season (`seasonOf`: chosen, or from the date, flipped in the south) recolors the leaves of `DECIDUOUS` catalog trees in `furnitureChunk`
@@ -289,3 +297,4 @@ then: rectangles of walls · drag sides · wall paint · doors that open in 3D �
 then: editing tools (mirror, groups, wall tools, scale, find, snapshots) · attic from the roof · plot boundary at the back
 then: visual detail (wallpaper/tile layouts/pictures, furniture frame color, ceilings, dormers/solar/gutters/chimneys/roof wings, balconies/porches/entrance steps, shutters/trim/handles, facade)
 then: presentation (dollhouse per floor and a sheet of all floors, exploded view, saved 3D views, elevations and sections for print)
+then: plan styles (colour, architectural black and white, blueprint; walls solid/hatched/outline, floors, furniture, line weight, room labels, lettering)

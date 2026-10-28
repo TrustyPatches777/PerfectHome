@@ -7,13 +7,14 @@ import { useIsMulti, useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
 import { pressItem } from '../press';
 import { startGuideDrag } from '../editing';
+import { useLook } from '../look';
 import { SELECT_COLOR } from '../style';
 
-const DIM_COLOR = '#0f766e';
 
 
 /** A dimension line with end ticks and the length written alongside it. Also used as the measure-tool preview. */
 export function DimensionShape({ a, b, zoom, selected, id, interactive }: { a: Point; b: Point; zoom: number; selected?: boolean; id?: string; interactive?: boolean }) {
+  const look = useLook();
   const px = 1 / zoom;
   const len = dist(a, b);
   if (len < 1e-6) return null;
@@ -26,7 +27,7 @@ export function DimensionShape({ a, b, zoom, selected, id, interactive }: { a: P
     ny = -ny; // always put the label above the line
   }
   const tick = 6 * px;
-  const color = selected ? SELECT_COLOR : DIM_COLOR;
+  const color = selected ? SELECT_COLOR : look.dim;
   let angle = (Math.atan2(uy, ux) * 180) / Math.PI;
   if (angle > 90 || angle < -90) angle += 180;
   const text = formatLength(len);

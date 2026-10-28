@@ -10,6 +10,7 @@ import { useOnFloor } from '../../store/floor';
 import { useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
 import { pressItem } from '../press';
+import { useLook } from '../look';
 import { SELECT_COLOR } from '../style';
 import { guardAvoid, guardRuns, reachesNextFloor, railPaths, railPlanColor, stairPlanFill, stairShapes } from '../../stairs';
 import { StairShapes } from './StairShapes';
@@ -17,10 +18,10 @@ import { useFloorId } from '../../store/floor';
 import { useIsMulti } from '../../store/ui';
 
 /** A wall, with a thin colored stripe along each painted face. */
-export function WallShape(props: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean; corners?: WallCorners }) {
-  const { wall, openings, ghost, corners = {} } = props;
+export function WallShape(props: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean; corners?: WallCorners; edge?: boolean }) {
+  const { wall, openings, ghost, corners = {}, edge } = props;
   const paint = wall.paint;
-  if (!paint) return <WallBody {...props} />;
+  if (!paint || edge) return <WallBody {...props} />;
   const stripe = Math.min(0.05, wall.thickness * 0.22);
   return (
     <Group>
@@ -51,18 +52,26 @@ function mitred(w: Wall, s0: number, s1: number, corners: WallCorners): number[]
 }
 
 /** A wall: straight (a row of rectangles with gaps for doors) or curved (arc bands). */
-function WallBody({ wall, openings, selected, ghost, corners = {} }: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean; corners?: WallCorners }) {
+function WallBody({ wall, openings, selected, ghost, corners = {}, edge }: { wall: Wall; openings: Opening[]; selected: boolean; ghost?: boolean; corners?: WallCorners; edge?: boolean }) {
+  const look = useLook();
   const style = WALL_STYLE[wall.type] ?? WALL_STYLE.interior;
   const segs = wallSolidSegments(wall, openings);
   const arc = wallArc(wall);
   const t = wall.thickness;
-  const pattern = style.hatch ? patternFor('hatch', style.fill) : null;
-  const paint = pattern ? patternFillProps(pattern) : { fill: style.fill };
-  const stroke = {
-    stroke: selected ? SELECT_COLOR : 'rgba(0,0,0,0)',
-    strokeWidth: selected ? 2.5 : 8,
-    strokeScaleEnabled: false,
-  };
+  // what the wall is filled with in this plan style. An outlined or hatched wall is drawn in two passes: first every wall with a thick edge in ink,
+  // then every wall's fill on top, so the edges inside a corner or a T-junction are covered and only the outline of the whole is left.
+  const hatch = !edge && (look.walls === 'hatch' || style.hatch) ? look.wallHatch(style.fill) : null;
+  const pattern = hatch ? patternFor('hatch', `${hatch.base}|${hatch.line}`) : null;
+  const paint = edge ? { fill: look.wallLine } : pattern ? patternFillProps(pattern) : hatch ? { fill: hatch.base } : { fill: look.walls === 'outline' ? look.wallOutlineFill(style.fill) : look.wallFill(style.fill) };
+  const stroke = edge
+    ? { stroke: look.wallLine, strokeWidth: 3.2 * look.lw, strokeScaleEnabled: false, listening: false }
+    : look.walls !== 'solid' && !selected
+      ? { stroke: hatch?.base ?? ('fill' in paint ? paint.fill : look.paper), strokeWidth: 1, hitStrokeWidth: 8, strokeScaleEnabled: false } // closes the seam between two walls that meet (the edge under them would show through)
+      : {
+          stroke: selected ? SELECT_COLOR : 'rgba(0,0,0,0)',
+          strokeWidth: selected ? 2.5 : 8,
+          strokeScaleEnabled: false,
+        };
   const onMouseDown = (e: { evt: MouseEvent; cancelBubble: boolean }) => {
     if (e.evt.button !== 0 || input.space) return;
     e.cancelBubble = true;
@@ -72,7 +81,7 @@ function WallBody({ wall, openings, selected, ghost, corners = {} }: { wall: Wal
   if (!arc) {
     const wp = wallPointAt(wall, 0);
     return (
-      <Group x={wp.p.x} y={wp.p.y} rotation={wp.angle} opacity={ghost ? 0.5 : 1} onMouseDown={onMouseDown}>
+      <Group x={wp.p.x} y={wp.p.y} rotation={wp.angle} opacity={ghost ? 0.5 : 1} onMouseDown={edge ? undefined : onMouseDown} listening={!edge}>
         {segs.map(([s0, s1], i) =>
           // a segment that ends in a mitred corner is a slanted quadrilateral (in the wall's own frame: x along it, y across)
           (s0 < 0 && corners.a) || (s1 > wallLength(wall) && corners.b) ? (
@@ -86,7 +95,7 @@ function WallBody({ wall, openings, selected, ghost, corners = {} }: { wall: Wal
   }
   const ccw = arc.sweep < 0;
   return (
-    <Group opacity={ghost ? 0.5 : 1} onMouseDown={onMouseDown}>
+    <Group opacity={ghost ? 0.5 : 1} onMouseDown={edge ? undefined : onMouseDown} listening={!edge}>
       {segs.map(([s0, s1], i) => (
         <Shape
           key={i}
@@ -107,17 +116,20 @@ function WallBody({ wall, openings, selected, ghost, corners = {} }: { wall: Wal
   );
 }
 
-const GLASS = '#dbeafe';
+const GLASS_COLOR = '#dbeafe';
 
 /** Everything that can sit in a wall gap: doors, windows, sliding and garage doors, bay windows, open passages. */
 export function OpeningShape({ wall, opening, selected, ghost }: { wall: Wall; opening: Opening; selected: boolean; ghost?: boolean }) {
+  const look = useLook();
+  const lw = look.lw;
+  const GLASS = look.tone(GLASS_COLOR);
   const wp = wallPointAt(wall, opening.pos); // for curved walls the opening is drawn straight along the tangent at its center
   const t = wall.thickness;
   const w = opening.width;
   const x0 = -w / 2;
   const x1 = w / 2;
   const kind = opening.kind;
-  const stroke = selected ? SELECT_COLOR : '#1f2937';
+  const stroke = selected ? SELECT_COLOR : look.ink;
   const thin = { strokeScaleEnabled: false, listening: false } as const;
   const side = opening.swing; // doors swing, and bay windows project, toward this side
 
@@ -145,7 +157,7 @@ export function OpeningShape({ wall, opening, selected, ghost }: { wall: Wall; o
         const g = doorGeometry(wall, leaf);
         return (
           <Group key={i} listening={false}>
-            <Line points={g.arc.flatMap((p) => [p.x, p.y])} stroke={stroke} strokeWidth={1} dash={[4, 3]} {...thin} />
+            <Line points={g.arc.flatMap((p) => [p.x, p.y])} stroke={stroke} strokeWidth={1 * lw} dash={[4, 3]} {...thin} />
             {kind === 'french' ? (
               <Line points={[g.hinge.x, g.hinge.y, g.leafEnd.x, g.leafEnd.y]} stroke={stroke} strokeWidth={0.07} lineCap="butt" listening={false} />
             ) : (
@@ -169,45 +181,45 @@ export function OpeningShape({ wall, opening, selected, ghost }: { wall: Wall; o
           const m = windowMarks(kind, w, t);
           return (
             <>
-              <Rect x={x0} y={-t / 2} width={w} height={t} fill={m.fill} stroke={stroke} strokeWidth={selected ? 2 : 1.25} strokeScaleEnabled={false} dash={m.dash ? [6, 4] : undefined} />
+              <Rect x={x0} y={-t / 2} width={w} height={t} fill={look.tone(m.fill)} stroke={stroke} strokeWidth={selected ? 2 : 1.25 * lw} strokeScaleEnabled={false} dash={m.dash ? [6, 4] : undefined} />
               {m.lines.map((l, i) => (
-                <Line key={i} points={l} stroke={stroke} strokeWidth={1} {...thin} />
+                <Line key={i} points={l} stroke={stroke} strokeWidth={1 * lw} {...thin} />
               ))}
             </>
           );
         })()}
         {kind === 'bay' && (
           <>
-            <Rect x={x0} y={-t / 2} width={w} height={t} fill={GLASS} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} />
+            <Rect x={x0} y={-t / 2} width={w} height={t} fill={GLASS} stroke={stroke} strokeWidth={1 * lw} strokeScaleEnabled={false} />
             <Line
               points={[x0, (side * t) / 2, x0 + bayInset, side * (t / 2 + bay), x1 - bayInset, side * (t / 2 + bay), x1, (side * t) / 2]}
               closed
               fill={GLASS}
               stroke={stroke}
-              strokeWidth={selected ? 2 : 1.25}
+              strokeWidth={selected ? 2 : 1.25 * lw}
               strokeScaleEnabled={false}
               lineJoin="round"
             />
-            <Line points={[x0 + bayInset, side * (t / 2 + bay * 0.4), x1 - bayInset, side * (t / 2 + bay * 0.4)]} stroke={stroke} strokeWidth={1} {...thin} />
+            <Line points={[x0 + bayInset, side * (t / 2 + bay * 0.4), x1 - bayInset, side * (t / 2 + bay * 0.4)]} stroke={stroke} strokeWidth={1 * lw} {...thin} />
           </>
         )}
         {kind === 'sliding' && (
           <>
-            <Rect x={x0} y={-t / 2} width={w} height={t} fill="#ffffff" stroke={stroke} strokeWidth={selected ? 2 : 1} strokeScaleEnabled={false} />
-            <Rect x={x0 + w * 0.02} y={-t / 2 + t * 0.12} width={w * 0.55} height={t * 0.3} fill={GLASS} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
-            <Rect x={x1 - w * 0.57} y={t / 2 - t * 0.42} width={w * 0.55} height={t * 0.3} fill={GLASS} stroke={stroke} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+            <Rect x={x0} y={-t / 2} width={w} height={t} fill={look.tone('#ffffff')} stroke={stroke} strokeWidth={selected ? 2 : lw} strokeScaleEnabled={false} />
+            <Rect x={x0 + w * 0.02} y={-t / 2 + t * 0.12} width={w * 0.55} height={t * 0.3} fill={GLASS} stroke={stroke} strokeWidth={1 * lw} strokeScaleEnabled={false} listening={false} />
+            <Rect x={x1 - w * 0.57} y={t / 2 - t * 0.42} width={w * 0.55} height={t * 0.3} fill={GLASS} stroke={stroke} strokeWidth={1 * lw} strokeScaleEnabled={false} listening={false} />
           </>
         )}
         {(isSingleDoor(kind) || kind === 'double' || kind === 'french' || kind === 'garage' || kind === 'gap') && (
           <>
             {kind === 'garage' && (
               <>
-                <Rect x={x0} y={-t / 2} width={w} height={t} fill="#e5e7eb" listening={false} />
-                <Line points={[x0, 0, x1, 0]} stroke={stroke} strokeWidth={2} dash={[10, 5]} {...thin} />
+                <Rect x={x0} y={-t / 2} width={w} height={t} fill={look.tone('#e5e7eb')} listening={false} />
+                <Line points={[x0, 0, x1, 0]} stroke={stroke} strokeWidth={2 * lw} dash={[10, 5]} {...thin} />
               </>
             )}
-            <Line points={[x0, -t / 2, x0, t / 2]} stroke={stroke} strokeWidth={1.5} {...thin} />
-            <Line points={[x1, -t / 2, x1, t / 2]} stroke={stroke} strokeWidth={1.5} {...thin} />
+            <Line points={[x0, -t / 2, x0, t / 2]} stroke={stroke} strokeWidth={1.5 * lw} {...thin} />
+            <Line points={[x1, -t / 2, x1, t / 2]} stroke={stroke} strokeWidth={1.5 * lw} {...thin} />
             <Rect
               x={x0}
               y={-t / 2}
@@ -215,7 +227,7 @@ export function OpeningShape({ wall, opening, selected, ghost }: { wall: Wall; o
               height={t}
               fill="rgba(0,0,0,0.001)"
               stroke={selected ? SELECT_COLOR : 'rgba(0,0,0,0)'}
-              strokeWidth={2}
+              strokeWidth={2 * lw}
               strokeScaleEnabled={false}
             />
           </>
@@ -226,6 +238,7 @@ export function OpeningShape({ wall, opening, selected, ghost }: { wall: Wall; o
 }
 
 export function StructureLayer() {
+  const look = useLook();
   const walls = useOnFloor((d) => d.walls);
   const allOpenings = useDesign((s) => s.design.openings);
   const openings = useMemo(() => {
@@ -249,6 +262,7 @@ export function StructureLayer() {
 
   return (
     <Group listening={tool === 'select' && !layer.locked}>
+      {look.walls !== 'solid' && walls.map((w) => <WallShape key={`edge-${w.id}`} wall={w} openings={byWall.get(w.id) ?? []} selected={false} corners={wallCorners(w, walls)} edge />)}
       {walls.map((w) => (
         <WallShape key={w.id} wall={w} openings={byWall.get(w.id) ?? []} selected={wallIds.has(w.id)} corners={wallCorners(w, walls)} />
       ))}
@@ -299,7 +313,7 @@ export function StructureLayer() {
           }}
         >
           <Rect width={s.w} height={s.d} fill="rgba(0,0,0,0.001)" />
-          <StairShapes shapes={stairShapes(s)} fill={stairPlanFill(s)} />
+          <StairShapes shapes={stairShapes(s)} fill={look.tone(stairPlanFill(s))} />
           {s.railing && (['a', 'b'] as const).filter((k) => s.railing![k]).map((k) => <Line key={k} points={railPaths(s)[k].flatMap((p) => [p.x, p.y])} stroke={railPlanColor(s.railing!)} strokeWidth={0.05} lineCap="round" lineJoin="round" listening={false} />)}
           {multi && stairIds.has(s.id) && <Rect width={s.w} height={s.d} stroke={SELECT_COLOR} strokeWidth={2.5} strokeScaleEnabled={false} listening={false} />}
         </Group>

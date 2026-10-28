@@ -1415,3 +1415,25 @@ body.resizing canvas {
   flex: 1;
   min-width: 0;
 }
+
+/* ---------- plan style ---------- */
+.style-presets {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0;
+}
+.style-presets button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  font-size: 12px;
+}
+.style-presets .swatch {
+  width: 28px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+}

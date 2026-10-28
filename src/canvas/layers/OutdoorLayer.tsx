@@ -11,6 +11,7 @@ import { useDesign } from '../../store/design';
 import { useSelectedIds, useUi } from '../../store/ui';
 import { input } from '../input';
 import { pressItem } from '../press';
+import { useLook } from '../look';
 import { SELECT_COLOR } from '../style';
 
 function pressArea(e: { evt: MouseEvent; cancelBubble: boolean }, kind: 'zone' | 'strip', id: string) {
@@ -27,6 +28,7 @@ interface Lie {
 }
 
 function ZoneShape({ zone, selected, zoom, walls, lie }: { zone: Zone; selected: boolean; zoom: number; walls: Wall[]; lie?: Lie }) {
+  const look = useLook();
   const pts = zone.points.flatMap((p) => [p.x, p.y]);
   const plot = zone.kind === 'plot';
   const xs = zone.points.map((p) => p.x);
@@ -45,8 +47,8 @@ function ZoneShape({ zone, selected, zoom, walls, lie }: { zone: Zone; selected:
       <Line
         points={pts}
         closed
-        fill={zone.color}
-        stroke={selected ? SELECT_COLOR : plot ? '#6b7280' : steep ? '#57534e' : shade(zone.color, -0.18)}
+        fill={look.tone(zone.color)}
+        stroke={selected ? SELECT_COLOR : plot ? (look.preset === 'colour' ? '#6b7280' : look.ink2) : steep ? (look.preset === 'colour' ? '#57534e' : look.ink) : look.zoneEdge(zone.color)}
         strokeWidth={selected ? 2.5 : steep ? 2.5 : 1}
         dash={plot && !selected ? [10, 6] : undefined}
         strokeScaleEnabled={false}
@@ -74,7 +76,8 @@ function ZoneShape({ zone, selected, zoom, walls, lie }: { zone: Zone; selected:
           fontSize={fs}
           fontStyle="bold"
           lineHeight={1.25}
-          fill="#374151"
+          fontFamily={look.font.canvas}
+          fill={look.text}
           opacity={0.8}
           listening={false}
         />
@@ -118,8 +121,9 @@ export function GateShape({ strip, gate, color, ghost, selected, onDown }: { str
 }
 
 function StripShape({ strip, selected, zoom }: { strip: Strip; selected: boolean; zoom: number }) {
-  const style = STRIP_STYLES[strip.kind];
-  const color = stripColor(strip);
+  const look = useLook();
+  const style = { ...STRIP_STYLES[strip.kind], color: look.tone(STRIP_STYLES[strip.kind].color) };
+  const color = look.tone(stripColor(strip));
   const pts = strip.points.flatMap((p) => [p.x, p.y]);
   const px = 1 / zoom;
   const onDown = (e: Parameters<typeof pressArea>[0]) => pressArea(e, 'strip', strip.id);

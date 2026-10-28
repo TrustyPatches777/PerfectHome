@@ -36,10 +36,10 @@ const PAINTERS: Record<PatternKind, { meters: number; size: number; paint: Paint
   hatch: {
     meters: 0.16,
     size: 48,
-    paint(ctx, size, base) {
+    paint(ctx, size, base, _rand, spec) {
       ctx.fillStyle = base;
       ctx.fillRect(0, 0, size, size);
-      ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+      ctx.strokeStyle = spec.second ?? 'rgba(255,255,255,0.45)'; // the plan style may want dark lines on white
       ctx.lineWidth = 3;
       for (let k = -size; k <= size * 2; k += size / 2) {
         ctx.beginPath();

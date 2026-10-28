@@ -2,6 +2,7 @@ import { Layer, Rect, Shape } from 'react-konva';
 import type { Context } from 'konva/lib/Context';
 import { useUi } from '../store/ui';
 import { useDesign } from '../store/design';
+import { useLook } from './look';
 
 /** The finest grid spacing (meters) that is still at least `minPx` apart on screen. */
 function minorStep(base: number, zoom: number, minPx: number): number {
@@ -15,6 +16,7 @@ export function GridLayer() {
   const { x, y, zoom } = useUi((s) => s.viewport);
   const { w, h } = useUi((s) => s.canvasSize);
   const gridStep = useDesign((s) => s.design.settings.gridStep);
+  const look = useLook();
 
   const minor = minorStep(gridStep, zoom, 9);
   const mid = minor < 1 ? 1 : minor; // emphasised every whole meter
@@ -43,14 +45,14 @@ export function GridLayer() {
       ctx.setAttr('lineWidth', 1 / zoom);
       ctx.stroke();
     };
-    if (minor < mid) draw(minor, mid, '#eef1f6');
-    draw(mid, major, '#dde2ea');
-    draw(major, null, '#bcc5d3');
+    if (minor < mid) draw(minor, mid, look.grid.minor);
+    draw(mid, major, look.grid.mid);
+    draw(major, null, look.grid.major);
   };
 
   return (
     <Layer listening={false}>
-      <Rect x={x0} y={y0} width={x1 - x0} height={y1 - y0} fill="#ffffff" />
+      <Rect x={x0} y={y0} width={x1 - x0} height={y1 - y0} fill={look.paper} />
       <Shape sceneFunc={sceneFunc} />
       <Shape
         sceneFunc={(ctx) => {
