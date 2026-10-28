@@ -323,6 +323,20 @@ export function stairOutline(s: Shape): Point[] {
   return mirrored(s) ? mirrorPts(pts, w) : pts;
 }
 
+/** The outline of a staircase as convex pieces (a rectangle for a flight, one for each landing): the L is two, the U three. */
+export function stairPieces(s: Shape): Point[][] {
+  const { kind, w, d } = s;
+  let pieces: Point[][];
+  if (kind === 'l' || kind === 'winder') {
+    const f = flightWidth(kind, w, d);
+    pieces = [rectPoly(0, w, 0, f), rectPoly(0, f, f, d)];
+  } else if (kind === 'u') {
+    const f = flightWidth(kind, w, d);
+    pieces = [rectPoly(0, w, 0, f), rectPoly(0, f, f, d), rectPoly(w - f, w, f, d)];
+  } else return [stairOutline(s)];
+  return mirrored(s) ? pieces.map((p) => mirrorPts(p, w)) : pieces;
+}
+
 /** How far the rails stand in from the edge of the steps, so that they do not sit inside the side of the stair. */
 export const RAIL_INSET = 0.04;
 

@@ -4,11 +4,14 @@ import { wallPointAt } from './geometry';
 export { faceSpan } from './geometry';
 import type { Point, Wall, WallFinish, WallType } from './model';
 
-export const WALL_STYLE: Record<WallType, { label: string; fill: string; hint: string; hatch?: boolean }> = {
-  exterior: { label: 'Exterior / load-bearing', fill: '#262c3a', hint: 'The outer shell and any wall that carries the floors or roof above: thick, solid. Roofs are fitted to these.' },
-  interior: { label: 'Interior', fill: '#3b4252', hint: 'An ordinary wall between rooms.' },
-  partition: { label: 'Partition', fill: '#7b8499', hint: 'A thin, light wall that only divides a space and carries nothing.' },
-  railing: { label: 'Railing / low wall', fill: '#b9c0cc', hint: 'A balustrade or low wall, 1 m high.' },
+/** `label` is the full name (lists, the properties panel); `short` is for the narrow tool options bar. */
+export const WALL_STYLE: Record<WallType, { label: string; short: string; fill: string; hint: string; hatch?: boolean }> = {
+  exterior: { label: 'Exterior / load-bearing', short: 'Exterior', fill: '#262c3a', hint: 'Exterior / load-bearing: the outer shell and any wall that carries the floors or roof above: thick, solid. Roofs are fitted to these.' },
+  interior: { label: 'Interior', short: 'Interior', fill: '#3b4252', hint: 'An ordinary wall between rooms.' },
+  partition: { label: 'Partition', short: 'Partition', fill: '#7b8499', hint: 'A thin, light wall that only divides a space and carries nothing.' },
+  slats: { label: 'Wooden slats', short: 'Slats', fill: '#a5835a', hint: 'A partition of vertical wooden slats with gaps between them: it divides a space but lets the light through.' },
+  glass: { label: 'Glass wall', short: 'Glass', fill: '#8ec5e0', hint: 'A glazed wall in a slim frame, for a winter garden or a shop front. Put a door in it like in any wall; give the house a glass roof to match.' },
+  railing: { label: 'Railing / low wall', short: 'Railing', fill: '#b9c0cc', hint: 'A balustrade or low wall, 1 m high.' },
 };
 
 export const FINISH_STYLES: Record<WallFinish, { label: string; color: string }> = {

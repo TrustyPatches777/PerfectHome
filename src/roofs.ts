@@ -25,6 +25,7 @@ export const ROOF_MATERIAL_STYLES: Record<RoofMaterial, { label: string; color: 
   thatch: { label: 'Thatch', color: '#c9a86a' },
   green: { label: 'Green roof', color: '#6d9a5b' },
   gravel: { label: 'Gravel', color: '#9ca3af' },
+  glass: { label: 'Glass (winter garden)', color: '#bfe3f5' },
 };
 
 const DEG = Math.PI / 180;

@@ -45,6 +45,7 @@ export function ToolOptions() {
   const wallMode = useUi((s) => s.wallMode);
   const wallRoom = useUi((s) => s.wallRoom);
   const wallOrtho = useUi((s) => s.wallOrtho);
+  const roofGlass = useUi((s) => s.roofGlass);
   const stairKind = useUi((s) => s.stairKind);
   const stairEntrance = useUi((s) => s.stairEntrance);
   const roofKind = useUi((s) => s.roofKind);
@@ -64,10 +65,13 @@ export function ToolOptions() {
       <>
         <div className="segmented" role="group" aria-label="Wall mode">
           <button className={wallMode === 'line' ? 'active' : ''} onClick={() => useUi.getState().setWallMode('line')} title="Click each corner" data-testid="wall-mode-line">
-            One by one
+            Single
           </button>
           <button className={wallMode === 'rect' ? 'active' : ''} onClick={() => useUi.getState().setWallMode('rect')} title="Drag from one corner to the opposite one: four walls at once" data-testid="wall-mode-rect">
             Rectangle
+          </button>
+          <button className={wallMode === 'winter' ? 'active' : ''} onClick={() => useUi.getState().setWallMode('winter')} title="A winter garden: drag a rectangle and get glass walls, a tiled floor, a French door and a glass roof" data-testid="wall-mode-winter">
+            Winter garden
           </button>
         </div>
         {wallMode === 'rect' && (
@@ -79,7 +83,7 @@ export function ToolOptions() {
         {wallMode === 'line' && (
           <label className="check" title="Keep every wall at a right angle to the last (the same as holding Ctrl or Cmd while you click; Shift keeps to 45°)">
             <input type="checkbox" checked={wallOrtho} onChange={(e) => useUi.getState().setWallOrtho(e.target.checked)} data-testid="wall-ortho" />
-            right angles
+            90°
           </label>
         )}
         <div className="segmented" role="group" aria-label="Wall type">
@@ -94,7 +98,7 @@ export function ToolOptions() {
                 useDesign.getState().update((d) => void (d.settings.wallThickness = WALL_TYPE_THICKNESS[t])); // each type has its usual thickness
               }}
             >
-              {WALL_STYLE[t].label}
+              {WALL_STYLE[t].short}
             </button>
           ))}
         </div>
@@ -223,6 +227,10 @@ export function ToolOptions() {
             </option>
           ))}
         </select>
+        <label className="check" title="Make new roofs of glass, with glazing bars (a winter garden or a conservatory)">
+          <input type="checkbox" checked={roofGlass} onChange={(e) => useUi.getState().setRoofGlass(e.target.checked)} data-testid="roof-glass" />
+          glass
+        </label>
         <button onClick={() => addRoofFromWalls(roofKind)} title="A roof that covers the walls of this floor" data-testid="roof-fit-walls">
           Fit to walls
         </button>

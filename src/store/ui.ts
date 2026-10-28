@@ -155,8 +155,11 @@ interface UiStore {
   windowKind: WindowKind;
   setWindowKind: (k: WindowKind) => void;
   /** Wall tool: one wall at a time ('line') or four joined walls from two corners ('rect', optionally with its room). */
-  wallMode: 'line' | 'rect';
-  setWallMode: (m: 'line' | 'rect') => void;
+  wallMode: 'line' | 'rect' | 'winter';
+  setWallMode: (m: 'line' | 'rect' | 'winter') => void;
+  /** New roofs are made of glass (a winter garden). */
+  roofGlass: boolean;
+  setRoofGlass: (v: boolean) => void;
   wallRoom: boolean;
   setWallRoom: (v: boolean) => void;
   /** Walls drawn one by one keep to right angles (the same as holding Ctrl/Cmd). */
@@ -306,6 +309,8 @@ export const useUi = create<UiStore>((set) => ({
   roomMode: 'auto',
   wallMode: 'line',
   setWallMode: (wallMode) => set({ wallMode }),
+  roofGlass: false,
+  setRoofGlass: (roofGlass) => set({ roofGlass }),
   wallRoom: true,
   setWallRoom: (wallRoom) => set({ wallRoom }),
   wallOrtho: false,

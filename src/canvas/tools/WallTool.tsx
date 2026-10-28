@@ -2,7 +2,9 @@ import { useRef, useState } from 'react';
 import { Circle, Group, Line, Text } from 'react-konva';
 import type Konva from 'konva';
 import { layerBlocksEditing } from '../../actions';
-import { newId, WALL_TYPE_HEIGHT, type Point } from '../../model';
+import { newId, type Point } from '../../model';
+import { wallHeightFor } from '../../storey';
+import { addWinterGarden } from '../../winterGarden';
 import { addRoomTo, boxCorners, rectWalls } from '../../shapes';
 import { constrainAngle, detectRoom, dist, formatLength, samePoint, snapValue } from '../../geometry';
 import { useDesign } from '../../store/design';
@@ -15,7 +17,7 @@ import { FLOOR_COLORS, SELECT_COLOR } from '../style';
 /** The Wall tool: one wall at a time, or a whole rectangle of walls (with its room) from two corners. */
 export function WallTool() {
   const mode = useUi((s) => s.wallMode);
-  return mode === 'rect' ? <WallRectTool /> : <WallLineTool />;
+  return mode === 'line' ? <WallLineTool /> : <WallRectTool winter={mode === 'winter'} />;
 }
 
 /** Click to start a wall, click again to place each corner. Double-click, Enter or Esc to finish. */
@@ -54,7 +56,7 @@ function WallLineTool() {
     if (dist(from, p) < 0.02) return;
     const floor = floorId();
     useDesign.getState().update((d) => {
-      d.walls.push({ id: newId(), floor, a: { ...from }, b: { ...p }, thickness, type: wallType, height: WALL_TYPE_HEIGHT[wallType] });
+      d.walls.push({ id: newId(), floor, a: { ...from }, b: { ...p }, thickness, type: wallType, height: wallHeightFor(wallType, useDesign.getState().design.settings.storeyHeight) });
     });
     if (first.current && samePoint(p, first.current, 0.01)) finish(); // closed a loop
     else setStart(p);
@@ -122,7 +124,7 @@ function WallLineTool() {
  * Rectangle mode: drag from one corner to the opposite one (or click both, or type 5x3 + Enter) and four joined walls appear;
  * with "room" on, the room inside them too.
  */
-function WallRectTool() {
+function WallRectTool({ winter = false }: { winter?: boolean }) {
   const ref = useRef<Konva.Group>(null);
   const zoom = useUi((s) => s.viewport.zoom);
   const thickness = useDesign((s) => s.design.settings.wallThickness);
@@ -137,8 +139,12 @@ function WallRectTool() {
     setStart(null);
     if (Math.abs(a.x - b.x) < 0.3 || Math.abs(a.y - b.y) < 0.3) return;
     const floor = floorId();
+    if (winter) {
+      addWinterGarden(a, b, floor);
+      return;
+    }
     useDesign.getState().update((d) => {
-      d.walls.push(...rectWalls(a, b, floor, thickness, wallType, WALL_TYPE_HEIGHT[wallType]));
+      d.walls.push(...rectWalls(a, b, floor, thickness, wallType, wallHeightFor(wallType, useDesign.getState().design.settings.storeyHeight)));
       if (!withRoom) return;
       const middle = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       const poly = detectRoom(middle, d.walls.filter((w) => w.floor === floor));

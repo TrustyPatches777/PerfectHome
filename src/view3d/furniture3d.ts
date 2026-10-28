@@ -7,6 +7,7 @@
 import { shade } from '../catalog';
 import { ball, box, cyl, light, ring, rod, type Look, type Part } from './parts';
 import { COUNTERTOP, MORE_RECIPES } from './furniture3d2';
+import { COUNTERTOP_EXTRA, EXTRA_RECIPES } from './furniture3d3';
 
 export interface Ctx {
   w: number;
@@ -809,10 +810,11 @@ export const RECIPES: Record<string, Recipe> = {
   car: carOf(0.18, 0.62, 1.38), porsche, 'car-small': carOf(0.2, 0.66, 1.36), suv: carOf(0.14, 0.7, 1.65), van, motorbike, bicycle, parking, bins, 'ev-charger': evCharger,
   stairs: stairsItem,
   ...MORE_RECIPES,
+  ...EXTRA_RECIPES,
 };
 
 /** Catalog items whose model sits on top of whatever furniture stands under them (lamps and plants on tables). */
-export const SITS_ON_FURNITURE = new Set(['lamp-table', 'plant', 'printer', 'aquarium', ...COUNTERTOP]);
+export const SITS_ON_FURNITURE = new Set(['lamp-table', 'plant', 'printer', 'aquarium', ...COUNTERTOP, ...COUNTERTOP_EXTRA]);
 
 /** A plain block in the item's color: the model of anything without a recipe. */
 function generic({ hw, hd, h, c }: Ctx): Part[] {

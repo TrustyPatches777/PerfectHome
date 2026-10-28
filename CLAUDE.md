@@ -31,6 +31,12 @@ src/distance.ts       closest points/distances between segments and polygon outl
 src/selection.ts      pure group operations: item bounds, move/rotate/align/distribute, copy/paste clipboard, remove, layer of an item
 src/catalog.ts        furniture catalog (~200 items incl. cars, garden, lamps, electrical, plumbing) + custom items registry,
                       heights for shadows, which layer an item lives on, wall-mounted and lamp flags
+src/storey.ts         the storey height and what follows from it: slabFor, fullWallHeight, usualCeiling, wallHeightFor, applyStoreyHeight (one command moves
+                      every full-height wall and every stair that climbs a storey)
+src/doorways.ts       patches of floor under door openings (the floor of the room next to the opening goes on through the wall; two rooms meet in the
+                      middle of the wall); used by the plan, the SVG and 3D
+src/winterGarden.ts   one-click winter garden: glass walls + tiled room + French door + glass roof (the Winter garden mode of the Wall tool)
+src/catalogKorean.ts  Korean furniture/household items and winter garden furniture (recipes in view3d/furniture3d3.ts)
 src/catalogMore.ts    the second half of the catalog: kitchen runs/appliances, bedroom, living, bathroom, built-ins, garden, heating & cooling,
                       people & pets, window dressing (same format; `wallMounted` = snaps to a wall and may stand in its line)
 src/walk.ts            walking in 3D: what blocks you (walls, shut doors, windows, furniture, rails, fences), the height of the ground under your feet
@@ -224,6 +230,12 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
   edges not against a wall) carry the railing on the plan, in 3D and in `walk.ts` (where balcony/porch tops are walkable). Entrance steps
   are a normal stair that does not `reachesNextFloor` (rise <= 0.7 storey): it leaves no stairwell hole and no guard rail, in 3D, walking,
   the plan ghost and SVG.
+- **Storey height**: `settings.storeyHeight` fixes where every floor lies; a full-height wall is `fullWallHeight` (storey minus the slab, 2.5 m at 2.8 m), new walls
+  of the usual types get it (`wallHeightFor`), and `setStoreyHeight` (Floors panel, one undo step) brings along walls that were full height (or 2.5) and stairs
+  whose rise was one storey. Entrance steps, low walls and railings keep their height.
+- **Floor holes**: `stairHoles` cuts the part of a stair outline that lies inside a room, piece by piece (L = 2 rectangles, U = 3), also in an L-shaped room.
+- **Wall types** also include `slats` (vertical wooden boards with gaps, 6 cm) and `glass` (frame + panes, casts no shadow); a roof of material `glass` is
+  see-through panels with glazing bars. Slats and glass walls take doors like any wall.
 - **Adding catalog items**: an entry in `catalogMore.ts` (symbol, size, color, optional `wallMounted`/`layer`/`height`) and a recipe in `furniture3d2.ts` (no
   recipe = plain block). Things on worktops go in `COUNTERTOP`. Wall-hung parts (wall units, mirrors, curtains) carry their own height in the recipe.
   Columns and beams are on the `structure` layer; ducts, vents, flues and underfloor zones on `tech`. A wall niche is a framed mark ON the wall, not a cut.

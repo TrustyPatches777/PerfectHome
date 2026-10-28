@@ -50,18 +50,19 @@ export function addSkylight(p: { x: number; y: number }, size: { w: number; d: n
 }
 
 /** A roof with the usual settings for its kind. */
-export function newRoof(floor: string, box: RoofBox, kind: RoofKind): Roof {
+export function newRoof(floor: string, box: RoofBox, kind: RoofKind, material?: Roof['material']): Roof {
   const style = ROOF_STYLES[kind];
+  const glass = material === 'glass';
   return {
     id: newId(),
     floor,
     kind,
     ...box,
-    pitch: style.pitch,
-    overhang: 0.4,
-    thickness: kind === 'flat' ? 0.25 : 0.15,
-    material: style.material,
-    color: ROOF_MATERIAL_STYLES[style.material].color,
+    pitch: glass && kind !== 'flat' ? Math.min(style.pitch, 28) : style.pitch,
+    overhang: glass ? 0.2 : 0.4,
+    thickness: glass ? 0.05 : kind === 'flat' ? 0.25 : 0.15,
+    material: material ?? style.material,
+    color: ROOF_MATERIAL_STYLES[material ?? style.material].color,
     chimney: false,
     parapet: false,
   };
@@ -69,7 +70,7 @@ export function newRoof(floor: string, box: RoofBox, kind: RoofKind): Roof {
 
 /** Add a roof of `box` size on the active floor and select it. */
 export function addRoof(box: RoofBox, kind: RoofKind): string {
-  const roof = newRoof(floorId(), box, kind);
+  const roof = newRoof(floorId(), box, kind, useUi.getState().roofGlass ? 'glass' : undefined);
   useDesign.getState().update((d) => void d.roofs.push(roof));
   useUi.getState().setTool('select');
   useUi.getState().select({ kind: 'roof', id: roof.id });
@@ -164,7 +165,7 @@ export function addRoofWings(kind: RoofKind): number {
     useUi.getState().showToast('Wing roofs need rooms with square corners on this floor. For other shapes draw the roofs with the roof tool.');
     return 0;
   }
-  const roofs = wings.map((box) => newRoof(floor, box, kind));
+  const roofs = wings.map((box) => newRoof(floor, box, kind, useUi.getState().roofGlass ? 'glass' : undefined));
   useDesign.getState().update((draft) => void draft.roofs.push(...roofs));
   useUi.getState().select({ kind: 'roof', id: roofs[0].id });
   return roofs.length;

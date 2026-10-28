@@ -82,7 +82,7 @@ export function computeShadows(d: Design, floor: string, sun: SunPosition): Shad
     if (off) shadows.push(...sweepPolygon(poly, off.dx, off.dy));
   };
 
-  for (const w of d.walls.filter((x) => x.floor === floor)) add(wallOutlinePoints(w), w.height);
+  for (const w of d.walls.filter((x) => x.floor === floor && x.type !== 'glass')) add(wallOutlinePoints(w), w.height); // glass lets the light through
 
   for (const f of d.furniture.filter((x) => x.floor === floor)) {
     if (catalogLayer(f.type) === 'tech') continue; // sockets, switches and ceiling lights cast nothing worth drawing

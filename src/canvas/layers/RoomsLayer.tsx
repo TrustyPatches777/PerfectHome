@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import { Group, Line, Text } from 'react-konva';
+import { doorwayPatches } from '../../doorways';
 import { formatArea, labelPoint, polygonArea } from '../../geometry';
 import { roomSpec } from '../../paintSpec';
 import { patternFillProps, patternFor, type PatternKind } from '../../patterns';
@@ -18,6 +20,9 @@ function pattern(r: { material: string; color: string; grout?: string; texture?:
 
 export function RoomsLayer() {
   const rooms = useOnFloor((d) => d.rooms);
+  const walls = useDesign((s) => s.design.walls);
+  const openings = useDesign((s) => s.design.openings);
+  const patches = useMemo(() => doorwayPatches({ walls, openings, rooms }), [walls, openings, rooms]);
   const layer = useDesign((s) => s.design.layers.rooms);
   const tool = useUi((s) => s.tool);
   const zoom = useUi((s) => s.viewport.zoom);
@@ -49,6 +54,9 @@ export function RoomsLayer() {
           />
         );
       })}
+      {patches.map((p, i) => (
+        <Line key={`door-${p.openingId}-${i}`} points={p.pts.flatMap((q) => [q.x, q.y])} closed {...(pattern(p.room) ?? { fill: p.room.color })} opacity={0.92} listening={false} />
+      ))}
       {rooms.map((r) => {
         const c = labelPoint(r.points);
         const xs = r.points.map((p) => p.x);

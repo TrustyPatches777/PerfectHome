@@ -63,10 +63,10 @@ export interface LayerState {
  * exterior / load-bearing (the structural shell and the walls that carry the floors and roof), interior, light partition, or a low
  * railing/parapet. (Designs from before the two were merged have 'load' walls: they load as 'exterior'.)
  */
-export type WallType = 'exterior' | 'interior' | 'partition' | 'railing';
-export const WALL_TYPES: WallType[] = ['exterior', 'interior', 'partition', 'railing'];
-export const WALL_TYPE_THICKNESS: Record<WallType, number> = { exterior: 0.3, interior: 0.15, partition: 0.1, railing: 0.06 };
-export const WALL_TYPE_HEIGHT: Record<WallType, number> = { exterior: 2.5, interior: 2.5, partition: 2.5, railing: 1.0 };
+export type WallType = 'exterior' | 'interior' | 'partition' | 'railing' | 'slats' | 'glass';
+export const WALL_TYPES: WallType[] = ['exterior', 'interior', 'partition', 'slats', 'glass', 'railing'];
+export const WALL_TYPE_THICKNESS: Record<WallType, number> = { exterior: 0.3, interior: 0.15, partition: 0.1, railing: 0.06, slats: 0.06, glass: 0.1 };
+export const WALL_TYPE_HEIGHT: Record<WallType, number> = { exterior: 2.5, interior: 2.5, partition: 2.5, railing: 1.0, slats: 2.5, glass: 2.5 };
 
 /** What the surface of a wall is covered with. */
 export type WallFinish = 'paint' | 'plaster' | 'brick' | 'stone' | 'wood' | 'tiles' | 'concrete' | 'wallpaper' | 'marble' | 'custom';
@@ -258,8 +258,8 @@ export interface Stair {
  */
 export type RoofKind = 'flat' | 'shed' | 'gable' | 'hip' | 'gambrel' | 'mansard';
 export const ROOF_KINDS: RoofKind[] = ['gable', 'hip', 'flat', 'shed', 'gambrel', 'mansard'];
-export type RoofMaterial = 'tiles' | 'slate' | 'metal' | 'shingle' | 'thatch' | 'green' | 'gravel';
-export const ROOF_MATERIALS: RoofMaterial[] = ['tiles', 'slate', 'metal', 'shingle', 'thatch', 'green', 'gravel'];
+export type RoofMaterial = 'tiles' | 'slate' | 'metal' | 'shingle' | 'thatch' | 'green' | 'gravel' | 'glass';
+export const ROOF_MATERIALS: RoofMaterial[] = ['tiles', 'slate', 'metal', 'shingle', 'thatch', 'green', 'gravel', 'glass'];
 export interface Roof {
   id: string;
   /** The floor whose walls carry the roof. */

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { setActiveFloorAndFocus } from '../floors';
 import { FIND_KINDS, findItems, type FindKind } from '../find';
 import { formatArea, polygonArea } from '../geometry';
+import { usualCeiling } from '../storey';
 import { FLOOR_MATERIALS, ROOM_TYPES, ROOM_TYPE_LABEL, type FloorMaterial, type Room, type RoomType } from '../model';
 import { FLOOR_COLORS } from '../canvas/style';
 import { deleteSnapshot, diffCount, diffDesigns, loadSnapshots, saveSnapshot, snapshotDesign, type Snapshot } from '../snapshots';
@@ -112,7 +113,7 @@ export function RoomsDialog() {
   const [bulkColor, setBulkColor] = useState('#e8eef7');
   const rooms = design.rooms.filter((r) => !thisFloor || r.floor === floor);
   const floorName = (id: string) => design.floors.find((f) => f.id === id)?.name ?? '';
-  const usual = design.settings.storeyHeight >= 2.5 ? 2.5 : design.settings.storeyHeight - 0.05;
+  const usual = usualCeiling(design.settings.storeyHeight);
   const edit = (id: string, fn: (r: Room) => void) =>
     useDesign.getState().update((d) => {
       const r = d.rooms.find((x) => x.id === id);

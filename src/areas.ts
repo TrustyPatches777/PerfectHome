@@ -7,6 +7,7 @@ import { formatArea, pointInPolygon, polygonArea, wallOutlinePoints } from './ge
 import { ROOM_TYPE_LABEL, type Design, type Point, type RoomType, type ZoneKind } from './model';
 import { ZONE_STYLES } from './outdoor';
 import { groundIndex } from './shadows';
+import { usualCeiling } from './storey';
 
 export interface RoomArea {
   id: string;
@@ -97,7 +98,7 @@ export function unionArea(polys: Point[][]): number {
 
 export function areaReport(d: Design): AreaReport {
   const floors: FloorArea[] = [...d.floors].reverse().map((f) => {
-    const usual = d.settings.storeyHeight >= 2.5 ? 2.5 : d.settings.storeyHeight - 0.05;
+    const usual = usualCeiling(d.settings.storeyHeight);
     const rooms = d.rooms.filter((r) => r.floor === f.id).map((r) => ({ id: r.id, name: r.name, area: polygonArea(r.points), living: r.living, type: r.type, ceiling: r.ceiling ?? usual, volume: polygonArea(r.points) * (r.ceiling ?? usual) }));
     return { floorId: f.id, name: f.name, rooms, total: rooms.reduce((s, r) => s + r.area, 0), living: rooms.filter((r) => r.living).reduce((s, r) => s + r.area, 0) };
   });

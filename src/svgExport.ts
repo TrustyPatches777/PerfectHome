@@ -9,6 +9,7 @@ import { contentBounds } from './bounds';
 import { autoDimensions } from './dims';
 import { doorGeometry, formatArea, labelPoint, niceLength, polygonArea, wallArc, wallCorners, wallPointAt, wallSegmentOutline, type WallCorners, faceSpan, wallSolidSegments } from './geometry';
 import type { Design, FloorMaterial, Furniture, Gate, Opening, Point, Strip, Wall } from './model';
+import { doorwayPatches } from './doorways';
 import { gateGeometry, gateSpans, pathMarks, plotFirst, samplePolyline, solidSpans, stripColor } from './outdoor';
 import { roofPlan } from './roofs';
 import { guardAvoid, guardRuns, reachesNextFloor, railPaths, railPlanColor, stairOutline, stairPlanFill, stairShapes } from './stairs';
@@ -239,6 +240,19 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
         fill = `url(#${p.id})`;
       }
       body.push(`<polygon points="${pts(r.points)}" fill="${fill}" opacity="0.95"/>`);
+    }
+    // the floor goes on through the doorways
+    const here = new Set(onFloor(d.rooms).map((r) => r.id));
+    for (const patch of doorwayPatches(d)) {
+      if (!here.has(patch.room.id)) continue;
+      const r = patch.room;
+      let fill = r.color;
+      if (r.material !== 'plain') {
+        const p = materialPattern(r.material, r.color, r.grout);
+        defs.push(p.def);
+        fill = `url(#${p.id})`;
+      }
+      body.push(`<polygon points="${pts(patch.pts)}" fill="${fill}" opacity="0.95"/>`);
     }
   }
 

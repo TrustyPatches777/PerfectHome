@@ -7,6 +7,7 @@ import { rectCorners } from './selection';
 import { useDesign } from './store/design';
 import { floorIdOf } from './store/floor';
 import { useUi } from './store/ui';
+import { applyStoreyHeight } from './storey';
 
 const ORDINALS = ['Ground floor', '1st floor', '2nd floor', '3rd floor'];
 
@@ -127,6 +128,18 @@ export function addAttic() {
     draft.rooms.push(...atticRoomsFor(draft as Design, top.id, id));
   });
   useUi.getState().setActiveFloor(id);
+}
+
+/** Set the storey height of the whole house at once: floors, full-height walls and the stairs that climb a storey follow (one undo step). */
+export function setStoreyHeight(meters: number) {
+  const next = Math.round(Math.min(6, Math.max(1.8, meters)) * 100) / 100;
+  if (Math.abs(next - useDesign.getState().design.settings.storeyHeight) < 1e-6) return;
+  let change = { walls: 0, stairs: 0 };
+  useDesign.getState().update((d) => {
+    change = applyStoreyHeight(d, next);
+  });
+  const parts = [change.walls ? `${change.walls} wall${change.walls === 1 ? '' : 's'}` : '', change.stairs ? `${change.stairs} staircase${change.stairs === 1 ? '' : 's'}` : ''].filter(Boolean);
+  useUi.getState().showToast(`Storey height ${Math.round(next * 100)} cm${parts.length ? `: ${parts.join(' and ')} adjusted to fit` : ''}.`);
 }
 
 /** Make the floor of the active attic again from the rooms of the floor below (what you put in the attic stays). */

@@ -11,7 +11,10 @@ import { STRIP_STYLES, freeEdges, joinEdges, gateGeometry, gateSpans, pathMarks,
 import { OPENING_HEAD, WINDOW_SPEC, isWindowKind } from '../windows';
 import { atticClearance, atticFloorPieces, faceNormal, inFace, roofBaseHeight, roofModel, skylightPlacement, type RoofModel, type SkylightPlacement, type V3 } from '../roofs';
 import { roomSpec, skinSpec } from '../paintSpec';
-import { RAIL_HEIGHT_DEFAULT, RAIL_LOOKS, flatProfile, guardAvoid, reachesNextFloor, stairOutline } from '../stairs';
+import { RAIL_HEIGHT_DEFAULT, RAIL_LOOKS, flatProfile, guardAvoid, reachesNextFloor, stairOutline, stairPieces } from '../stairs';
+import { mergePolygons } from '../roomEdit';
+import { slabFor, usualCeiling } from '../storey';
+import { doorwayPatches } from '../doorways';
 import { railRun } from './stairs3d';
 import { groundIndex } from '../shadows';
 import { ball, beam, box, cyl, place, prism, type Anim, type Look, type Part } from './parts';
@@ -46,12 +49,12 @@ export function floorElevations(d: Design): Map<string, number> {
 }
 
 /** Thickness of the floor slab between two storeys. */
-export const slabThickness = (d: Design) => Math.min(0.4, Math.max(0.12, d.settings.storeyHeight - 2.5));
+export const slabThickness = (d: Design) => slabFor(d.settings.storeyHeight);
 
 /** Where the ceiling of a storey is, above its floor. */
-export const ceilingHeight = (d: Design) => (d.settings.storeyHeight >= 2.5 ? 2.5 : d.settings.storeyHeight - 0.05);
+export const ceilingHeight = (d: Design) => usualCeiling(d.settings.storeyHeight);
 
-const WALL_COLOR: Record<WallType, string> = { exterior: '#f3efe7', interior: '#ece8e0', partition: '#f4f1ea', railing: '#8a6f55' };
+const WALL_COLOR: Record<WallType, string> = { exterior: '#f3efe7', interior: '#ece8e0', partition: '#f4f1ea', railing: '#8a6f55', slats: '#b08a5a', glass: '#e5e7eb' };
 const FRAME = '#f8fafc';
 const GLASS = '#bfe3f5';
 const WOOD = '#b08968';
@@ -326,7 +329,7 @@ function openingPartsPlain(w: Wall, o: Opening, base: number, top: number, wy0: 
     }
     case 'double': {
       close(head);
-      for (const sgn of [-1, 1] as const) out.push(slab(wp, (sgn * width) / 4, 0, width / 2 - 0.05, 0.045, base, leafTop - 0.03, WOOD, { anim: leafAnim(wp, o, sgn, width, base) }));
+      for (const sgn of [-1, 1] as const) out.push(slab(wp, (sgn * width) / 4, 0, width / 2 - 0.004, 0.045, base, leafTop - 0.03, WOOD, { anim: leafAnim(wp, o, sgn, width, base) }));
       out.push(slab(wp, 0, 0, width, t, leafTop - 0.04, leafTop, FRAME));
       break;
     }
@@ -383,6 +386,42 @@ function openingPartsPlain(w: Wall, o: Opening, base: number, top: number, wy0: 
   return out;
 }
 
+/** A wall cut into short lengths along it (for walls that bend), each with the wall point of its middle. */
+function alongWall(w: Wall, s0: number, s1: number, step = 0.5): { s: number; len: number; wp: WallPoint }[] {
+  const n = Math.max(1, Math.ceil((s1 - s0) / step));
+  const len = (s1 - s0) / n;
+  return Array.from({ length: n }, (_, i) => ({ s: s0 + len * (i + 0.5), len, wp: wallPointAt(w, s0 + len * (i + 0.5)) }));
+}
+
+/** A partition of vertical wooden slats between a top and a bottom rail, with a post at each end: the light comes through the gaps. */
+function slatParts(w: Wall, s0: number, s1: number, y0: number, y1: number): Part[] {
+  const t = w.thickness;
+  const out: Part[] = [];
+  const rail = '#8f6b43';
+  for (const p of alongWall(w, s0, s1)) out.push(slab(p.wp, 0, 0, p.len, t, y0, y0 + 0.1, rail), slab(p.wp, 0, 0, p.len, t, y1 - 0.06, y1, rail));
+  for (const s of [s0 + 0.03, s1 - 0.03]) out.push(slab(wallPointAt(w, s), 0, 0, 0.06, t, y0, y1, rail));
+  const n = Math.max(1, Math.floor((s1 - s0 - 0.12) / 0.075));
+  const gap = (s1 - s0 - 0.12) / n;
+  for (let i = 0; i < n; i++) out.push(slab(wallPointAt(w, s0 + 0.06 + gap * (i + 0.5)), 0, 0, Math.min(0.045, gap * 0.62), t * 0.8, y0 + 0.1, y1 - 0.06, WALL_COLOR.slats));
+  return out;
+}
+
+/** A glazed wall: panes of glass between a frame of posts and rails. */
+function glassWallParts(w: Wall, s0: number, s1: number, y0: number, y1: number): Part[] {
+  const t = w.thickness;
+  const out: Part[] = [];
+  const frame = WALL_COLOR.glass;
+  const m = Math.max(1, Math.round((s1 - s0) / 1.2));
+  for (let i = 0; i <= m; i++) out.push(slab(wallPointAt(w, s0 + ((s1 - s0) * i) / m), 0, 0, 0.06, t, y0, y1, frame));
+  for (const p of alongWall(w, s0, s1)) out.push(slab(p.wp, 0, 0, p.len, t, y0, y0 + 0.1, frame), slab(p.wp, 0, 0, p.len, t, y1 - 0.08, y1, frame));
+  for (let i = 0; i < m; i++) {
+    const a = s0 + ((s1 - s0) * i) / m;
+    const b = s0 + ((s1 - s0) * (i + 1)) / m;
+    for (const p of alongWall(w, a + 0.03, b - 0.03, 1.0)) out.push(slab(p.wp, 0, 0, p.len, 0.012, y0 + 0.1, y1 - 0.08, GLASS, { glass: true }));
+  }
+  return out;
+}
+
 function wallChunk(d: Design, w: Wall, ops: Opening[], elev: number, corners: WallCorners = {}): Part[] {
   const above = elev > 0.01;
   const wy0 = above ? elev - slabThickness(d) : elev;
@@ -393,6 +432,10 @@ function wallChunk(d: Design, w: Wall, ops: Opening[], elev: number, corners: Wa
   const attic = d.floors.find((f) => f.id === w.floor)?.attic;
   for (const [a, b] of wallSolidSegments(w, ops)) {
     if (b - a <= 0.005) continue;
+    if (w.type === 'slats' || w.type === 'glass') {
+      out.push(...(w.type === 'slats' ? slatParts(w, a, b, wy0, top) : glassWallParts(w, a, b, wy0, top)));
+      continue;
+    }
     if (!attic) {
       out.push(prism(wallStrip(w, a, b, corners), wy0, top, color), ...skinPanels(w, a, b, wy0, top, corners));
       continue;
@@ -434,9 +477,14 @@ import { railParts, stairParts } from './stairs3d';
 
 /** The outline of a staircase on the plan (where it stands and the hole it makes in the floor above). */
 export function stairPlanOutline(s: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'rise' | 'flip' | 'x' | 'y' | 'rotation'>): Point[] {
+  return stairPlanPoints(s, stairOutline(s));
+}
+
+/** Points given in a staircase's own box (0..w, 0..d) as they lie on the plan. */
+function stairPlanPoints(s: Pick<Stair, 'w' | 'd' | 'x' | 'y' | 'rotation'>, pts: Point[]): Point[] {
   const c = Math.cos(rad(s.rotation));
   const sn = Math.sin(rad(s.rotation));
-  return stairOutline(s).map((p) => {
+  return pts.map((p) => {
     const lx = p.x - s.w / 2;
     const ly = p.y - s.d / 2;
     return { x: s.x + lx * c - ly * sn, y: s.y + lx * sn + ly * c };
@@ -449,12 +497,49 @@ export function stairHoles(room: { points: Point[] }, below: Stair[]): Point[][]
   const convex = isConvex(room.points);
   for (const st of below) {
     const outline = stairPlanOutline(st);
-    if (convex) {
-      const hole = clipPolygon(outline, room.points);
-      if (hole.length >= 3) out.push(hole);
-    } else if (outline.every((p) => pointInPolygon(p, room.points))) out.push(outline);
+    if (outline.every((p) => pointInPolygon(p, room.points)) && (convex || !crossesEdge(outline, room.points))) {
+      out.push(outline);
+      continue;
+    }
+    // the stairs reach over an edge of the room (or past a corner of an L-shaped one): cut what is inside, piece by piece, then join the pieces again
+    let parts = stairPieces(st)
+      .map((piece) => {
+        const plan = stairPlanPoints(st, piece);
+        return convex ? clipPolygon(plan, room.points) : clipPolygon(room.points, plan);
+      })
+      .filter((p) => p.length >= 3);
+    for (let merged = true; merged && parts.length > 1; ) {
+      merged = false;
+      outer: for (let i = 0; i < parts.length; i++) {
+        for (let j = i + 1; j < parts.length; j++) {
+          const m = mergePolygons(parts[i], parts[j]);
+          if (m && m.length >= 3) {
+            parts = parts.filter((_, k) => k !== i && k !== j);
+            parts.push(m);
+            merged = true;
+            break outer;
+          }
+        }
+      }
+    }
+    out.push(...parts);
   }
   return out;
+}
+
+/** True when an edge of polygon `a` crosses an edge of `b` (they properly intersect). */
+function crossesEdge(a: Point[], b: Point[]): boolean {
+  const side = (p: Point, q: Point, r: Point) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  for (let i = 0; i < a.length; i++) {
+    const p = a[i];
+    const q = a[(i + 1) % a.length];
+    for (let j = 0; j < b.length; j++) {
+      const r = b[j];
+      const s = b[(j + 1) % b.length];
+      if (side(p, q, r) * side(p, q, s) < 0 && side(r, s, p) * side(r, s, q) < 0) return true;
+    }
+  }
+  return false;
 }
 
 // ---- ceilings ---------------------------------------------------------------------------------------------------------
@@ -886,6 +971,23 @@ function gableWall(d: Design, r: Roof, sx: number): { wall: Wall; outer: 'l' | '
   return best && { wall: best.wall, outer: best.outer };
 }
 
+/** The glazing bars of a glass roof: along the slope of a four-sided face, and from the eave to the point of a triangular one. */
+function glassRoofBars(pts: V3[]): Part[] {
+  const bar = (a: V3, b: V3) => beam([a[0], a[1] + 0.015, a[2]], [b[0], b[1] + 0.015, b[2]], 0.05, 0.04, '#e5e7eb');
+  const lerp = (a: V3, b: V3, t: number): V3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const out: Part[] = [];
+  const edge = (a: V3, b: V3) => Math.hypot(b[0] - a[0], b[2] - a[2]);
+  if (pts.length === 4) {
+    const n = Math.max(1, Math.round(edge(pts[0], pts[1]) / 0.8));
+    for (let i = 0; i <= n; i++) out.push(bar(lerp(pts[0], pts[1], i / n), lerp(pts[3], pts[2], i / n)));
+    out.push(bar(pts[0], pts[1]), bar(pts[3], pts[2]));
+  } else if (pts.length === 3) {
+    const n = Math.max(1, Math.round(edge(pts[0], pts[1]) / 0.8));
+    for (let i = 0; i <= n; i++) out.push(bar(lerp(pts[0], pts[1], i / n), pts[2]));
+  }
+  return out;
+}
+
 /** A roof as panels and blocks in its own box, then moved onto the walls it covers. */
 export function roofParts(d: Design, r: Roof, elev: number): Part[] {
   const m = roofModel(r);
@@ -899,6 +1001,10 @@ export function roofParts(d: Design, r: Roof, elev: number): Part[] {
   for (const [fi, f] of m.faces.entries()) {
     if (f.kind === 'slope') {
       const holes = mine.filter((x) => x.sk.kind !== 'solar' && x.sp.face === fi && x.corners.every((c) => inFace(f.pts, c[0], c[2]))).map((x) => x.corners);
+      if (r.material === 'glass') {
+        out.push({ t: 'panel', pts: f.pts, thick: 0.02, facing: up, color: r.color, glass: true, ...(holes.length ? { holes } : {}) }, ...glassRoofBars(f.pts));
+        continue;
+      }
       out.push({ t: 'panel', pts: f.pts, thick: r.thickness, facing: up, color: r.color, tex: { kind: r.material, color: r.color }, ...(holes.length ? { holes } : {}) });
     } else {
       const sx = Math.sign(f.pts[0][0]) || 1;
@@ -986,6 +1092,16 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
     }
     out.push({ key: `room:${r.id}`, deps: [r, e, thick, ...stairsBelow, ...(r.material === 'custom' ? [opts.texVersion ?? 0] : [])], make: () => [prism(r.points, e - thick, e + 0.01, r.color, tex, {}, stairHoles(r, stairsBelow))] });
   }
+  // the floor goes on through the doorways (a room's floor ends at the inner faces of its walls)
+  doorwayPatches(d).forEach((patch, i) => {
+    const r = patch.room;
+    const at = d.floors.findIndex((f) => f.id === r.floor);
+    if (!visible.has(r.floor) || !shown('rooms') || d.floors[at]?.attic) return;
+    const e = elev.get(r.floor) ?? 0;
+    const thick = e > 0.01 ? slab : 0.1;
+    const tex = r.material !== 'plain' ? { kind: r.material, color: roomSpec(r) } : undefined;
+    out.push({ key: `doorway:${patch.openingId}:${i}`, deps: [r, e, thick, JSON.stringify(patch.pts), ...(r.material === 'custom' ? [opts.texVersion ?? 0] : [])], make: () => [prism(patch.pts, e - thick, e + 0.01, r.color, tex)] });
+  });
   if (opts.showCeilings) {
     for (const r of d.rooms) {
       if (!visible.has(r.floor) || !shown('rooms') || d.floors.find((f) => f.id === r.floor)?.attic) continue; // the ceiling of an attic is the roof

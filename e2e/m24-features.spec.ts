@@ -127,9 +127,10 @@ test('drag the side of a room, a lawn or a pond to push it out', async ({ page }
 
 test('exterior and load-bearing walls are one type now', async ({ page }) => {
   await page.getByTestId('tool-wall').click();
-  await expect(page.getByTestId('wall-type-exterior')).toContainText('Exterior / load-bearing');
+  await expect(page.getByTestId('wall-type-exterior')).toContainText('Exterior');
+  await expect(page.getByTestId('wall-type-exterior')).toHaveAttribute('title', /load-bearing/);
   await expect(page.getByTestId('wall-type-load')).toHaveCount(0);
-  await expect(page.locator('[data-testid^="wall-type-"]')).toHaveCount(4);
+  await expect(page.locator('[data-testid^="wall-type-"]')).toHaveCount(6);
 });
 
 test('paint walls: pick a covering and a color, click a face', async ({ page }) => {
