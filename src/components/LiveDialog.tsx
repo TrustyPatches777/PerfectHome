@@ -146,7 +146,7 @@ function RelaySettings() {
 
   return (
     <details className="relay-box" data-testid="relay-box">
-      <summary>Relay server{source ? (source === 'typed' ? ' (set)' : ' (built into this site)') : ''}</summary>
+      <summary>Relay server{source ? ' (set)' : ''}</summary>
       <p className="muted">
         For networks that block direct connections (schools, companies, some mobile hotspots). Get the details from a TURN service and paste them here; the traffic then goes through that
         server, still encrypted. It is kept in this browser only and is never part of a link. Both of you need it.

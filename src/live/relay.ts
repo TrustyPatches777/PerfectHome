@@ -1,7 +1,7 @@
 /**
  * An optional TURN relay for live sessions. Two browsers normally connect directly; on some networks (schools, companies, mobile hotspots) that is
  * blocked, and a relay server carries the traffic instead. The app has none of its own: the credentials come from a hosted TURN service and are
- * either built into the site (VITE_TURN_* at build time) or typed into the Live dialog (kept in this browser only, never in a link).
+ * typed into the Live dialog (kept in this browser only, never in a link, never in the site or the repository).
  */
 
 export interface TurnConfig {
@@ -25,12 +25,7 @@ export function parseTurn(urlsText: string, username: string, credential: string
   return { urls, username: user, credential: pass };
 }
 
-const fromEnv = (): TurnConfig | null => {
-  const env = import.meta.env as Record<string, string | undefined>;
-  return parseTurn(env.VITE_TURN_URLS ?? '', env.VITE_TURN_USERNAME ?? '', env.VITE_TURN_CREDENTIAL ?? '');
-};
-
-/** The relay this browser uses: the one typed into the Live dialog, otherwise the one built into the site, otherwise none. */
+/** The relay this browser uses: the one typed into the Live dialog, or none. */
 export function readTurn(): TurnConfig | null {
   try {
     const raw = localStorage.getItem(KEY);
@@ -40,13 +35,13 @@ export function readTurn(): TurnConfig | null {
       if (own) return own;
     }
   } catch {
-    /* storage blocked or the saved text is damaged: use the built-in one */
+    /* storage blocked or the saved text is damaged: no relay */
   }
-  return fromEnv();
+  return null;
 }
 
-/** Where the current relay comes from, for the dialog. */
-export const turnSource = (): 'typed' | 'site' | null => {
+/** Whether a relay has been typed in, for the dialog. */
+export const turnSource = (): 'typed' | null => {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
@@ -56,7 +51,7 @@ export const turnSource = (): 'typed' | 'site' | null => {
   } catch {
     /* see readTurn */
   }
-  return fromEnv() ? 'site' : null;
+  return null;
 };
 
 /** Keep (or with null, forget) the relay typed into the dialog. Returns false when the browser would not store it. */
