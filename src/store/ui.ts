@@ -159,6 +159,9 @@ interface UiStore {
   setWallMode: (m: 'line' | 'rect') => void;
   wallRoom: boolean;
   setWallRoom: (v: boolean) => void;
+  /** Walls drawn one by one keep to right angles (the same as holding Ctrl/Cmd). */
+  wallOrtho: boolean;
+  setWallOrtho: (v: boolean) => void;
   /** Skylight tool: which size to put on a roof (index into SKYLIGHT_SIZES). */
   skylightSize: number;
   /** What the skylight tool puts on a roof. */
@@ -305,6 +308,8 @@ export const useUi = create<UiStore>((set) => ({
   setWallMode: (wallMode) => set({ wallMode }),
   wallRoom: true,
   setWallRoom: (wallRoom) => set({ wallRoom }),
+  wallOrtho: false,
+  setWallOrtho: (wallOrtho) => set({ wallOrtho }),
   setRoomMode: (roomMode) => set({ roomMode }),
 
   zoneKind: 'lawn',

@@ -28,9 +28,13 @@ function WallLineTool() {
   const [hover, setHover] = useState<{ p: Point; vertex: boolean } | null>(null);
   const first = useRef<Point | null>(null);
 
-  const resolve = (world: Point, shift: boolean) => {
-    if (start && shift) {
-      const locked = constrainAngle(start, world, 45);
+  const rightAngles = useUi((s) => s.wallOrtho);
+  /** Which angle steps a wall is locked to: Shift = every 45°, Ctrl/Cmd (or the "Right angles" switch) = only 90°. */
+  const stepOf = (e: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => (e.shiftKey ? 45 : rightAngles || e.ctrlKey || e.metaKey ? 90 : 0);
+
+  const resolve = (world: Point, step: number) => {
+    if (start && step) {
+      const locked = constrainAngle(start, world, step);
       const { gridStep } = useDesign.getState().design.settings;
       if (!useUi.getState().snap) return { p: locked, vertex: false };
       const len = dist(start, locked);
@@ -63,7 +67,7 @@ function WallLineTool() {
   });
 
   useStageEvents(ref, {
-    mousemove: (e, world) => setHover(resolve(world, e.evt.shiftKey)),
+    mousemove: (e, world) => setHover(resolve(world, stepOf(e.evt))),
     mousedown: (e, world) => {
       if (!isPrimary(e)) return;
       if (isDoubleClick(e.evt)) {
@@ -71,7 +75,7 @@ function WallLineTool() {
         return;
       }
       if (!start && layerBlocksEditing('wall')) return;
-      const { p } = resolve(world, e.evt.shiftKey);
+      const { p } = resolve(world, stepOf(e.evt));
       if (!start) {
         setStart(p);
         first.current = p;

@@ -19,7 +19,7 @@ export const TOOL_KEYS: Record<string, Tool> = {
 
 export const SHORTCUT_HELP: { keys: string; what: string }[] = [
   { keys: 'V', what: 'Select / move' },
-  { keys: 'W', what: 'Draw walls (click corners; double-click, Enter or Esc to finish; Shift = 45° angles)' },
+  { keys: 'W', what: 'Draw walls (click corners; double-click, Enter or Esc to finish; hold Ctrl/Cmd = right angles only, Shift = 45° angles)' },
   { keys: 'D / N', what: 'Place a door / window on a wall' },
   { keys: 'A', what: 'Add a room (click inside closed walls)' },
   { keys: 'S', what: 'Place a staircase (R rotates it before placing)' },

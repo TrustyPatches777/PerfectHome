@@ -522,6 +522,16 @@ function pondParts(z: Zone, elev: number): Part[] {
   return out;
 }
 
+/** A pool or pond that lies wholly inside a lawn: the lawn is cut open there, so a lawn drawn round it does not cover it. */
+function lawnCutters(d: Design, z: Zone): { key: unknown; pts: Point[] }[] {
+  if (z.kind !== 'lawn') return [];
+  const inside = (pts: Point[]) => pts.every((p) => pointInPolygon(p, z.points));
+  return [
+    ...d.zones.filter((o) => o !== z && o.kind === 'water' && o.floor === z.floor).map((o) => ({ key: o as unknown, pts: o.points })),
+    ...d.furniture.filter((f) => f.type === 'pool' && f.floor === z.floor).map((f) => ({ key: f as unknown, pts: rectPoints(f) })),
+  ].filter((c) => inside(c.pts));
+}
+
 function zoneParts(d: Design, z: Zone, elev: number): Part[] {
   if (z.kind === 'plot') {
     // the plot boundary: a thin line around the site
@@ -534,7 +544,7 @@ function zoneParts(d: Design, z: Zone, elev: number): Part[] {
   // a balcony is a slab at the level of its floor, hanging out of the wall; a porch is a platform raised above the ground
   const top = z.kind === 'porch' ? elev + (z.raise ?? ZONE_HEIGHT.porch) : elev + ZONE_HEIGHT[z.kind];
   const bottom = z.kind === 'balcony' ? elev - 0.22 : elev - 0.02;
-  const out: Part[] = [prism(z.points, bottom, top, z.color)];
+  const out: Part[] = [prism(z.points, bottom, top, z.color, undefined, {}, lawnCutters(d, z).map((c) => c.pts))];
   // the railing round the edges that are not against a wall
   if (z.railing && z.railing !== 'none' && (z.kind === 'balcony' || z.kind === 'terrace')) {
     for (const run of joinEdges(freeEdges(z, d.walls))) {
@@ -987,7 +997,7 @@ export function sceneChunks(d: Design, opts: BuildOptions = {}): ChunkSpec[] {
   for (const z of d.zones) {
     if (!visible.has(z.floor) || !shown('outdoor')) continue;
     const e = elev.get(z.floor) ?? 0;
-    out.push({ key: `zone:${z.id}`, deps: [z, e, ...(z.railing ? d.walls.filter((w) => w.floor === z.floor) : [])], make: () => zoneParts(d, z, e) });
+    out.push({ key: `zone:${z.id}`, deps: [z, e, ...(z.railing ? d.walls.filter((w) => w.floor === z.floor) : []), ...lawnCutters(d, z).flatMap((c) => [c.key, JSON.stringify(c.pts)])], make: () => zoneParts(d, z, e) });
   }
   for (const s of d.strips) {
     if (!visible.has(s.floor) || !shown('outdoor')) continue;

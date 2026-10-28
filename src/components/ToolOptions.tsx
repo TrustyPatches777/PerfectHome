@@ -44,6 +44,7 @@ export function ToolOptions() {
   const wallType = useUi((s) => s.wallType);
   const wallMode = useUi((s) => s.wallMode);
   const wallRoom = useUi((s) => s.wallRoom);
+  const wallOrtho = useUi((s) => s.wallOrtho);
   const stairKind = useUi((s) => s.stairKind);
   const stairEntrance = useUi((s) => s.stairEntrance);
   const roofKind = useUi((s) => s.roofKind);
@@ -73,6 +74,12 @@ export function ToolOptions() {
           <label className="check" title="Also create the room inside the walls">
             <input type="checkbox" checked={wallRoom} onChange={(e) => useUi.getState().setWallRoom(e.target.checked)} data-testid="wall-rect-room" />
             with room
+          </label>
+        )}
+        {wallMode === 'line' && (
+          <label className="check" title="Keep every wall at a right angle to the last (the same as holding Ctrl or Cmd while you click; Shift keeps to 45°)">
+            <input type="checkbox" checked={wallOrtho} onChange={(e) => useUi.getState().setWallOrtho(e.target.checked)} data-testid="wall-ortho" />
+            right angles
           </label>
         )}
         <div className="segmented" role="group" aria-label="Wall type">
