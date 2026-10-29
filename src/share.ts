@@ -4,6 +4,7 @@
  */
 import LZString from 'lz-string';
 import { parseDesign, serializeDesign, type Design } from './model';
+import { t } from './i18n';
 
 const HASH_PREFIX = '#d=';
 export const AUTOSAVE_KEY = 'perfect-home:autosave';
@@ -19,12 +20,12 @@ export function encodeDesign(design: Design): string {
 export function decodeDesign(encoded: string): Design {
   // Some apps turn "+" into a space when linkifying; lz-string also repairs this, but be explicit.
   const json = LZString.decompressFromEncodedURIComponent(encoded.trim().replace(/ /g, '+'));
-  if (!json) throw new Error('This link is damaged or was cut off. Ask for it to be shared again.');
+  if (!json) throw new Error(t('This link is damaged or was cut off. Ask for it to be shared again.'));
   let data: unknown;
   try {
     data = JSON.parse(json);
   } catch {
-    throw new Error('This link does not contain a design.');
+    throw new Error(t('This link does not contain a design.'));
   }
   return parseDesign(data);
 }
@@ -50,7 +51,7 @@ export function parseDesignJson(text: string): Design {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error('That file is not valid JSON.');
+    throw new Error(t('That file is not valid JSON.'));
   }
   return parseDesign(data);
 }

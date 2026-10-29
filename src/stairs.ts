@@ -4,6 +4,7 @@
  * tests all use the same drawing.
  */
 import type { Design, Point, RailStyle, Stair, StairBuild, StairKind, StairMaterial } from './model';
+import { localize, t } from './i18n';
 
 export type StairShape =
   | { t: 'poly'; pts: number[]; fill?: boolean }
@@ -20,6 +21,7 @@ export const STAIR_DEFAULTS: Record<StairKind, { w: number; d: number; steps: nu
   spiral: { w: 1.6, d: 1.6, steps: 14, label: 'Spiral' },
   ladder: { w: 0.5, d: 0.8, steps: 10, label: 'Ladder / loft hatch' },
 };
+localize(STAIR_DEFAULTS, ['label']);
 
 /** Radius of the pole in the middle of a spiral staircase. */
 export const spiralPole = (w: number, d: number): number => Math.min(0.07, Math.min(w, d) * 0.05);
@@ -199,16 +201,16 @@ export interface StairCheck {
 
 export function checkStair(stair: Pick<Stair, 'kind' | 'w' | 'd' | 'steps' | 'rise'>): StairCheck {
   const riser = stair.rise / Math.max(1, stair.steps);
-  if (stair.kind === 'ladder') return { riser, going: 0, blondel: 0, ok: riser <= 0.32, message: riser <= 0.32 ? 'A ladder: steep, for lofts and the odd visit only.' : 'The rungs are more than 32 cm apart. Add rungs.' };
+  if (stair.kind === 'ladder') return { riser, going: 0, blondel: 0, ok: riser <= 0.32, message: riser <= 0.32 ? t('A ladder: steep, for lofts and the odd visit only.') : t('The rungs are more than 32 cm apart. Add rungs.') };
   // a stair with n steps has n-1 treads between the first and last riser (the top step is the next floor)
   const going = walkingLength(stair) / Math.max(1, stair.kind === 'spiral' ? stair.steps : stair.steps - 1);
   const blondel = 2 * riser + going;
-  let message = 'Comfortable.';
+  let message = t('Comfortable.');
   let ok = true;
-  if (riser > 0.2) [ok, message] = [false, 'Each step is higher than 20 cm: steep. Add steps.'];
-  else if (riser < 0.14) [ok, message] = [false, 'Each step is lower than 14 cm. Remove steps.'];
-  else if (going < 0.22) [ok, message] = [false, 'Treads are shallower than 22 cm. Make the stair longer or use fewer steps.'];
-  else if (blondel < 0.57 || blondel > 0.67) [ok, message] = [false, 'Step height and depth do not match well (aim for 2 × height + depth ≈ 63 cm).'];
+  if (riser > 0.2) [ok, message] = [false, t('Each step is higher than 20 cm: steep. Add steps.')];
+  else if (riser < 0.14) [ok, message] = [false, t('Each step is lower than 14 cm. Remove steps.')];
+  else if (going < 0.22) [ok, message] = [false, t('Treads are shallower than 22 cm. Make the stair longer or use fewer steps.')];
+  else if (blondel < 0.57 || blondel > 0.67) [ok, message] = [false, t('Step height and depth do not match well (aim for 2 × height + depth ≈ 63 cm).')];
   return { riser, going, blondel, ok, message };
 }
 
@@ -538,6 +540,7 @@ export function densify(path: Point[], step: number): Point[] {
 // ---- construction, materials and colors -----------------------------------------------------------------------------------------
 
 export const STAIR_BUILD_LABEL: Record<StairBuild, string> = { closed: 'Solid with risers', open: 'Open (treads on side beams)', floating: 'Floating treads' };
+localize(STAIR_BUILD_LABEL, '*');
 
 export interface StairLook {
   label: string;
@@ -558,6 +561,7 @@ export const STAIR_LOOKS: Record<StairMaterial, StairLook> = {
   glass: { label: 'Glass', tread: '#bfe3f5', body: '#9ca3af', glass: true },
   carpet: { label: 'Carpet', tread: '#9a3b3b', body: '#e9e5de', tex: 'carpet' },
 };
+localize(STAIR_LOOKS, ['label']);
 
 /** The colors a staircase is drawn with (its own, or its material's). */
 export function stairColors(s: Pick<Stair, 'material' | 'color' | 'bodyColor'>): { tread: string; body: string; look: StairLook } {
@@ -581,6 +585,7 @@ export const RAIL_LOOKS: Record<Exclude<RailStyle, 'none'>, RailLook> = {
   cable: { label: 'Steel cables', color: '#6b7280', gap: 0.9 },
   solid: { label: 'Solid wall', color: '#e5e7eb', gap: 9 },
 };
+localize(RAIL_LOOKS, ['label']);
 export const RAIL_HEIGHT_DEFAULT = 0.9;
 
 /** Does this stair take you up to the next floor? (Entrance steps and garden steps do not: they leave no hole in a floor above.) */

@@ -3,6 +3,7 @@
  * Pure data, shared by the plan, the SVG export, the tool options and the 3D view.
  */
 import type { OpeningKind } from './model';
+import { localize } from './i18n';
 
 export type WindowKind = 'window' | 'casement' | 'sash' | 'picture' | 'bay' | 'highwin' | 'floorwin';
 export const WINDOW_KINDS: WindowKind[] = ['window', 'casement', 'sash', 'picture', 'bay', 'highwin', 'floorwin'];
@@ -30,6 +31,7 @@ export const WINDOW_SPEC: Record<WindowKind, WindowSpec> = {
   highwin: { label: 'High window (strip)', short: 'High', sill: 1.7, width: 1.2, hint: 'A narrow strip near the ceiling: light without being seen (bathrooms, stairs)' },
   floorwin: { label: 'Floor-to-ceiling window', short: 'Full height', sill: 0, width: 1.2, hint: 'Glass from the floor to the head of the door' },
 };
+localize(WINDOW_SPEC, ['label', 'hint', 'short']);
 
 /** The plan symbol of a window in the wall's own frame (x along the wall from -w/2 to w/2, y across it): lines inside the glass rectangle. */
 export function windowMarks(kind: WindowKind, w: number, t: number): { fill: string; dash: boolean; lines: [number, number, number, number][] } {

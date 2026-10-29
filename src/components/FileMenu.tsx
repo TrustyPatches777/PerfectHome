@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useUi } from '../store/ui';
 import { exportJson, exportPng, exportSvg, hasBackup, importJsonFile, newDesign, restoreBackup } from '../session';
+import { t } from '../i18n';
 
 export function FileMenu() {
   const [open, setOpen] = useState(false);
@@ -36,20 +37,20 @@ export function FileMenu() {
   return (
     <div className="menu" ref={wrap}>
       <button onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open} data-testid="file-menu">
-        File ▾
+        {t('File ▾')}
       </button>
       {open && (
         <div className="menu-list" role="menu">
-          {item('New design', newDesign, 'menu-new')}
-          {item('Import JSON…', () => fileInput.current?.click(), 'menu-import')}
-          {item('Area table…', () => useUi.getState().setDialog({ type: 'areas' }), 'menu-areas')}
-          {item('Snapshots…', () => useUi.getState().setDialog({ type: 'snapshots' }), 'menu-snapshots')}
-          {item('Export JSON', exportJson, 'menu-export-json')}
-          {item('Export PNG', exportPng, 'menu-export-png')}
-          {item('Export SVG', exportSvg, 'menu-export-svg')}
-          {item('Print / save as PDF…', () => useUi.getState().setDialog({ type: 'print' }), 'menu-print')}
-          {item('Elevations and sections…', () => useUi.getState().setDialog({ type: 'drawing' }), 'menu-drawing')}
-          {item('Restore previous design', restoreBackup, 'menu-restore', !hasBackup())}
+          {item(t('New design'), newDesign, 'menu-new')}
+          {item(t('Import JSON…'), () => fileInput.current?.click(), 'menu-import')}
+          {item(t('Area table…'), () => useUi.getState().setDialog({ type: 'areas' }), 'menu-areas')}
+          {item(t('Snapshots…'), () => useUi.getState().setDialog({ type: 'snapshots' }), 'menu-snapshots')}
+          {item(t('Export JSON'), exportJson, 'menu-export-json')}
+          {item(t('Export PNG'), exportPng, 'menu-export-png')}
+          {item(t('Export SVG'), exportSvg, 'menu-export-svg')}
+          {item(t('Print / save as PDF…'), () => useUi.getState().setDialog({ type: 'print' }), 'menu-print')}
+          {item(t('Elevations and sections…'), () => useUi.getState().setDialog({ type: 'drawing' }), 'menu-drawing')}
+          {item(t('Restore previous design'), restoreBackup, 'menu-restore', !hasBackup())}
         </div>
       )}
       <input

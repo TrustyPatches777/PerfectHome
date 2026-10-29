@@ -1,4 +1,5 @@
-/**
+
+import { localize, t } from './i18n';/**
  * The whole data model. A design is ONE plain JSON object (`Design`).
  * Everything else (undo history, selection, viewport, active tool) is UI state and is never shared.
  *
@@ -31,6 +32,7 @@ export const LAYER_LABELS: Record<LayerId, string> = {
   comments: 'Sticky notes',
   shadows: 'Sun & shadows',
 };
+localize(LAYER_LABELS, '*');
 /** `shadows` only draws; it holds no items, so it can be hidden but not locked. */
 export const LAYERS_WITH_ITEMS: LayerId[] = LAYER_IDS.filter((l) => l !== 'shadows');
 
@@ -174,10 +176,12 @@ export interface Room {
 export type CeilingStyle = 'flat' | 'coffered' | 'beams';
 export const CEILING_STYLES: CeilingStyle[] = ['flat', 'coffered', 'beams'];
 export const CEILING_LABEL: Record<CeilingStyle, string> = { flat: 'Flat', coffered: 'Coffered (a grid of beams)', beams: 'Exposed timber beams' };
+localize(CEILING_LABEL, '*');
 
 export type RoomType = 'bedroom' | 'living' | 'kitchen' | 'dining' | 'bathroom' | 'toilet' | 'hall' | 'office' | 'storage' | 'garage' | 'other';
 export const ROOM_TYPES: RoomType[] = ['bedroom', 'living', 'kitchen', 'dining', 'bathroom', 'toilet', 'hall', 'office', 'storage', 'garage', 'other'];
 export const ROOM_TYPE_LABEL: Record<RoomType, string> = { bedroom: 'Bedroom', living: 'Living room', kitchen: 'Kitchen', dining: 'Dining room', bathroom: 'Bathroom', toilet: 'Toilet', hall: 'Hall / corridor', office: 'Office', storage: 'Storage', garage: 'Garage', other: 'Other' };
+localize(ROOM_TYPE_LABEL, '*');
 
 export interface Furniture {
   id: string;
@@ -293,6 +297,7 @@ export interface Roof {
 export type ChimneyStyle = 'brick' | 'stone' | 'render' | 'steel' | 'pots';
 export const CHIMNEY_STYLES: ChimneyStyle[] = ['brick', 'pots', 'stone', 'render', 'steel'];
 export const CHIMNEY_LABEL: Record<ChimneyStyle, string> = { brick: 'Brick', pots: 'Brick with chimney pots', stone: 'Stone', render: 'Rendered', steel: 'Steel flue' };
+localize(CHIMNEY_LABEL, '*');
 
 /** What a roof window is: a skylight, a row of solar panels or a dormer (a little house on the roof with a window in its front). */
 export type SkylightKind = 'window' | 'solar' | 'dormer';
@@ -602,7 +607,7 @@ export function createDesign(): Design {
   return {
     v: SCHEMA_VERSION,
     id: newId() + newId(),
-    name: 'My home',
+    name: t('My home'),
     settings: { gridStep: DEFAULT_GRID_STEP, wallThickness: DEFAULT_WALL_THICKNESS, storeyHeight: DEFAULT_STOREY_HEIGHT },
     layers: {
       structure: { visible: true, locked: false },
@@ -615,7 +620,7 @@ export function createDesign(): Design {
       comments: { visible: true, locked: false },
       shadows: { visible: false, locked: false },
     },
-    floors: [{ id: newId(), name: 'Ground floor' }],
+    floors: [{ id: newId(), name: t('Ground floor') }],
     walls: [],
     openings: [],
     rooms: [],
@@ -729,9 +734,9 @@ function skins(v: unknown): Wall['paint'] | undefined {
 
 export function parseDesign(input: unknown): Design {
   if (!isObj(input) || typeof input.v !== 'number' || !Array.isArray(input.walls)) {
-    throw new Error('Not a design: this is not a Perfect Home design.');
+    throw new Error(t('Not a design: this is not a Perfect Home design.'));
   }
-  if (input.v > SCHEMA_VERSION) throw new Error('This design was made with a newer version of the app.');
+  if (input.v > SCHEMA_VERSION) throw new Error(t('This design was made with a newer version of the app.'));
   const base = createDesign();
   const settings = isObj(input.settings) ? input.settings : {};
   const layers = isObj(input.layers) ? input.layers : {};
@@ -751,7 +756,7 @@ export function parseDesign(input: unknown): Design {
   }))) {
     if (!floors.some((x) => x.id === f.id)) floors.push(f);
   }
-  if (!floors.length) floors.push({ id: newId(), name: 'Ground floor' });
+  if (!floors.length) floors.push({ id: newId(), name: t('Ground floor') });
   const floorIds = new Set(floors.map((f) => f.id));
   const floorOf = (v: unknown) => (typeof v === 'string' && floorIds.has(v) ? v : floors[0].id);
 
@@ -990,7 +995,7 @@ export function parseDesign(input: unknown): Design {
     }),
     custom: list<CustomItem>(input.custom, (o) => ({
       id: str(o.id, newId(), 20),
-      label: str(o.label, 'My item', 60),
+      label: str(o.label, t('My item'), 60),
       w: num(o.w, 1, 0.05, 50),
       d: num(o.d, 1, 0.05, 50),
       height: num(o.height, 0.5, 0.01, 30),

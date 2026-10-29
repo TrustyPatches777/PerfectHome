@@ -9,6 +9,7 @@ import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
 import { isPrimary, snapScalar, useStageEvents } from '../input';
 import { OpeningShape } from '../layers/StructureLayer';
+import { t } from '../../i18n';
 
 interface Hover {
   wall: Wall;
@@ -52,7 +53,7 @@ export function OpeningTool({ kind }: { kind: OpeningKind }) {
       const h = locate(world);
       if (!h || layerBlocksEditing('opening')) return;
       if (h.blocked) {
-        useUi.getState().showToast('There is already a door or window there.');
+        useUi.getState().showToast(t('There is already a door or window there.'));
         return;
       }
       const id = newId();

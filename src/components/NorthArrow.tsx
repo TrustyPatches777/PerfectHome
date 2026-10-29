@@ -1,6 +1,7 @@
 import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
 import { sunPosition } from '../sun';
+import { t } from '../i18n';
 
 const SIZE = 64;
 
@@ -14,7 +15,7 @@ export function NorthArrow() {
   const sunBearing = site.north + sun.azimuth; // degrees clockwise from "up" on screen
 
   return (
-    <div className="north-arrow" title="North (set in the Sun panel)" data-testid="north-arrow">
+    <div className="north-arrow" title={t('North (set in the Sun panel)')} data-testid="north-arrow">
       <svg width={SIZE} height={SIZE} viewBox="-32 -32 64 64" aria-hidden>
         <circle r="30" fill="rgba(255,255,255,0.9)" stroke="#94a3b8" />
         <g transform={`rotate(${north})`}>

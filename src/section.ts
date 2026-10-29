@@ -15,6 +15,7 @@ import type { Design, Point, SectionLine } from './model';
 import { floorElevations, sceneChunks, slabThickness } from './view3d/build';
 import type { Part } from './view3d/parts';
 import { compassPoint } from './sun';
+import { localize, t } from './i18n';
 
 type V3 = [number, number, number];
 type P2 = [number, number];
@@ -22,6 +23,7 @@ type P2 = [number, number];
 export type Side = 'N' | 'E' | 'S' | 'W';
 export { sectionDirection };
 export const SIDE_NAME: Record<Side, string> = { N: 'North', E: 'East', S: 'South', W: 'West' };
+localize(SIDE_NAME, '*');
 
 export interface DrawingSpec {
   /** An elevation (the house seen from one side) or a section along a line. */
@@ -47,8 +49,8 @@ export function elevationDirection(side: Side, north: number): Point {
 
 /** The title of a drawing: "South elevation" or "Section A–A". */
 export function drawingTitle(spec: Pick<DrawingSpec, 'kind' | 'side' | 'line'>): string {
-  if (spec.kind === 'section') return `Section ${spec.line?.name ?? 'A'}–${spec.line?.name ?? 'A'}`;
-  return `${SIDE_NAME[spec.side ?? 'S']} elevation`;
+  if (spec.kind === 'section') return t('Section {value}–{value}', { value: spec.line?.name ?? 'A' });
+  return t('{value} elevation', { value: SIDE_NAME[spec.side ?? 'S'] });
 }
 
 // ---- solids ------------------------------------------------------------------------------------------------------------------
@@ -458,7 +460,7 @@ export function prepareDrawing(d: Design, spec: DrawingSpec): Prepared | null {
   if (earth) earth = [...earth, [u1, h0], [u0, h0]];
 
   const elev = floorElevations(d);
-  const levels: Level[] = d.floors.map((fl) => ({ name: fl.name, h: elev.get(fl.id) ?? 0 }));
+  const levels: Level[] = d.floors.map((fl) => ({ name: t(fl.name), h: elev.get(fl.id) ?? 0 }));
 
   return {
     spec,

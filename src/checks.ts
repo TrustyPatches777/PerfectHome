@@ -10,6 +10,7 @@ import type { Design, ItemRef, Point } from './model';
 import { rectCorners } from './selection';
 import { atticClearance } from './roofs';
 import { furnitureFootprint } from './shadows';
+import { t } from './i18n';
 
 export type IssueKind = 'door-blocked' | 'door-collision' | 'in-wall' | 'narrow-gap' | 'low-ceiling' | 'roof-in-the-way' | 'no-window' | 'small-room';
 
@@ -53,7 +54,7 @@ function obstacles(d: Design, floor: string): Obstacle[] {
   }
   for (const s of d.stairs.filter((x) => x.floor === floor)) {
     const poly = rectCorners(s.x, s.y, s.w, s.d, s.rotation);
-    out.push({ ref: { kind: 'stair', id: s.id }, name: 'the stairs', poly, height: 3, area: s.w * s.d });
+    out.push({ ref: { kind: 'stair', id: s.id }, name: t('the stairs'), poly, height: 3, area: s.w * s.d });
   }
   return out;
 }
@@ -68,7 +69,7 @@ function swings(d: Design, floor: string) {
     const leaves = isSingleDoor(o.kind) ? [o] : [{ ...o, pos: o.pos - o.width / 4, width: o.width / 2, hinge: 'a' as const }, { ...o, pos: o.pos + o.width / 4, width: o.width / 2, hinge: 'b' as const }];
     for (const leaf of leaves) {
       const g = doorGeometry(wall, leaf, 8);
-      out.push({ id: o.id, name: isSingleDoor(o.kind) ? 'a door' : 'a double door', poly: [g.hinge, ...g.arc], ref: { kind: 'opening', id: o.id } });
+      out.push({ id: o.id, name: isSingleDoor(o.kind) ? t('a door') : t('a double door'), poly: [g.hinge, ...g.arc], ref: { kind: 'opening', id: o.id } });
     }
   }
   return out;
@@ -108,6 +109,7 @@ export function findIssues(d: Design, floor: string, minPassage = DEFAULT_MIN_PA
   const things = obstacles(d, floor);
   const doors = swings(d, floor);
   const cm = (m: number) => `${Math.round(m * 100)} cm`;
+  const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
 
   // 1. doors that cannot open
   for (const s of doors) {
@@ -116,7 +118,7 @@ export function findIssues(d: Design, floor: string, minPassage = DEFAULT_MIN_PA
         issues.push({
           id: `blocked:${s.id}:${o.ref.id}`,
           kind: 'door-blocked',
-          message: `${s.name[0].toUpperCase()}${s.name.slice(1)} cannot open fully: ${o.name} is in its way.`,
+          message: t('{name} cannot open fully: {other} is in its way.', { name: cap(s.name), other: o.name }),
           at: centerOf(s.poly),
           polygon: s.poly,
           refs: [s.ref, o.ref],
@@ -131,7 +133,7 @@ export function findIssues(d: Design, floor: string, minPassage = DEFAULT_MIN_PA
         issues.push({
           id: `collide:${doors[i].id}:${doors[j].id}`,
           kind: 'door-collision',
-          message: 'Two doors swing into each other.',
+          message: t('Two doors swing into each other.'),
           at: centerOf(doors[i].poly),
           polygon: doors[i].poly,
           refs: [doors[i].ref, doors[j].ref],
@@ -145,7 +147,7 @@ export function findIssues(d: Design, floor: string, minPassage = DEFAULT_MIN_PA
     if (o.ref.kind !== 'furniture') continue;
     for (const w of walls) {
       if (!w.bulge && polygonsOverlap(o.poly, wallOutlinePoints(w))) {
-        issues.push({ id: `inwall:${o.ref.id}:${w.id}`, kind: 'in-wall', message: `${o.name[0].toUpperCase()}${o.name.slice(1)} overlaps a wall.`, at: centerOf(o.poly), polygon: o.poly, refs: [o.ref] });
+        issues.push({ id: `inwall:${o.ref.id}:${w.id}`, kind: 'in-wall', message: t('{name} overlaps a wall.', { name: cap(o.name) }), at: centerOf(o.poly), polygon: o.poly, refs: [o.ref] });
         break;
       }
     }
@@ -158,7 +160,7 @@ export function findIssues(d: Design, floor: string, minPassage = DEFAULT_MIN_PA
       const heights = o.poly.map((p) => atticClearance(d, floor, p)).filter((h): h is number => h !== null);
       const low = heights.length ? Math.min(...heights) : null;
       if (low !== null && low < o.height - 0.01) {
-        issues.push({ id: `low:${o.ref.id}`, kind: 'low-ceiling', message: `${o.name[0].toUpperCase()}${o.name.slice(1)} is taller than the roof above it (${cm(low)} of room, it needs ${cm(o.height)}).`, at: centerOf(o.poly), polygon: o.poly, refs: [o.ref] });
+        issues.push({ id: `low:${o.ref.id}`, kind: 'low-ceiling', message: t('{name} is taller than the roof above it ({room} of room, it needs {needs}).', { name: cap(o.name), room: cm(low), needs: cm(o.height) }), at: centerOf(o.poly), polygon: o.poly, refs: [o.ref] });
       }
     }
   }
@@ -169,7 +171,7 @@ export function findIssues(d: Design, floor: string, minPassage = DEFAULT_MIN_PA
     const box = rectCorners(r.x, r.y, r.w, r.d, r.rotation);
     const higher = d.floors.slice(index + 1).filter((f) => !f.attic).map((f) => f.id);
     const hit = d.rooms.some((x) => higher.includes(x.floor) && polygonsOverlap(box, x.points)) || d.walls.some((w) => higher.includes(w.floor) && !w.bulge && polygonsOverlap(box, wallOutlinePoints(w)));
-    if (hit) issues.push({ id: `roofway:${r.id}`, kind: 'roof-in-the-way', message: 'A higher floor stands inside the roof of this floor. Move the roof up (select it, then "Sits on floor") or remove it.', at: { x: r.x, y: r.y }, polygon: box, refs: [{ kind: 'roof', id: r.id }] });
+    if (hit) issues.push({ id: `roofway:${r.id}`, kind: 'roof-in-the-way', message: t('A higher floor stands inside the roof of this floor. Move the roof up (select it, then "Sits on floor") or remove it.'), at: { x: r.x, y: r.y }, polygon: box, refs: [{ kind: 'roof', id: r.id }] });
   }
 
   // 3. gaps that are too narrow to walk through (big, tall things facing each other, or a wall)
@@ -185,7 +187,7 @@ export function findIssues(d: Design, floor: string, minPassage = DEFAULT_MIN_PA
     issues.push({
       id: `gap:${refs.map((r) => r.id).join(':')}`,
       kind: 'narrow-gap',
-      message: `Only ${cm(g.gap)} between ${nameA} and ${nameB}: too narrow to walk through (minimum ${cm(minPassage)}).`,
+      message: t('Only {value} between {nameA} and {nameB}: too narrow to walk through (minimum {value2}).', { value: cm(g.gap), nameA, nameB, value2: cm(minPassage) }),
       at: mid,
       line: [
         { x: mid.x - g.nx * g.gap * 0.5, y: mid.y - g.ny * g.gap * 0.5 },
@@ -198,24 +200,24 @@ export function findIssues(d: Design, floor: string, minPassage = DEFAULT_MIN_PA
     for (let j = i + 1; j < big.length; j++) gap(big[i].poly, big[j].poly, big[i].name, big[j].name, [big[i].ref, big[j].ref]);
     for (const w of wallBodies) {
       // only against walls that run past the item, otherwise the item is simply "near a wall corner"
-      if (polygonArea(w.poly) > 0.3) gap(big[i].poly, w.poly, big[i].name, 'the wall', [big[i].ref]);
+      if (polygonArea(w.poly) > 0.3) gap(big[i].poly, w.poly, big[i].name, t('the wall'), [big[i].ref]);
     }
   }
 
   // 4. rooms by what they are for
   for (const r of d.rooms.filter((x) => x.floor === floor && x.type)) {
-    const name = r.name || ROOM_TYPE_LABEL[r.type!];
+    const name = r.name ? t(r.name) : ROOM_TYPE_LABEL[r.type!];
     const at = labelPoint(r.points);
     if (LIGHT_ROOMS.has(r.type!) && !hasDaylight(d, r)) {
-      issues.push({ id: `nowindow:${r.id}`, kind: 'no-window', message: `${name} (${ROOM_TYPE_LABEL[r.type!].toLowerCase()}) has no window or glass door.`, at, polygon: r.points, refs: [{ kind: 'room', id: r.id }] });
+      issues.push({ id: `nowindow:${r.id}`, kind: 'no-window', message: t('{name} ({value}) has no window or glass door.', { name, value: ROOM_TYPE_LABEL[r.type!].toLowerCase() }), at, polygon: r.points, refs: [{ kind: 'room', id: r.id }] });
     }
     const area = polygonArea(r.points);
     const least = MIN_AREA[r.type!];
     if (least && area < least) {
-      issues.push({ id: `small:${r.id}`, kind: 'small-room', message: `${name} is only ${area.toFixed(1)} m²: a ${ROOM_TYPE_LABEL[r.type!].toLowerCase()} should be at least ${least} m².`, at, polygon: r.points, refs: [{ kind: 'room', id: r.id }] });
+      issues.push({ id: `small:${r.id}`, kind: 'small-room', message: t('{name} is only {value} m²: a {value2} should be at least {least} m².', { name, value: area.toFixed(1), value2: ROOM_TYPE_LABEL[r.type!].toLowerCase(), least }), at, polygon: r.points, refs: [{ kind: 'room', id: r.id }] });
     }
     if (r.ceiling !== undefined && r.ceiling < 2.2 && r.type !== 'storage') {
-      issues.push({ id: `ceiling:${r.id}`, kind: 'low-ceiling', message: `${name} has a ceiling of only ${cm(r.ceiling)}: rooms to live in need at least 220 cm.`, at, polygon: r.points, refs: [{ kind: 'room', id: r.id }] });
+      issues.push({ id: `ceiling:${r.id}`, kind: 'low-ceiling', message: t('{name} has a ceiling of only {value}: rooms to live in need at least 220 cm.', { name, value: cm(r.ceiling) }), at, polygon: r.points, refs: [{ kind: 'room', id: r.id }] });
     }
   }
   return dedupe(issues);

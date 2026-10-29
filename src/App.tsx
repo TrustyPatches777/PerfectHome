@@ -18,11 +18,13 @@ import { useShortcuts } from './hooks/useShortcuts';
 import { bootstrap } from './session';
 import { HSplitter, Splitter } from './components/Splitter';
 import { useUi } from './store/ui';
+import { t, useLang } from './i18n';
 
 // three.js is only downloaded when the 3D view is opened
 const View3D = lazy(() => import('./view3d/View3D'));
 
 export function App() {
+  useLang(); // a change of language re-renders everything below
   const [help, setHelp] = useState(false);
   const toggleHelp = useCallback(() => setHelp((h) => !h), []);
   useShortcuts(toggleHelp);
@@ -53,7 +55,7 @@ export function App() {
           {view === '2d' ? (
             <CanvasView />
           ) : (
-            <Suspense fallback={<div className="canvas-wrap view3d-loading">Loading the 3D view…</div>}>
+            <Suspense fallback={<div className="canvas-wrap view3d-loading">{t('Loading the 3D view…')}</div>}>
               <View3D />
             </Suspense>
           )}

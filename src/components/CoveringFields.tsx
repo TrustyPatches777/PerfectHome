@@ -5,6 +5,7 @@ import { PAINT_COLORS } from '../walls';
 import { pictureToDataUrl } from '../trace';
 import { useUi } from '../store/ui';
 import { ColorField } from './fields';
+import { t } from '../i18n';
 
 /** Choose a picture from the computer to cover a wall or a floor with. It is kept in this browser (not in a shared link). */
 export function PictureField({ texture, onChange, testId }: { texture?: string; onChange: (id: string | undefined) => void; testId: string }) {
@@ -14,7 +15,7 @@ export function PictureField({ texture, onChange, testId }: { texture?: string; 
     try {
       const { url } = await pictureToDataUrl(file, 512);
       const id = newId();
-      if (!saveTexture(id, url)) return useUi.getState().showToast('The picture is too big to keep in this browser. Try a smaller one.');
+      if (!saveTexture(id, url)) return useUi.getState().showToast(t('The picture is too big to keep in this browser. Try a smaller one.'));
       forgetTexture(id);
       onChange(id);
       useUi.getState().bumpTextures();
@@ -24,19 +25,19 @@ export function PictureField({ texture, onChange, testId }: { texture?: string; 
   };
   return (
     <div className="field">
-      <span>Your picture</span>
+      <span>{t('Your picture')}</span>
       <div className="row">
         <button onClick={() => input.current?.click()} data-testid={`${testId}-choose`}>
-          {have ? 'Choose another…' : 'Choose a picture…'}
+          {have ? t('Choose another…') : t('Choose a picture…')}
         </button>
         {texture && (
           <button onClick={() => onChange(undefined)} data-testid={`${testId}-remove`}>
-            Remove
+            {t('Remove')}
           </button>
         )}
       </div>
-      {texture && !have && <p className="notice">This picture is not on this computer (pictures stay in the browser they were added in), so the plain color shows.</p>}
-      <p className="muted">The picture repeats over about a meter. It stays in this browser: someone you share the design with sees the plain color.</p>
+      {texture && !have && <p className="notice">{t('This picture is not on this computer (pictures stay in the browser they were added in), so the plain color shows.')}</p>}
+      <p className="muted">{t('The picture repeats over about a meter. It stays in this browser: someone you share the design with sees the plain color.')}</p>
       <input
         ref={input}
         type="file"
@@ -63,7 +64,7 @@ export function SkinExtras({ skin, edit, side }: { skin: WallSkin; edit: (fn: (s
     <>
       {patterns && (
         <label className="field">
-          <span>{skin.finish === 'wallpaper' ? 'Pattern' : 'Layout'}</span>
+          <span>{skin.finish === 'wallpaper' ? t('Pattern') : t('Layout')}</span>
           <select value={skin.pattern ?? patterns[0].id} data-testid={`wall-pattern-${side}`} onChange={(e) => edit((s) => void (s.pattern = e.target.value))}>
             {patterns.map((p) => (
               <option key={p.id} value={p.id}>
@@ -76,7 +77,7 @@ export function SkinExtras({ skin, edit, side }: { skin: WallSkin; edit: (fn: (s
       {second && <ColorField label={second} value={skin.grout ?? '#9ca3af'} swatches={skin.finish === 'wallpaper' ? PAINT_COLORS : WALL_SECOND} onChange={(c) => edit((s) => void (s.grout = c))} />}
       {second && skin.grout && (
         <button onClick={() => edit((s) => void delete s.grout)} data-testid={`wall-grout-reset-${side}`}>
-          Use the usual {second.toLowerCase()}
+          {t('Use the usual {value}', { value: second.toLowerCase() })}
         </button>
       )}
       {skin.finish === 'custom' && <PictureField texture={skin.texture} testId={`wall-picture-${side}`} onChange={(id) => edit((s) => (id ? void (s.texture = id) : void delete s.texture))} />}
@@ -94,7 +95,7 @@ export function FloorExtras({ room, edit }: { room: Room; edit: (fn: (r: Room) =
       {label && <ColorField label={label} value={room.grout ?? '#9ca3af'} swatches={WALL_SECOND} onChange={(c) => edit((r) => void (r.grout = c))} />}
       {label && room.grout && (
         <button onClick={() => edit((r) => void delete r.grout)} data-testid="floor-grout-reset">
-          Use the usual {label.toLowerCase()}
+          {t('Use the usual {value}', { value: label.toLowerCase() })}
         </button>
       )}
       {room.material === 'custom' && <PictureField texture={room.texture} testId="floor-picture" onChange={(id) => edit((r) => (id ? void (r.texture = id) : void delete r.texture))} />}

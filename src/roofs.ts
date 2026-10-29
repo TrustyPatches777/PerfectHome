@@ -7,6 +7,7 @@
  */
 import { clipPolygon, wallOutlinePoints } from './geometry';
 import type { Design, Point, Roof, RoofKind, RoofMaterial } from './model';
+import { localize } from './i18n';
 
 export const ROOF_STYLES: Record<RoofKind, { label: string; pitch: number; material: RoofMaterial; hint: string }> = {
   gable: { label: 'Gable', pitch: 35, material: 'tiles', hint: 'Two slopes meeting at a ridge, with a triangular wall at each end' },
@@ -16,6 +17,7 @@ export const ROOF_STYLES: Record<RoofKind, { label: string; pitch: number; mater
   gambrel: { label: 'Gambrel', pitch: 20, material: 'shingle', hint: 'Barn roof: steep lower slopes, shallow upper ones' },
   mansard: { label: 'Mansard', pitch: 20, material: 'slate', hint: 'Steep lower slope on all four sides, a shallow hip roof on top' },
 };
+localize(ROOF_STYLES, ['label', 'hint']);
 
 export const ROOF_MATERIAL_STYLES: Record<RoofMaterial, { label: string; color: string }> = {
   tiles: { label: 'Clay tiles', color: '#b5523b' },
@@ -27,6 +29,7 @@ export const ROOF_MATERIAL_STYLES: Record<RoofMaterial, { label: string; color: 
   gravel: { label: 'Gravel', color: '#9ca3af' },
   glass: { label: 'Glass (winter garden)', color: '#bfe3f5' },
 };
+localize(ROOF_MATERIAL_STYLES, ['label']);
 
 const DEG = Math.PI / 180;
 /** The steep lower slope of gambrel and mansard roofs. */

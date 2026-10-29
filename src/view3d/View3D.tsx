@@ -8,6 +8,7 @@ import { compassPoint, darkness, formatHour, sunPosition } from '../sun';
 import { sceneOptions } from './options';
 import { PresentMenu } from './PresentMenu';
 import { Scene3D } from './scene';
+import { t } from '../i18n';
 
 /** The house in 3D: orbit around it, or walk through it. It only shows the design; editing happens in the plan. */
 export default function View3D() {
@@ -40,7 +41,7 @@ export default function View3D() {
     s.setDesign(d, sceneOptions(d, floorIdOf(d, ui.activeFloor), ui));
     s.setSun({ sun: sunPosition(d.site.lat, d.site.month, d.site.day, ui.timeOfDay), north: d.site.north, shadows: ui.shadows3d, weather: d.site.weather });
     s.resetView();
-    s.onFar = () => useUi.getState().showToast('Walk closer to open that door.');
+    s.onFar = () => useUi.getState().showToast(t('Walk closer to open that door.'));
     setScene(s);
     return () => {
       ro.disconnect();
@@ -96,11 +97,11 @@ export default function View3D() {
 
   const ui = useUi.getState();
   const sun = sunPosition(lat, month, day, hour);
-  const phase = sun.elevation > 6 ? `Sun ${Math.round(sun.elevation)}° high, from ${compassPoint(sun.azimuth)}` : sun.elevation > -6 ? (hour < 12 ? 'Sunrise' : 'Sunset') : darkness(sun.elevation) > 0.9 ? 'Night' : 'Dusk';
+  const phase = sun.elevation > 6 ? t('Sun {value}° high, from {value2}', { value: Math.round(sun.elevation), value2: compassPoint(sun.azimuth) }) : sun.elevation > -6 ? (hour < 12 ? t('Sunrise') : t('Sunset')) : darkness(sun.elevation) > 0.9 ? t('Night') : t('Dusk');
 
   const saveImage = async () => {
     const blob = await scene?.toBlob();
-    if (!blob) return ui.showToast('Could not create the image.');
+    if (!blob) return ui.showToast(t('Could not create the image.'));
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = fileNameFor({ ...design, name: `${design.name} 3d` }, 'png');
@@ -114,71 +115,71 @@ export default function View3D() {
     <div className="canvas-wrap view3d" data-testid="view3d">
       <div ref={host} className="view3d-host" />
       <div className="view3d-bar" data-testid="view3d-bar">
-        <div className="segmented" role="group" aria-label="Camera">
-          <button className={!walking ? 'active' : ''} onClick={() => ui.setWalking(false)} title="Orbit around the house" data-testid="mode-orbit">
-            Orbit
+        <div className="segmented" role="group" aria-label={t('Camera')}>
+          <button className={!walking ? 'active' : ''} onClick={() => ui.setWalking(false)} title={t('Orbit around the house')} data-testid="mode-orbit">
+            {t('Orbit')}
           </button>
-          <button className={walking ? 'active' : ''} onClick={() => ui.setWalking(true)} title="Walk through the house" data-testid="mode-walk">
-            Walk
+          <button className={walking ? 'active' : ''} onClick={() => ui.setWalking(true)} title={t('Walk through the house')} data-testid="mode-walk">
+            {t('Walk')}
           </button>
         </div>
-        <button onClick={() => (ui.setWalking(false), scene?.resetView())} title="Back to the overview" data-testid="view3d-reset">
-          Overview
+        <button onClick={() => (ui.setWalking(false), scene?.resetView())} title={t('Back to the overview')} data-testid="view3d-reset">
+          {t('Overview')}
         </button>
-        <button onClick={() => (ui.setWalking(false), scene?.topView())} title="Straight down, like the plan" data-testid="view3d-top">
-          From above
+        <button onClick={() => (ui.setWalking(false), scene?.topView())} title={t('Straight down, like the plan')} data-testid="view3d-top">
+          {t('From above')}
         </button>
         {!walking && <PresentMenu scene={scene} design={design} />}
         {walking && (
-          <label className="check" title="Dragging up looks down">
+          <label className="check" title={t('Dragging up looks down')}>
             <input type="checkbox" checked={invertLook} onChange={(e) => ui.setInvertLook(e.target.checked)} data-testid="view3d-invert" />
-            Invert up/down
+            {t('Invert up/down')}
           </label>
         )}
         {design.floors.length > 1 && (
-          <div className="floor-toggles" role="group" aria-label="Floors shown" data-testid="floor-toggles">
-            <span className="muted">Floors</span>
+          <div className="floor-toggles" role="group" aria-label={t('Floors shown')} data-testid="floor-toggles">
+            <span className="muted">{t('Floors')}</span>
             {[...design.floors].reverse().map((f) => (
-              <label key={f.id} className="check" title={`Show or hide ${f.name}`}>
+              <label key={f.id} className="check" title={t('Show or hide {name}', { name: t(f.name) })}>
                 <input type="checkbox" checked={!hiddenFloors.includes(f.id)} onChange={(e) => ui.setFloorShown(f.id, e.target.checked)} data-testid={`floor-shown-${f.name}`} />
-                {f.name}
+                {t(f.name)}
               </label>
             ))}
           </div>
         )}
         {design.floors.length > 1 && (
-          <label className="check" title="Hide the floors above the one you are on, to see inside">
+          <label className="check" title={t('Hide the floors above the one you are on, to see inside')}>
             <input type="checkbox" checked={cutaway} onChange={(e) => ui.setCutaway(e.target.checked)} data-testid="view3d-cutaway" />
-            Hide upper floors
+            {t('Hide upper floors')}
           </label>
         )}
         {design.roofs.length > 0 && (
           <label className="check">
             <input type="checkbox" checked={showRoof} onChange={(e) => ui.setShowRoof3d(e.target.checked)} data-testid="view3d-roof" />
-            Roof
+            {t('Roof')}
           </label>
         )}
-        <label className="check" title="Draw the ceilings (from above they hide the rooms; while walking they are always there)">
+        <label className="check" title={t('Draw the ceilings (from above they hide the rooms; while walking they are always there)')}>
           <input type="checkbox" checked={ceilingsOn || walking} disabled={walking} onChange={(e) => ui.setShowCeilings3d(e.target.checked)} data-testid="view3d-ceilings" />
-          Ceilings
+          {t('Ceilings')}
         </label>
         <label className="check">
           <input type="checkbox" checked={shadows} onChange={(e) => ui.setShadows3d(e.target.checked)} data-testid="view3d-shadows" />
-          Shadows
+          {t('Shadows')}
         </label>
-        <button onClick={() => void saveImage()} title="Save what you see as a picture" data-testid="view3d-save">
-          Save image
+        <button onClick={() => void saveImage()} title={t('Save what you see as a picture')} data-testid="view3d-save">
+          {t('Save image')}
         </button>
       </div>
       <div className="view3d-time" data-testid="view3d-time">
-        <button onClick={() => ui.setSunPlaying(!playing)} title={playing ? 'Pause' : 'Play a whole day'} aria-label={playing ? 'Pause' : 'Play'}>
+        <button onClick={() => ui.setSunPlaying(!playing)} title={playing ? t('Pause') : t('Play a whole day')} aria-label={playing ? t('Pause') : t('Play')}>
           {playing ? '❚❚' : '▶'}
         </button>
         <strong data-testid="view3d-clock">{formatHour(hour)}</strong>
-        <input type="range" min={0} max={24} step={0.05} value={hour} onChange={(e) => ui.setTimeOfDay(Number(e.target.value))} aria-label="Time of day" data-testid="view3d-slider" />
+        <input type="range" min={0} max={24} step={0.05} value={hour} onChange={(e) => ui.setTimeOfDay(Number(e.target.value))} aria-label={t('Time of day')} data-testid="view3d-slider" />
         <span className="muted">{phase}</span>
       </div>
-      <div className="view3d-hint">{walking ? 'Drag to look around · W A S D to walk, arrow keys to walk and turn · click a door to open or close it · Shift = faster · Esc to stop' : 'Drag to turn · right-drag to move · wheel to zoom · click a door to open it · 2 = back to the plan'}</div>
+      <div className="view3d-hint">{walking ? t('Drag to look around · W A S D to walk, arrow keys to walk and turn · click a door to open or close it · Shift = faster · Esc to stop') : t('Drag to turn · right-drag to move · wheel to zoom · click a door to open it · 2 = back to the plan')}</div>
     </div>
   );
 }

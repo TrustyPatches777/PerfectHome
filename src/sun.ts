@@ -1,3 +1,4 @@
+import { localize } from './i18n';
 /**
  * Where the sun is. Standard approximations (declination and hour angle), good to about a degree, which is
  * plenty for drawing shadows. Pure, so it is easy to test.
@@ -81,5 +82,6 @@ export function formatHour(h: number): string {
 }
 
 const POINTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+localize(POINTS, '*');
 /** "SW" for an azimuth. */
 export const compassPoint = (az: number) => POINTS[Math.round((((az % 360) + 360) % 360) / 45) % 8];

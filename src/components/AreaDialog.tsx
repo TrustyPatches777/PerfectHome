@@ -6,6 +6,7 @@ import { fileNameFor } from '../share';
 import { copyShareLink } from '../session';
 import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
+import { t } from '../i18n';
 
 const pct = (v: number) => `${(Math.round(v * 1000) / 10).toFixed(1)} %`;
 const meters = (v: number) => `${(Math.round(v * 100) / 100).toFixed(2)} m`;
@@ -30,32 +31,31 @@ export function AreaDialog() {
 
   return (
     <div className="modal-backdrop" onMouseDown={close}>
-      <div className="modal wide" role="dialog" aria-label="Area table" onMouseDown={(e) => e.stopPropagation()} data-testid="area-dialog">
-        <h2>Areas &amp; plot</h2>
-        {empty && <p className="muted">Nothing to add up yet. Draw some rooms (and a plot boundary in the Outdoor tab) and the numbers appear here.</p>}
+      <div className="modal wide" role="dialog" aria-label={t('Area table')} onMouseDown={(e) => e.stopPropagation()} data-testid="area-dialog">
+        <h2>{t('Areas & plot')}</h2>
+        {empty && <p className="muted">{t('Nothing to add up yet. Draw some rooms (and a plot boundary in the Outdoor tab) and the numbers appear here.')}</p>}
 
         {r.floors.map((f) =>
           f.rooms.length ? (
             <table className="area-table" key={f.floorId} data-testid={`area-floor-${f.name}`}>
-              <caption>{f.name}</caption>
+              <caption>{t(f.name)}</caption>
               <tbody>
                 {f.rooms.map((room) => (
                   <tr key={room.id} className={room.living ? '' : 'minor'}>
                     <td>
-                      {room.name}
+                      {t(room.name)}
                       {room.type && <span className="tag"> {ROOM_TYPE_LABEL[room.type]}</span>}
                     </td>
                     <td className="num">{formatArea(room.area)}</td>
                     <td className="note">
-                      {room.living ? '' : 'not living area · '}
-                      {room.ceiling.toFixed(2)} m high · {room.volume.toFixed(0)} m³
+                      {t('{value}{value2} m high · {value3} m³', { value: room.living ? '' : t('not living area · '), value2: room.ceiling.toFixed(2), value3: room.volume.toFixed(0) })}
                     </td>
                   </tr>
                 ))}
                 <tr className="sum">
-                  <td>Total</td>
+                  <td>{t('Total')}</td>
                   <td className="num">{formatArea(f.total)}</td>
-                  <td className="note">living {formatArea(f.living)}</td>
+                  <td className="note">{t('living {area}', { area: formatArea(f.living) })}</td>
                 </tr>
               </tbody>
             </table>
@@ -63,13 +63,13 @@ export function AreaDialog() {
         )}
         {r.totalRooms > 0 && (
           <p className="stat" data-testid="area-totals">
-            All rooms <strong>{formatArea(r.totalRooms)}</strong> · living area <strong data-testid="area-living">{formatArea(r.totalLiving)}</strong>
+            {t('All rooms ')} <strong>{formatArea(r.totalRooms)}</strong> {t(' · living area ')} <strong data-testid="area-living">{formatArea(r.totalLiving)}</strong>
           </p>
         )}
 
         {r.outdoor.length > 0 && (
           <table className="area-table">
-            <caption>Outdoor</caption>
+            <caption>{t('Outdoor')}</caption>
             <tbody>
               {r.outdoor.map((o) => (
                 <tr key={o.kind}>
@@ -84,60 +84,60 @@ export function AreaDialog() {
 
         {r.plot && (
           <table className="area-table" data-testid="plot-table">
-            <caption>Plot</caption>
+            <caption>{t('Plot')}</caption>
             <tbody>
               <tr>
-                <td>Plot area</td>
+                <td>{t('Plot area')}</td>
                 <td className="num" data-testid="plot-area">{formatArea(r.plot.plotArea)}</td>
                 <td />
               </tr>
               <tr>
-                <td>Building footprint</td>
+                <td>{t('Building footprint')}</td>
                 <td className="num" data-testid="plot-footprint">{formatArea(r.plot.footprint)}</td>
-                <td className="note" data-testid="plot-coverage">{pct(r.plot.coverage)} of the plot</td>
+                <td className="note" data-testid="plot-coverage">{t('{pct} of the plot', { pct: pct(r.plot.coverage) })}</td>
               </tr>
               <tr>
-                <td>Floor area ÷ plot area</td>
+                <td>{t('Floor area ÷ plot area')}</td>
                 <td className="num">{(Math.round(r.plot.floorAreaRatio * 100) / 100).toFixed(2)}</td>
-                <td className="note">all rooms, all floors</td>
+                <td className="note">{t('all rooms, all floors')}</td>
               </tr>
               <tr>
-                <td>Built and paved</td>
+                <td>{t('Built and paved')}</td>
                 <td className="num">{pct(r.plot.sealed)}</td>
-                <td className="note">house + terraces + driveways</td>
+                <td className="note">{t('house + terraces + driveways')}</td>
               </tr>
               {r.plot.edges.map((e) => (
                 <tr key={e.index} className={r.plot!.nearest?.index === e.index ? 'sum' : ''} data-testid="plot-edge">
                   <td>
-                    Side {e.index} <span className="muted">({meters(e.length)} long)</span>
+                    {t('Side {index} ', { index: e.index })}<span className="muted">{t('({meters} long)', { meters: meters(e.length) })}</span>
                   </td>
                   <td className="num">{meters(e.distance)}</td>
-                  <td className="note">{r.plot!.nearest?.index === e.index ? 'closest' : 'house is this far away'}</td>
+                  <td className="note">{r.plot!.nearest?.index === e.index ? t('closest') : t('house is this far away')}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
-        {r.plot?.outside && <p className="notice">Part of the building lies outside the plot boundary.</p>}
+        {r.plot?.outside && <p className="notice">{t('Part of the building lies outside the plot boundary.')}</p>}
         {r.plot && r.plot.edges.length > 0 && (
           <label className="check">
             <input type="checkbox" checked={showSetbacks} onChange={(e) => useUi.getState().setShowSetbacks(e.target.checked)} data-testid="show-setbacks" />
-            Show these distances on the plan
+            {t('Show these distances on the plan')}
           </label>
         )}
 
         <div className="row end">
           <button
-            onClick={async () => useUi.getState().showToast((await copyShareLink(reportToText(r, design.name))) ? 'Copied the area table as text.' : 'Could not copy.')}
+            onClick={async () => useUi.getState().showToast(await copyShareLink(reportToText(r, design.name)) ? t('Copied the area table as text.') : t('Could not copy.'))}
             data-testid="area-copy"
           >
-            Copy as text
+            {t('Copy as text')}
           </button>
           <button onClick={() => download(reportToCsv(r), fileNameFor(design, 'csv').replace('.csv', '-areas.csv'), 'text/csv')} data-testid="area-csv">
-            Download CSV
+            {t('Download CSV')}
           </button>
           <button className="primary" onClick={close}>
-            Close
+            {t('Close')}
           </button>
         </div>
       </div>

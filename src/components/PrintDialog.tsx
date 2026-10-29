@@ -5,6 +5,7 @@ import { buildSvg } from '../svgExport';
 import { useDesign } from '../store/design';
 import { useFloorId } from '../store/floor';
 import { useUi } from '../store/ui';
+import { t, useLang } from '../i18n';
 
 /** Choose paper and scale, see how the plan sits on the page, then print (or save as PDF from the print window). */
 export function PrintDialog() {
@@ -13,9 +14,10 @@ export function PrintDialog() {
   const opts = useUi((s) => s.printOptions);
   const set = useUi.getState().setPrintOptions;
   const close = () => useUi.getState().setDialog(null);
-  const layout = useMemo(() => buildPrintLayout(design, floor, opts), [design, floor, opts]);
+  const lang = useLang(); // texts worked out here follow the language
+  const layout = useMemo(() => buildPrintLayout(design, floor, opts), [design, floor, opts, lang]);
   const page = layout.pages[0];
-  const preview = useMemo(() => (page ? buildSvg(design, page.floorId, { decorations: false, dimensions: opts.dimensions, margin: 0.6, pixelsPerMeter: 1 })?.svg : null), [design, page, opts.dimensions]);
+  const preview = useMemo(() => (page ? buildSvg(design, page.floorId, { decorations: false, dimensions: opts.dimensions, margin: 0.6, pixelsPerMeter: 1 })?.svg : null), [design, page, opts.dimensions, lang]);
   const allFit = layout.pages.every((p) => p.fits);
   const fitScale = useMemo(() => buildPrintLayout(design, floor, { ...opts, scale: 'fit' }).scale, [design, floor, opts]);
 
@@ -25,12 +27,12 @@ export function PrintDialog() {
 
   return (
     <div className="modal-backdrop" onMouseDown={close}>
-      <div className="modal wide" role="dialog" aria-label="Print" onMouseDown={(e) => e.stopPropagation()} data-testid="print-dialog">
-        <h2>Print or save as PDF</h2>
+      <div className="modal wide" role="dialog" aria-label={t('Print')} onMouseDown={(e) => e.stopPropagation()} data-testid="print-dialog">
+        <h2>{t('Print or save as PDF')}</h2>
         <div className="print-grid">
           <div className="print-fields">
             <label className="field">
-              <span>Paper</span>
+              <span>{t('Paper')}</span>
               <select value={opts.paper} data-testid="print-paper" onChange={(e) => set({ paper: e.target.value as PaperKey })}>
                 {Object.entries(PAPERS).map(([k, p]) => (
                   <option key={k} value={k}>
@@ -39,18 +41,18 @@ export function PrintDialog() {
                 ))}
               </select>
             </label>
-            <div className="segmented" role="group" aria-label="Orientation">
+            <div className="segmented" role="group" aria-label={t('Orientation')}>
               <button className={opts.landscape ? 'active' : ''} onClick={() => set({ landscape: true })} data-testid="print-landscape">
-                Landscape
+                {t('Landscape')}
               </button>
               <button className={!opts.landscape ? 'active' : ''} onClick={() => set({ landscape: false })} data-testid="print-portrait">
-                Portrait
+                {t('Portrait')}
               </button>
             </div>
             <label className="field">
-              <span>Scale</span>
+              <span>{t('Scale')}</span>
               <select value={String(opts.scale)} data-testid="print-scale" onChange={(e) => set({ scale: e.target.value === 'fit' ? 'fit' : Number(e.target.value) })}>
-                <option value="fit">Fit to the page (1:{fitScale})</option>
+                <option value="fit">{t('Fit to the page (1:{fitScale})', { fitScale })}</option>
                 {SCALES.map((s) => (
                   <option key={s} value={s}>
                     1:{s}
@@ -59,29 +61,27 @@ export function PrintDialog() {
               </select>
             </label>
             {design.floors.length > 1 && (
-              <div className="segmented" role="group" aria-label="Floors">
+              <div className="segmented" role="group" aria-label={t('Floors')}>
                 <button className={opts.floors === 'current' ? 'active' : ''} onClick={() => set({ floors: 'current' })} data-testid="print-this-floor">
-                  This floor
+                  {t('This floor')}
                 </button>
                 <button className={opts.floors === 'all' ? 'active' : ''} onClick={() => set({ floors: 'all' })} data-testid="print-all-floors">
-                  All floors
+                  {t('All floors')}
                 </button>
               </div>
             )}
             <label className="check">
               <input type="checkbox" checked={opts.dimensions} onChange={(e) => set({ dimensions: e.target.checked })} data-testid="print-dims" />
-              Include dimensions
+              {t('Include dimensions')}
             </label>
             {page ? (
               <p className={allFit ? 'ok' : 'notice'} data-testid="print-info">
-                {layout.pages.length > 1 ? `${layout.pages.length} pages. ` : ''}
-                At 1:{layout.scale} the plan is {Math.round(page.widthMm)} × {Math.round(page.heightMm)} mm on the paper.{' '}
-                {allFit ? 'It fits.' : 'It is too big for the page: choose a smaller scale or a larger paper.'}
+                {t('{value}At 1:{scale} the plan is {value2} × {value3} mm on the paper. {value4}', { value: layout.pages.length > 1 ? t('{length} pages. ', { length: layout.pages.length }) : '', scale: layout.scale, value2: Math.round(page.widthMm), value3: Math.round(page.heightMm), value4: allFit ? t('It fits.') : t('It is too big for the page: choose a smaller scale or a larger paper.') })}
               </p>
             ) : (
-              <p className="notice">There is nothing on this floor to print yet.</p>
+              <p className="notice">{t('There is nothing on this floor to print yet.')}</p>
             )}
-            <p className="muted">In the print window choose “Save as PDF” instead of a printer to get a file. Print at 100% / “actual size” so the scale stays true.</p>
+            <p className="muted">{t('In the print window choose “Save as PDF” instead of a printer to get a file. Print at 100% / “actual size” so the scale stays true.')}</p>
           </div>
           <div className="print-preview" style={{ aspectRatio: `${pw} / ${ph}` }} data-testid="print-preview">
             {planBox && preview && (
@@ -91,7 +91,7 @@ export function PrintDialog() {
           </div>
         </div>
         <div className="row end">
-          <button onClick={close}>Cancel</button>
+          <button onClick={close}>{t('Cancel')}</button>
           <button
             className="primary"
             disabled={!page}
@@ -101,7 +101,7 @@ export function PrintDialog() {
             }}
             data-testid="print-go"
           >
-            Print…
+            {t('Print…')}
           </button>
         </div>
       </div>

@@ -27,13 +27,14 @@ import {
 import { useDesign } from './store/design';
 import { floorId } from './store/floor';
 import { useUi } from './store/ui';
+import { t } from './i18n';
 
 const toast = (m: string) => useUi.getState().showToast(m);
 
 /** True (with a hint) while a live session is open: whole-design replacements would change it for everybody. */
 function blockedByLive(): boolean {
   if (!isLive()) return false;
-  toast('You are in a live session. Leave it first (Live button), then open or replace a design.');
+  toast(t('You are in a live session. Leave it first (Live button), then open or replace a design.'));
   restoreLiveHash();
   return true;
 }
@@ -96,11 +97,11 @@ function receiveLink(incoming: Design, current: Design | null, done: () => void)
   if (blockedByLive()) return done();
   if (!current || isEmptyDesign(current)) {
     loadDesign(incoming);
-    toast('Opened the shared design.');
+    toast(t('Opened the shared design.'));
     return done();
   }
   if (sameContent(current, incoming)) {
-    toast('You already have this exact design.');
+    toast(t('You already have this exact design.'));
     return done();
   }
   useUi.getState().setDialog({
@@ -113,7 +114,7 @@ function receiveLink(incoming: Design, current: Design | null, done: () => void)
       if (useShared) {
         stashCurrent(current);
         loadDesign(incoming);
-        toast('Opened the shared design. Your previous one is under File → Restore previous design.');
+        toast(t('Opened the shared design. Your previous one is under File → Restore previous design.'));
       }
       done();
     },
@@ -218,7 +219,7 @@ export async function importJsonFile(file: File) {
     const incoming = parseDesignJson(await file.text());
     stashCurrent(useDesign.getState().design);
     loadDesign(incoming);
-    toast(`Imported “${incoming.name}”. Your previous design is under File → Restore previous design.`);
+    toast(t('Imported “{name}”. Your previous design is under File → Restore previous design.', { name: incoming.name }));
   } catch (e) {
     toast((e as Error).message);
   }
@@ -230,7 +231,7 @@ export function exportPng() {
   const floor = floorId();
   const look = lookOf(d.style);
   const b = contentBounds(d, floor);
-  if (!stage || !b) return toast('Nothing to export on this floor yet.');
+  if (!stage || !b) return toast(t('Nothing to export on this floor yet.'));
 
   const margin = 0.8;
   const x0 = b.minX - margin;
@@ -298,7 +299,7 @@ export function exportPng() {
   ctx.font = `${Math.round(pxPerM * 0.2)}px system-ui, sans-serif`;
   ctx.fillText(len < 1 ? `${Math.round(len * 100)} cm` : `${len} m`, pad, barY + pxPerM * 0.05);
 
-  out.toBlob((blob) => (blob ? download(blob, fileNameFor(d, 'png')) : toast('Could not create the image.')), 'image/png');
+  out.toBlob((blob) => (blob ? download(blob, fileNameFor(d, 'png')) : toast(t('Could not create the image.'))), 'image/png');
 }
 
 // ---- new / restore -----------------------------------------------------------------
@@ -308,7 +309,7 @@ export function newDesign() {
   const current = useDesign.getState().design;
   stashCurrent(current);
   loadDesign(createDesign());
-  toast('Started a new design. The previous one is under File → Restore previous design.');
+  toast(t('Started a new design. The previous one is under File → Restore previous design.'));
 }
 
 export const hasBackup = () => readSaved(BACKUP_KEY) !== null;
@@ -316,11 +317,11 @@ export const hasBackup = () => readSaved(BACKUP_KEY) !== null;
 export function restoreBackup() {
   if (blockedByLive()) return;
   const backup = readSaved(BACKUP_KEY);
-  if (!backup) return toast('There is no previous design to restore.');
+  if (!backup) return toast(t('There is no previous design to restore.'));
   const current = useDesign.getState().design;
   stashCurrent(current); // swap, so restoring twice gets you back
   loadDesign(backup.design);
-  toast('Restored the previous design.');
+  toast(t('Restored the previous design.'));
 }
 
 // ---- SVG and printing -----------------------------------------------------------------
@@ -330,7 +331,7 @@ export function exportSvg() {
   const d = useDesign.getState().design;
   const floor = floorId();
   const plan = buildSvg(d, floor, { decorations: true });
-  if (!plan) return toast('Nothing to export on this floor yet.');
+  if (!plan) return toast(t('Nothing to export on this floor yet.'));
   const floorName = d.floors.find((f) => f.id === floor)?.name ?? '';
   const slug = (t: string) => fileNameFor({ ...d, name: t }, 'x').slice(0, -2);
   const name = `${slug(d.name)}${d.floors.length > 1 ? `-${slug(floorName)}` : ''}.svg`;
@@ -343,7 +344,7 @@ export function exportSvg() {
  */
 export function printPlan(opts: PrintOptions) {
   const layout = buildPrintLayout(useDesign.getState().design, floorId(), opts);
-  if (!layout.html) return toast('Nothing to print on this floor yet.');
+  if (!layout.html) return toast(t('Nothing to print on this floor yet.'));
   printHtml(layout.html);
 }
 
@@ -360,7 +361,7 @@ export function printHtml(html: string) {
       frame.contentWindow?.focus();
       frame.contentWindow?.print();
     } catch {
-      toast('Could not open the print window.');
+      toast(t('Could not open the print window.'));
     }
   };
   document.body.appendChild(frame);

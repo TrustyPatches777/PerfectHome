@@ -5,6 +5,7 @@
 import { contentBounds } from './bounds';
 import type { Design } from './model';
 import { buildSvg } from './svgExport';
+import { localeOf, localize, t } from './i18n';
 
 export const PAPERS = {
   A4: { label: 'A4', w: 210, h: 297 },
@@ -13,6 +14,7 @@ export const PAPERS = {
   Letter: { label: 'Letter', w: 215.9, h: 279.4 },
   Tabloid: { label: 'Tabloid (11 × 17 in)', w: 279.4, h: 431.8 },
 } as const;
+localize(PAPERS, ['label']);
 export type PaperKey = keyof typeof PAPERS;
 
 /** Usual drawing scales, as the number after "1:". */
@@ -114,7 +116,7 @@ export function titleBlock(o: { title: string; date: string; scale: number; pape
   return `<footer class="title">
     <div><strong>${esc(o.title)}</strong><br><span>${esc(o.date)}</span></div>
     <div class="scale"><div class="bar" style="width:${mm((bar * 1000) / o.scale)}"></div><span>${bar < 1 ? `${bar * 100} cm` : `${bar} m`}</span></div>
-    <div class="info">Scale 1:${o.scale}<br><span>${esc(o.paper)}</span></div>
+    <div class="info">${esc(t('Scale 1:{scale}', { scale: o.scale }))}<br><span>${esc(o.paper)}</span></div>
     ${o.north === null ? '' : `<svg class="north" viewBox="-12 -12 24 24" style="transform:rotate(${o.north}deg)"><polygon points="0,-10 3,5 0,2 -3,5" fill="#1f2937"/></svg>`}
   </footer>`;
 }
@@ -131,12 +133,12 @@ export function buildPrintLayout(d: Design, current: string, opts: PrintOptions,
   const textScale = Math.max(1, Math.min(4, scale / 60));
   const pages: PrintPage[] = [];
   const sheets: string[] = [];
-  const date = now.toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
+  const date = now.toLocaleDateString(localeOf(), { year: 'numeric', month: 'long', day: 'numeric' });
 
   for (const { f, plan } of plans) {
     const widthMm = (plan.width * 1000) / scale;
     const heightMm = (plan.height * 1000) / scale;
-    pages.push({ floorId: f.id, floorName: f.name, widthMm, heightMm, fits: widthMm <= availableMm.w + 0.5 && heightMm <= availableMm.h + 0.5 });
+    pages.push({ floorId: f.id, floorName: t(f.name), widthMm, heightMm, fits: widthMm <= availableMm.w + 0.5 && heightMm <= availableMm.h + 0.5 });
     const svg = buildSvg(d, f.id, { decorations: false, dimensions: opts.dimensions, margin: 0.6, textScale })!.svg;
     const title = d.floors.length > 1 ? `${d.name} – ${f.name}` : d.name;
     sheets.push(`<section class="page">

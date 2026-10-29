@@ -28,6 +28,7 @@ import { snapPoint } from './geometry';
 import { useDesign } from './store/design';
 import { floorId } from './store/floor';
 import { useUi } from './store/ui';
+import { t } from './i18n';
 
 const CLIPBOARD_KEY = 'perfect-home:clipboard';
 
@@ -44,7 +45,7 @@ export function editableSelection(): ItemRef[] {
 function blocksLayer(layer: LayerId): boolean {
   const l = useDesign.getState().design.layers[layer];
   if (l.locked || !l.visible) {
-    useUi.getState().showToast(`That layer is ${l.locked ? 'locked' : 'hidden'}. Change it in the Layers panel.`);
+    useUi.getState().showToast(t('That layer is {value}. Change it in the Layers panel.', { value: l.locked ? t('locked') : t('hidden') }));
     return true;
   }
   return false;
@@ -108,7 +109,7 @@ export function copySelection(): boolean {
     /* storage unavailable: the in-memory copy still works */
   }
   const n = clipboardSize(clipboard);
-  useUi.getState().showToast(`Copied ${n} item${n > 1 ? 's' : ''}.`);
+  useUi.getState().showToast(t('Copied {n} item{value}.', { n, value: n > 1 ? 's' : '' }));
   return true;
 }
 
@@ -119,7 +120,7 @@ export function cutSelection() {
 /** Paste so the copied items are centered on the cursor (or shifted a little when the cursor is off the plan). */
 export function pasteSelection() {
   const clip = clipboard ?? readStoredClipboard();
-  if (!clip || !clipboardSize(clip)) return useUi.getState().showToast('Nothing copied yet.');
+  if (!clip || !clipboardSize(clip)) return useUi.getState().showToast(t('Nothing copied yet.'));
   const ui = useUi.getState();
   const { gridStep } = useDesign.getState().design.settings;
   const bounds = clipboardBounds(clip);
@@ -210,7 +211,7 @@ export function mirrorFloor(axis: Axis) {
   const base = useDesign.getState().design;
   const refs = allRefsOnFloor(base, floor);
   const c = mirrorCenter(base, refs, axis);
-  if (c === null) return useUi.getState().showToast('This floor is empty.');
+  if (c === null) return useUi.getState().showToast(t('This floor is empty.'));
   useDesign.getState().update((d) => mirrorRefs(d, refs, axis, c));
   useUi.getState().select(null);
 }
@@ -237,14 +238,14 @@ export function selectWithGroup(ref: ItemRef) {
 
 export function groupSelection() {
   const refs = editableSelection().filter((r) => r.kind !== 'opening' && r.kind !== 'guide');
-  if (refs.length < 2) return useUi.getState().showToast('Select two or more things to group.');
+  if (refs.length < 2) return useUi.getState().showToast(t('Select two or more things to group.'));
   useDesign.getState().update((d) => {
     // an item is in one group only: it leaves the group it was in
     for (const g of d.groups) g.refs = g.refs.filter((r) => !refs.some((x) => sameRef(x, r)));
     d.groups = d.groups.filter((g) => g.refs.length >= 2);
     d.groups.push({ id: newId(), name: 'Group', refs: refs.map((r) => ({ kind: r.kind, id: r.id })) });
   });
-  useUi.getState().showToast('Grouped: they move together now.');
+  useUi.getState().showToast(t('Grouped: they move together now.'));
 }
 
 export function ungroupSelection() {
@@ -281,7 +282,7 @@ function storeTemplates(list: Template[]) {
   try {
     localStorage.setItem(TEMPLATES_KEY, JSON.stringify(list));
   } catch {
-    useUi.getState().showToast('Could not save the template (the browser storage is full).');
+    useUi.getState().showToast(t('Could not save the template (the browser storage is full).'));
   }
   useUi.getState().bumpTemplates();
 }
@@ -291,7 +292,7 @@ export function saveTemplate(name: string): boolean {
   if (!refs.length) return false;
   const clip = copyRefs(useDesign.getState().design, refs);
   storeTemplates([...loadTemplates(), { id: newId(), name: name.trim() || 'Template', clip }]);
-  useUi.getState().showToast('Saved as a template: find it at the top of the furniture list.');
+  useUi.getState().showToast(t('Saved as a template: find it at the top of the furniture list.'));
   return true;
 }
 
@@ -323,7 +324,7 @@ export function splitWallAt(wallId: string, s: number): boolean {
   useDesign.getState().update((d) => {
     id = splitWall(d, wallId, s);
   });
-  if (!id) useUi.getState().showToast('Cannot cut there: too near an end, or in the middle of a door or window.');
+  if (!id) useUi.getState().showToast(t('Cannot cut there: too near an end, or in the middle of a door or window.'));
   return !!id;
 }
 
@@ -334,7 +335,7 @@ export function joinSelectedWalls(): boolean {
   useDesign.getState().update((d) => {
     ok = joinWalls(d, a, b);
   });
-  if (!ok) useUi.getState().showToast('These two walls do not meet end to end in a straight line.');
+  if (!ok) useUi.getState().showToast(t('These two walls do not meet end to end in a straight line.'));
   else useUi.getState().select({ kind: 'wall', id: ok });
   return !!ok;
 }
@@ -347,7 +348,7 @@ export function meetSelectedWalls(): boolean {
   useDesign.getState().update((d) => {
     ok = meetWalls(d, a, b);
   });
-  if (!ok) useUi.getState().showToast('These walls are parallel (or curved): they never meet.');
+  if (!ok) useUi.getState().showToast(t('These walls are parallel (or curved): they never meet.'));
   else wallToolDone(floor);
   return ok;
 }
@@ -360,7 +361,7 @@ export function cutSelectedCorner(size: number, round: boolean): boolean {
   useDesign.getState().update((d) => {
     id = cutCorner(d, a, b, size, round);
   });
-  if (!id) useUi.getState().showToast('Cannot cut that corner: the walls must meet at an angle, and be longer than the cut.');
+  if (!id) useUi.getState().showToast(t('Cannot cut that corner: the walls must meet at an angle, and be longer than the cut.'));
   else wallToolDone(floor);
   return !!id;
 }
@@ -373,7 +374,7 @@ export function alignSelectedWalls(square: boolean): boolean {
   useDesign.getState().update((d) => {
     ok = alignWall(d, a, b, square);
   });
-  if (!ok) useUi.getState().showToast('That only works for two straight walls.');
+  if (!ok) useUi.getState().showToast(t('That only works for two straight walls.'));
   else wallToolDone(floor);
   return ok;
 }
@@ -393,7 +394,7 @@ export function spaceWallOpenings(wallId: string, ids?: string[]) {
   useDesign.getState().update((d) => {
     n = spaceOpenings(d, wallId, ids);
   });
-  if (!n) useUi.getState().showToast('They do not fit on the wall with gaps between them.');
+  if (!n) useUi.getState().showToast(t('They do not fit on the wall with gaps between them.'));
 }
 
 /** Change the same property of every selected wall at once. */
@@ -442,7 +443,7 @@ export function mergeSelectedRooms(): boolean {
   useDesign.getState().update((d) => {
     ok = mergeRooms(d, rooms[0].id, rooms[1].id);
   });
-  if (!ok) useUi.getState().showToast('Those rooms do not share a stretch of wall, so they cannot be merged.');
+  if (!ok) useUi.getState().showToast(t('Those rooms do not share a stretch of wall, so they cannot be merged.'));
   else useUi.getState().select({ kind: 'room', id: rooms[0].id });
   return ok;
 }

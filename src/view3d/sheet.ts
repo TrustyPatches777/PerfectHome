@@ -7,6 +7,7 @@ import type { Design } from '../model';
 import type { BuildOptions } from './build';
 import { floorElevations } from './build';
 import type { Scene3D } from './scene';
+import { t } from '../i18n';
 
 type Options = BuildOptions & { floorElevation?: number };
 
@@ -73,7 +74,7 @@ export async function floorSheet(scene: Scene3D, d: Design, optionsFor: (floor: 
       scene.setDesign(d, optionsFor(f.id));
       scene.frameBall(ball.c, ball.radius);
       const blob = await scene.toBlob();
-      if (blob) tiles.push({ name: f.name, image: await createImageBitmap(blob) });
+      if (blob) tiles.push({ name: t(f.name), image: await createImageBitmap(blob) });
     }
   } finally {
     restore();

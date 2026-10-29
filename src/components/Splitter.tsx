@@ -1,4 +1,5 @@
 import { useUi, SIDEBAR_WIDTH, TOOLS_HEIGHT } from '../store/ui';
+import { t } from '../i18n';
 
 /** A draggable bar between the tools and the furniture list in the left sidebar: drag to give one more room; double-click to reset. */
 export function HSplitter() {
@@ -21,8 +22,8 @@ export function HSplitter() {
       className="hsplitter"
       role="separator"
       aria-orientation="horizontal"
-      aria-label="Resize the tools and the furniture list"
-      title="Drag to resize · double-click to reset"
+      aria-label={t('Resize the tools and the furniture list')}
+      title={t('Drag to resize · double-click to reset')}
       onMouseDown={start}
       onDoubleClick={() => useUi.getState().setToolsHeight(TOOLS_HEIGHT.def)}
       data-testid="splitter-tools"
@@ -57,8 +58,8 @@ export function Splitter({ side }: { side: 'left' | 'right' }) {
       className={`splitter ${side}`}
       role="separator"
       aria-orientation="vertical"
-      aria-label={side === 'left' ? 'Resize the left sidebar' : 'Resize the right sidebar'}
-      title="Drag to resize · double-click to reset"
+      aria-label={side === 'left' ? t('Resize the left sidebar') : t('Resize the right sidebar')}
+      title={t('Drag to resize · double-click to reset')}
       onMouseDown={start}
       onDoubleClick={() => useUi.getState().setSidebarWidth(side, SIDEBAR_WIDTH[side].def)}
       data-testid={`splitter-${side}`}

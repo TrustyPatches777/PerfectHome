@@ -7,6 +7,7 @@ import { useDesign } from '../store/design';
 import { floorBelow, floorId } from '../store/floor';
 import { useUi } from '../store/ui';
 import { getStage } from './stage';
+import { t } from '../i18n';
 
 /** Shared, non-reactive input state. */
 export const input = { space: false };
@@ -197,7 +198,7 @@ export function useTypedInput(active: boolean, onSubmit: (text: string) => boole
       return false;
     }
     if (e.key === 'Enter') {
-      if (latest.current(text) === false) ui.showToast(`Could not read “${text}”. Try 3.5, 350, 2.4m or 3.5<45.`);
+      if (latest.current(text) === false) ui.showToast(t('Could not read “{text}”. Try 3.5, 350, 2.4m or 3.5<45.', { text }));
       else ui.setTyped(null);
       return true;
     }

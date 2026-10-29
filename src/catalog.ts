@@ -18,6 +18,7 @@ import type { CustomItem, LayerId } from './model';
 import { MORE_ITEMS } from './catalogMore';
 import { KOREAN_ITEMS, WINTER_ITEMS } from './catalogKorean';
 import { SURROUNDINGS_ITEMS } from './catalogSurroundings';
+import { localize, registerTexts } from './i18n';
 
 export interface CatalogItem {
   type: string;
@@ -513,12 +514,15 @@ export const CATALOG: CatalogItem[] = [
 ];
 
 CATALOG.push(...MORE_ITEMS, ...KOREAN_ITEMS, ...WINTER_ITEMS, ...SURROUNDINGS_ITEMS);
+localize(CATALOG, ['label']);
 
 // Extra properties of a few older items.
 Object.assign(CATALOG.find((c) => c.type === 'floor-lamp')!, { lamp: { radius: 2.6, color: '#ffd98a' } });
 Object.assign(CATALOG.find((c) => c.type === 'radiator')!, { wallMounted: true });
 
 export const CATEGORIES: Category[] = ['My items', 'Bedroom', 'Living', 'Kitchen & dining', 'Office', 'Bathroom', 'Utility', 'Lighting', 'Electrical', 'Plumbing', 'Garage & cars', 'Outdoor', 'Built-in', 'Heating & cooling', 'People & pets', 'Window dressing', 'Korean', 'Winter garden', 'Surroundings', 'Other'];
+// the names are kept as they are (items are compared with them); the palette shows them through t()
+registerTexts(CATEGORIES);
 
 const byType = new Map(CATALOG.map((c) => [c.type, c]));
 const GENERIC = byType.get('box')!;

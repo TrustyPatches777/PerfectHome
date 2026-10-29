@@ -9,6 +9,7 @@ import { detectRoom, wallLength } from './geometry';
 import { useDesign } from './store/design';
 import { useUi } from './store/ui';
 import { wallHeightFor } from './storey';
+import { t } from './i18n';
 
 export const WINTER_FLOOR = { material: 'tile' as const, color: '#d9d2c5' };
 
@@ -26,7 +27,7 @@ export function addWinterGarden(a: Point, b: Point, floor: string): void {
     if (poly) {
       addRoomTo(d, floor, poly, { x: Math.round(middle.x * 1000) / 1000, y: Math.round(middle.y * 1000) / 1000 }, WINTER_FLOOR.color);
       const room = d.rooms[d.rooms.length - 1];
-      room.name = 'Winter garden';
+      room.name = t('Winter garden');
       room.material = WINTER_FLOOR.material;
       room.color = WINTER_FLOOR.color;
     }

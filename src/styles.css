@@ -80,7 +80,7 @@ button:focus-visible {
 .topbar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   height: 52px;
   padding: 0 14px;
   background: var(--panel);
@@ -94,7 +94,43 @@ button:focus-visible {
 }
 .name-input {
   width: 180px;
+  min-width: 90px;
+  flex: 0 1 180px;
   font-weight: 600;
+}
+/* words never break into lines in the top bar (Korean is wider than English); the name box gives way first */
+.topbar button,
+.topbar label,
+.topbar .brand {
+  white-space: nowrap;
+}
+.topbar .group {
+  flex: none;
+}
+.topbar .save-state {
+  min-width: 0;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* a narrower window: tighter spacing and a smaller name box, so everything still fits (the save note is in the tooltip of the name box) */
+@media (max-width: 1400px) {
+  .topbar {
+    gap: 6px;
+    padding: 0 8px;
+  }
+  .name-input {
+    flex-basis: 120px;
+    width: 120px;
+  }
+  .topbar .save-state {
+    display: none;
+  }
+  .topbar button {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
 }
 .group {
   display: flex;

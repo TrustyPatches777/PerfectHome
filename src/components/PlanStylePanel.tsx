@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { FURNITURE_DRAWINGS, LABEL_FONTS, LABEL_SIZES, LINE_WEIGHTS, PLAN_PRESETS, ROOM_FILLS, ROOM_LABELS, WALL_DRAWINGS, type PlanStyle } from '../model';
 import { PRESET_HINT, PRESET_LABEL, normalizeStyle, presetDefault } from '../planStyle';
 import { useDesign } from '../store/design';
+import { t, localize } from '../i18n';
 
 type Key = Exclude<keyof PlanStyle, 'preset'>;
 
@@ -14,6 +15,8 @@ const CHOICES: { key: Key; label: string; values: readonly string[]; names: Reco
   { key: 'font', label: 'Lettering', values: LABEL_FONTS, names: { sans: 'Sans-serif', serif: 'Serif', mono: 'Typewriter' } },
   { key: 'labelSize', label: 'Label size', values: LABEL_SIZES, names: { small: 'Small', normal: 'Normal', large: 'Large' } },
 ];
+localize(CHOICES, ['label']);
+CHOICES.forEach((c) => localize(c.names, '*'));
 
 const SWATCH: Record<string, [string, string]> = { colour: ['#e9d8b8', '#3b4252'], architectural: ['#ffffff', '#111111'], blueprint: ['#1b4b8f', '#ffffff'] };
 
@@ -30,9 +33,9 @@ export function PlanStylePanel(): ReactNode {
   return (
     <details className="panel style-panel" data-testid="style-panel">
       <summary>
-        <h3 style={{ display: 'inline' }}>Plan style</h3>
+        <h3 style={{ display: 'inline' }}>{t('Plan style')}</h3>
       </summary>
-      <div className="style-presets" role="group" aria-label="Plan style">
+      <div className="style-presets" role="group" aria-label={t('Plan style')}>
         {PLAN_PRESETS.map((p) => (
           <button key={p} className={preset === p ? 'active' : ''} title={PRESET_HINT[p]} onClick={() => edit({ preset: p })} data-testid={`style-${p}`}>
             <span className="swatch" style={{ background: SWATCH[p][0], color: SWATCH[p][1] }} />
@@ -55,7 +58,7 @@ export function PlanStylePanel(): ReactNode {
       ))}
       {style && Object.keys(style).length > 1 && (
         <button onClick={() => edit({ preset })} data-testid="style-reset">
-          Back to what {PRESET_LABEL[preset]} does
+          {t('Back to what {value} does', { value: PRESET_LABEL[preset] })}
         </button>
       )}
     </details>

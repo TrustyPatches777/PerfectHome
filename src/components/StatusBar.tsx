@@ -1,4 +1,5 @@
 import { useUi } from '../store/ui';
+import { localize } from '../i18n';
 
 const HINTS: Record<string, string> = {
   select: 'Drag empty space to pan · scroll to zoom · click an item to select',
@@ -21,6 +22,7 @@ const HINTS: Record<string, string> = {
   gate: 'Hover a fence or hedge and click to put a gate in it · choose the kind above · click a gate in 3D to open it · Esc stops',
   strip: 'Click the points along the line · double-click or Enter to finish · Shift = 45° · Esc cancels',
 };
+localize(HINTS, '*');
 
 export function StatusBar() {
   const cursor = useUi((s) => s.cursor);

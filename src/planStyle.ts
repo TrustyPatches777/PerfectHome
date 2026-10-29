@@ -7,13 +7,16 @@
  */
 import { shade } from './catalog';
 import type { FurnitureDrawing, LabelFont, LineWeight, PlanPreset, PlanStyle, RoomFill, RoomLabels, WallDrawing } from './model';
+import { localize } from './i18n';
 
 export const PRESET_LABEL: Record<PlanPreset, string> = { colour: 'Colour', architectural: 'Architectural', blueprint: 'Blueprint' };
+localize(PRESET_LABEL, '*');
 export const PRESET_HINT: Record<PlanPreset, string> = {
   colour: 'Rooms in their colors and floors, dark walls: the plan as you draw it.',
   architectural: 'Black and white, like a drawing for a permit: solid black walls, empty rooms, plain furniture, capital letters.',
   blueprint: 'White lines on blue: walls and furniture in outline.',
 };
+localize(PRESET_HINT, '*');
 
 const rgbOf = (hex: string): [number, number, number] => {
   const m = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(hex.trim());

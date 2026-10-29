@@ -83,6 +83,10 @@ src/section.ts        ELEVATIONS and SECTIONS as SVG: turns the parts of `sceneC
                       everything in front of the cutting plane and hatches what the plane passes through (exact for walls/slabs, hull for other solids). Earth profile,
                       floor levels. `prepareDrawing` (geometry, once) + `renderDrawing(scale)` (line weights and text are millimeters on paper)
 src/drawingPrint.ts   a drawing on a sheet at a true scale (reuses printLayout's paper, margins, title block); `specFor` turns the dialog's choice into a spec
+src/i18n.ts           the language of the interface (English / Korean): `t('English text', { values })` (the English text IS the key), `tx` (a text with bold parts), `localize`
+                      (tables of labels), `N_`/`registerTexts` (texts shown later through t(variable)), `useLang`, `setLang`/`initLang`, `localeOf` (dates)
+src/i18n/ko.ts, ko-ui.ts, ko-labels.ts   the Korean dictionary (English text -> Korean), loaded only when Korean is on (its own chunk)
+scripts/i18n-scan.mjs  lists strings in the code that do not go through t() yet (heuristic); run it after writing UI
 src/share.ts          pure: link encode/decode (lz-string), JSON parsing, localStorage read/write
 src/session.ts        whole-design flows: bootstrap, link opening, autosave, PNG/SVG/JSON export, print, new/restore backup
 src/actions.ts        commands on the selection (delete, copy/cut/paste, duplicate, nudge, rotate, align) + layer lock guards
@@ -269,6 +273,16 @@ e2e/                  Playwright specs (one per feature group) + helpers (at(), 
   only glass materials carry it (`reflectSky`). The flat hemisphere light is only a third of what it was, so a change to the strength of ONE of them needs the other looked at: compare the noon,
   dusk and night pictures of `e2e/m38-light.spec.ts` (in `e2e/.results/`) with the code before. Unlit things (horizon, clouds, rain/snow) are `toneMapped: false`, or they would
   not match the background and the fog. The sun's shadow map stays 2048 (shadows are on by default and drawn every frame; 4096 made the 3D view clearly slower); textures use anisotropic filtering up to 8.
+- **Language** (English / Korean toggle in the top bar, kept in `localStorage['perfect-home:lang']`: per browser, never in a design or link). EVERY text a person reads goes through
+  `t('English text')` (`{name}` for values: `t('Copied {n} items.', { n })`; `tx` when a bold name or a link is part of the sentence; keep the whole sentence in ONE key so Korean can
+  reorder it). Never call `t()` at module level (it would stay English): inside components and functions only. Tables of labels (catalog, wall types, roof kinds, stairs, shortcuts,
+  tool names...) stay plain strings and are registered after their declaration with `localize(TABLE, ['label', 'hint'])` (or `'*'` for a record of strings): a language switch rewrites
+  the table, so nothing that shows a label has to know. Texts shown later with `t(variable)` are marked `N_('text')` / `registerTexts` so the dictionary test sees them. A DEFAULT name that
+  lives in a design ('Ground floor', 'Living room') is shown with `t(name)` (a name someone typed has no entry and stays as it is); new ones are made in the current language.
+  The dictionary is `src/i18n/ko-ui.ts` (code) and `ko-labels.ts` (tables): add the Korean text in the SAME commit as new English text. `src/i18n.test.ts` fails for a text without a Korean
+  entry, an entry that no code uses any more, or a `{value}` that the English text does not have. `App` calls `useLang()` so everything re-renders; a `useMemo` whose result contains words
+  (plan check, drawings, print, find) takes `lang` in its deps. `e2e/m39-korean.spec.ts` switches to Korean, walks through tools, panels, dialogs and the 3D bar and fails on any English that is
+  still on the screen. Dates and month names use `localeOf()`. Numbers, units (cm, m²) and the name of the app are the same in both languages.
 - **Sky and surroundings** (`design.site.weather/season/horizon`, all optional, in the link): `scene.ts setSun` takes the weather's `Mood` (sun and sky strength, no shadows when
   overcast, sky color, fog), keeps a ring of cloud clusters (more show in bad weather) and a rain/snow particle box that follows the camera (it redraws every frame
   only while it falls). The season (`seasonOf`: chosen, or from the date, flipped in the south) recolors the leaves of `DECIDUOUS` catalog trees in `furnitureChunk`
@@ -307,3 +321,4 @@ then: visual detail (wallpaper/tile layouts/pictures, furniture frame color, cei
 then: presentation (dollhouse per floor and a sheet of all floors, exploded view, saved 3D views, elevations and sections for print)
 then: plan styles (colour, architectural black and white, blueprint; walls solid/hatched/outline, floors, furniture, line weight, room labels, lettering)
 then: better 3D light (neutral tone mapping, a sky image that lights and is reflected, sharper shadows and textures)
+then: Korean (a toggle that switches the whole interface; a dictionary test and a sweep of the screens keep it complete)

@@ -13,6 +13,7 @@ import { input } from '../input';
 import { pressItem } from '../press';
 import { useLook } from '../look';
 import { SELECT_COLOR } from '../style';
+import { t } from '../../i18n';
 
 function pressArea(e: { evt: MouseEvent; cancelBubble: boolean }, kind: 'zone' | 'strip', id: string) {
   if (e.evt.button !== 0 || input.space) return;
@@ -39,7 +40,7 @@ function ZoneShape({ zone, selected, zoom, walls, lie }: { zone: Zone; selected:
   const width = 220 / zoom;
   const level = lie && Math.abs(lie.h) >= 0.005 ? `${lie.h > 0 ? '+' : '−'}${Math.abs(lie.h).toFixed(2)} m` : '';
   const fall = lie && lie.pct >= 0.5 ? `${lie.pct % 1 ? lie.pct.toFixed(1) : lie.pct}% ↘` : '';
-  const text = `${zone.name || ''}${zone.name ? '\n' : ''}${formatArea(polygonArea(zone.points))}${level ? `\n${level}` : ''}${fall ? ` ${fall}` : ''}`;
+  const text = `${t(zone.name || '')}${zone.name ? '\n' : ''}${formatArea(polygonArea(zone.points))}${level ? `\n${level}` : ''}${fall ? ` ${fall}` : ''}`;
   const steep = !!lie && Math.abs(lie.h) > 0.05; // a level change: the retaining wall shows as a heavy line
   const arrow = lie && lie.pct >= 0.5 ? Math.min(2.2, Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 3) : 0;
   return (

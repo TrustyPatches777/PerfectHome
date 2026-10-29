@@ -6,6 +6,7 @@ import { newId, type Roof, type RoofKind, type SkylightKind } from './model';
 import { ROOF_MATERIAL_STYLES, ROOF_STYLES, fitRoofToWalls, skylightPlacement, type RoofBox } from './roofs';
 import { useDesign } from './store/design';
 import { useUi } from './store/ui';
+import { t, localize } from './i18n';
 
 /** The usual sizes of a roof window (width x length up the slope, in meters). */
 export const SKYLIGHT_SIZES = [
@@ -13,6 +14,7 @@ export const SKYLIGHT_SIZES = [
   { label: 'Standard', w: 0.78, d: 1.18 },
   { label: 'Large', w: 1.14, d: 1.4 },
 ];
+localize(SKYLIGHT_SIZES, ['label']);
 
 /** Solar panels: one panel (about 1.7 x 1.0 m) and a row of three. */
 export const SOLAR_SIZES = [
@@ -20,6 +22,7 @@ export const SOLAR_SIZES = [
   { label: 'Two panels', w: 2.0, d: 1.7 },
   { label: 'Row of three', w: 3.0, d: 1.7 },
 ];
+localize(SOLAR_SIZES, ['label']);
 
 /** Dormers: width and the height of the front wall. */
 export const DORMER_SIZES = [
@@ -27,6 +30,7 @@ export const DORMER_SIZES = [
   { label: 'Standard', w: 1.5, d: 1.3 },
   { label: 'Wide', w: 2.2, d: 1.4 },
 ];
+localize(DORMER_SIZES, ['label']);
 
 export const SIZES_OF = { window: SKYLIGHT_SIZES, solar: SOLAR_SIZES, dormer: DORMER_SIZES } as const;
 
@@ -35,13 +39,13 @@ export function addSkylight(p: { x: number; y: number }, size: { w: number; d: n
   const d0 = useDesign.getState().design;
   const floor = floorId();
   if (!skylightPlacement(d0.roofs, floor, p)) {
-    useUi.getState().showToast('Click on a roof to put a skylight there.');
+    useUi.getState().showToast(t('Click on a roof to put a skylight there.'));
     return null;
   }
   const id = newId();
   const placed = skylightPlacement(d0.roofs, floor, p);
   if (kind === 'dormer' && placed?.flat) {
-    useUi.getState().showToast('A dormer needs a sloping roof.');
+    useUi.getState().showToast(t('A dormer needs a sloping roof.'));
     return null;
   }
   useDesign.getState().update((d) => void d.skylights.push({ id, floor, x: p.x, y: p.y, w: size.w, d: size.d, ...(kind !== 'window' ? { kind } : {}) }));
@@ -81,7 +85,7 @@ export function addRoof(box: RoofBox, kind: RoofKind): string {
 export function addRoofFromWalls(kind: RoofKind): string | null {
   const box = fitRoofToWalls(useDesign.getState().design, floorId());
   if (!box) {
-    useUi.getState().showToast('Draw some walls on this floor first: the roof is fitted to them.');
+    useUi.getState().showToast(t('Draw some walls on this floor first: the roof is fitted to them.'));
     return null;
   }
   return addRoof(box, kind);
@@ -124,7 +128,7 @@ export function refitRoof(id: string): boolean {
   const roof = d.roofs.find((r) => r.id === id);
   const box = roof && fitRoofToWalls(d, roof.floor);
   if (!box) {
-    useUi.getState().showToast('There are no walls on that floor to fit the roof to.');
+    useUi.getState().showToast(t('There are no walls on that floor to fit the roof to.'));
     return false;
   }
   edit(id, (r) => void Object.assign(r, box));
@@ -162,7 +166,7 @@ export function addRoofWings(kind: RoofKind): number {
   const outlines = atticOutlines(d, floor).filter((p) => isRectilinear(p));
   const wings = outlines.flatMap((p) => wingsOf(p));
   if (!wings.length) {
-    useUi.getState().showToast('Wing roofs need rooms with square corners on this floor. For other shapes draw the roofs with the roof tool.');
+    useUi.getState().showToast(t('Wing roofs need rooms with square corners on this floor. For other shapes draw the roofs with the roof tool.'));
     return 0;
   }
   const roofs = wings.map((box) => newRoof(floor, box, kind, useUi.getState().roofGlass ? 'glass' : undefined));

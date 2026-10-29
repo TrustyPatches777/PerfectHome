@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { t } from '../i18n';
 
 /** A numeric input that commits on Enter/blur, so typing "250" is one undo step, not three. */
 export function NumberField({
@@ -111,7 +112,7 @@ export function ColorField({
             className={`swatch ${c.toLowerCase() === value.toLowerCase() ? 'on' : ''}`}
             style={{ background: c }}
             title={c}
-            aria-label={`Color ${c}`}
+            aria-label={t('Color {c}', { c })}
             onClick={() => onChange(c)}
           />
         ))}
@@ -119,7 +120,7 @@ export function ColorField({
           type="color"
           className="color-input"
           value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#cccccc'}
-          aria-label="Custom color"
+          aria-label={t('Custom color')}
           onChange={(e) => onChange(e.target.value)}
         />
       </div>

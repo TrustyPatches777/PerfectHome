@@ -11,6 +11,7 @@ import { input } from '../input';
 import { pressItem } from '../press';
 import { useLook } from '../look';
 import { SELECT_COLOR } from '../style';
+import { t } from '../../i18n';
 
 /** Pattern fill props for a room with a floor material (null for a plain color). */
 function pattern(r: { material: string; color: string; grout?: string; texture?: string }) {
@@ -71,7 +72,7 @@ export function RoomsLayer() {
         const ys = r.points.map((p) => p.y);
         if (Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) * zoom < 44) return null;
         const width = 200 / zoom;
-        const lines = look.roomLabel(r.name, formatArea(polygonArea(r.points)), r.level ? `${r.level > 0 ? '+' : '−'}${Math.abs(Math.round(r.level * 100))} cm` : '');
+        const lines = look.roomLabel(t(r.name), formatArea(polygonArea(r.points)), r.level ? `${r.level > 0 ? '+' : '−'}${Math.abs(Math.round(r.level * 100))} cm` : '');
         if (!lines.length) return null;
         const size = fs * look.labelScale;
         return (

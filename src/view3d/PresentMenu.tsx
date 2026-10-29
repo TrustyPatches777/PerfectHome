@@ -8,6 +8,7 @@ import { useUi } from '../store/ui';
 import { floorBall, floorSheet } from './sheet';
 import { sceneOptions } from './options';
 import type { Scene3D } from './scene';
+import { t } from '../i18n';
 
 /** Ways of showing the house: a dollhouse of each floor, the floors pulled apart, camera positions you can come back to, a picture of every floor. */
 export function PresentMenu({ scene, design }: { scene: Scene3D | null; design: Design }) {
@@ -43,7 +44,7 @@ export function PresentMenu({ scene, design }: { scene: Scene3D | null; design: 
   const saveView = () => {
     if (!scene) return;
     const v = scene.getView();
-    useDesign.getState().update((d) => void d.views.push({ id: newId(), name: `View ${d.views.length + 1}`, pos: v.pos, target: v.target }));
+    useDesign.getState().update((d) => void d.views.push({ id: newId(), name: t('View {value}', { value: d.views.length + 1 }), pos: v.pos, target: v.target }));
   };
   const rename = (id: string, name: string) => useDesign.getState().update((d) => void (d.views.find((x) => x.id === id)!.name = name.trim() || 'View'));
   const remove = (id: string) => useDesign.getState().update((d) => void (d.views = d.views.filter((x) => x.id !== id)));
@@ -66,8 +67,8 @@ export function PresentMenu({ scene, design }: { scene: Scene3D | null; design: 
         (floor) => sceneOptions(design, active(), { ...now(), dollhouse: floor, explode3d: 0, walking: false }),
         () => scene.setDesign(design, sceneOptions(design, active(), now())),
       );
-      if (blob) download(blob, fileNameFor({ ...design, name: `${design.name} floors` }, 'png'));
-      else useUi.getState().showToast('There is nothing to take a picture of yet.');
+      if (blob) download(blob, fileNameFor({ ...design, name: t('{name} floors', { name: design.name }) }, 'png'));
+      else useUi.getState().showToast(t('There is nothing to take a picture of yet.'));
     } finally {
       setBusy(false);
     }
@@ -75,54 +76,54 @@ export function PresentMenu({ scene, design }: { scene: Scene3D | null; design: 
 
   return (
     <div className="present" ref={box}>
-      <button className={open || dollhouse || explode > 0 ? 'active' : ''} onClick={() => setOpen(!open)} aria-expanded={open} title="Dollhouse, exploded floors and saved views" data-testid="present-button">
-        Present ▾
+      <button className={open || dollhouse || explode > 0 ? 'active' : ''} onClick={() => setOpen(!open)} aria-expanded={open} title={t('Dollhouse, exploded floors and saved views')} data-testid="present-button">
+        {t('Present ▾')}
       </button>
       {open && (
         <div className="present-pop" data-testid="present-menu">
-          <h4>Dollhouse</h4>
-          <p className="muted">One floor seen from above with its walls cut low, so you look into the rooms.</p>
+          <h4>{t('Dollhouse')}</h4>
+          <p className="muted">{t('One floor seen from above with its walls cut low, so you look into the rooms.')}</p>
           <div className="present-row">
             {[...design.floors].reverse().map((f) => (
               <button key={f.id} className={dollhouse === f.id ? 'active' : ''} onClick={() => showDollhouse(f.id)} data-testid={`dollhouse-${f.name}`}>
-                {f.name}
+                {t(f.name)}
               </button>
             ))}
             {dollhouse && (
               <button onClick={() => ui.setDollhouse(null)} data-testid="dollhouse-off">
-                Whole house
+                {t('Whole house')}
               </button>
             )}
           </div>
-          <button disabled={busy} onClick={() => void saveSheet()} title="One picture with every floor as a dollhouse" data-testid="floor-sheet">
-            {busy ? 'Taking pictures…' : 'Save a picture of every floor'}
+          <button disabled={busy} onClick={() => void saveSheet()} title={t('One picture with every floor as a dollhouse')} data-testid="floor-sheet">
+            {busy ? t('Taking pictures…') : t('Save a picture of every floor')}
           </button>
           {multi && (
             <>
-              <h4>Exploded</h4>
+              <h4>{t('Exploded')}</h4>
               <label className="present-slider">
-                <input type="range" min={0} max={6} step={0.25} value={explode} onChange={(e) => setExplode(Number(e.target.value))} aria-label="Pull the floors apart" data-testid="explode-slider" />
-                <span data-testid="explode-value">{explode === 0 ? 'Together' : `${explode.toFixed(2).replace(/\.?0+$/, '')} m apart`}</span>
+                <input type="range" min={0} max={6} step={0.25} value={explode} onChange={(e) => setExplode(Number(e.target.value))} aria-label={t('Pull the floors apart')} data-testid="explode-slider" />
+                <span data-testid="explode-value">{explode === 0 ? t('Together') : t('{value} m apart', { value: explode.toFixed(2).replace(/\.?0+$/, '') })}</span>
               </label>
             </>
           )}
-          <h4>Saved views</h4>
-          {design.views.length === 0 && <p className="muted">Turn the house the way you like and save the camera here. The views travel with the link.</p>}
+          <h4>{t('Saved views')}</h4>
+          {design.views.length === 0 && <p className="muted">{t('Turn the house the way you like and save the camera here. The views travel with the link.')}</p>}
           <ul className="present-views">
             {design.views.map((v) => (
               <li key={v.id}>
-                <button onClick={() => goTo(v.id)} title="Go to this view" data-testid={`view-go-${v.name}`}>
+                <button onClick={() => goTo(v.id)} title={t('Go to this view')} data-testid={`view-go-${v.name}`}>
                   ➜
                 </button>
-                <input defaultValue={v.name} key={v.name} aria-label="Name of the view" data-testid="view-name" onBlur={(e) => e.target.value !== v.name && rename(v.id, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
-                <button onClick={() => remove(v.id)} title="Delete this view" aria-label={`Delete ${v.name}`} data-testid={`view-delete-${v.name}`}>
+                <input defaultValue={v.name} key={v.name} aria-label={t('Name of the view')} data-testid="view-name" onBlur={(e) => e.target.value !== v.name && rename(v.id, e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} />
+                <button onClick={() => remove(v.id)} title={t('Delete this view')} aria-label={t('Delete {name}', { name: v.name })} data-testid={`view-delete-${v.name}`}>
                   ✕
                 </button>
               </li>
             ))}
           </ul>
           <button onClick={saveView} data-testid="view-save-camera">
-            Save this view
+            {t('Save this view')}
           </button>
         </div>
       )}

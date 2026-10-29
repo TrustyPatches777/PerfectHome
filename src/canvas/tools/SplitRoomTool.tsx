@@ -6,6 +6,7 @@ import { splitRoom } from '../../roomEdit';
 import { useDesign } from '../../store/design';
 import { useUi } from '../../store/ui';
 import { isPrimary, snapWorld, useStageEvents } from '../input';
+import { t } from '../../i18n';
 
 /** Cut a room in two: click where the line starts and where it ends (the line goes on through the whole room). */
 export function SplitRoomTool() {
@@ -24,7 +25,7 @@ export function SplitRoomTool() {
       let made: string | null = null;
       if (roomId) useDesign.getState().update((d) => void (made = splitRoom(d, roomId, from, p)));
       const ui = useUi.getState();
-      if (!made) ui.showToast('That line does not cut the room into two real pieces. Draw it across the room.');
+      if (!made) ui.showToast(t('That line does not cut the room into two real pieces. Draw it across the room.'));
       else {
         ui.setTool('select');
         ui.select({ kind: 'room', id: made });

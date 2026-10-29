@@ -10,6 +10,7 @@ import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
 import { isDoubleClick, isPrimary, snapWorld, useCaptureKeys, useStageEvents } from '../input';
 import { FLOOR_COLORS, SELECT_COLOR } from '../style';
+import { t } from '../../i18n';
 
 /** Add a room to the design with the next default name ("Room 3") and floor color. */
 export function addRoom(points: Point[], seed?: Point) {
@@ -18,7 +19,7 @@ export function addRoom(points: Point[], seed?: Point) {
     const floor = floorId();
     const used = d.rooms.filter((r) => r.floor === floor).map((r) => /^Room (\d+)$/.exec(r.name)).map((m) => (m ? Number(m[1]) : 0));
     const n = Math.max(0, ...used) + 1;
-    d.rooms.push({ id, floor, name: `Room ${n}`, color: FLOOR_COLORS[d.rooms.length % FLOOR_COLORS.length], material: 'plain', living: true, points, seed });
+    d.rooms.push({ id, floor, name: t('Room {n}', { n }), color: FLOOR_COLORS[d.rooms.length % FLOOR_COLORS.length], material: 'plain', living: true, points, seed });
   });
   useUi.getState().select({ kind: 'room', id });
 }
@@ -33,7 +34,7 @@ function tryAddRoom(points: Point[], seed?: Point): boolean {
   const clash = rooms.find((r) => polygonsOverlap(points, r.points));
   if (clash) {
     useUi.getState().select({ kind: 'room', id: clash.id });
-    useUi.getState().showToast(`That would overlap “${clash.name}”. Rooms can't overlap, so it is selected instead.`);
+    useUi.getState().showToast(t("That would overlap “{name}”. Rooms can't overlap, so it is selected instead.", { name: clash.name }));
     return false;
   }
   addRoom(points, seed);
@@ -90,7 +91,7 @@ export function RoomTool() {
         const existing = useDesign.getState().design.rooms.find((r) => r.floor === floor && pointInPolygon(world, r.points));
         if (existing) {
           useUi.getState().select({ kind: 'room', id: existing.id });
-          useUi.getState().showToast(`“${existing.name}” is already a room. Switch to the Select tool (V) to edit it.`);
+          useUi.getState().showToast(t('“{name}” is already a room. Switch to the Select tool (V) to edit it.', { name: existing.name }));
           return;
         }
         const walls = useDesign.getState().design.walls.filter((w) => w.floor === floor);
@@ -98,7 +99,7 @@ export function RoomTool() {
         if (!poly) {
           useUi
             .getState()
-            .showToast(walls.length ? 'No closed room here. Close the walls, or switch to "Draw" to click the corners.' : 'Draw some walls first.');
+            .showToast(walls.length ? t('No closed room here. Close the walls, or switch to "Draw" to click the corners.') : t('Draw some walls first.'));
           return;
         }
         tryAddRoom(poly, { x: Math.round(world.x * 1000) / 1000, y: Math.round(world.y * 1000) / 1000 });

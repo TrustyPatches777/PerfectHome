@@ -1,5 +1,6 @@
 import { FLOOR_MATERIALS, type FloorMaterial } from '../model';
 import { patternFor, type PatternKind } from '../patterns';
+import { t, localize } from '../i18n';
 
 export const MATERIAL_LABELS: Record<FloorMaterial, string> = {
   plain: 'Plain color',
@@ -15,6 +16,7 @@ export const MATERIAL_LABELS: Record<FloorMaterial, string> = {
   subway: 'Brick-bond tiles',
   custom: 'Your own picture',
 };
+localize(MATERIAL_LABELS, '*');
 
 /** A good starting color for each material (used when the room still has one of the default pastel colors). */
 export const MATERIAL_COLORS: Record<Exclude<FloorMaterial, 'plain'>, string> = {
@@ -35,8 +37,8 @@ export const MATERIAL_COLORS: Record<Exclude<FloorMaterial, 'plain'>, string> = 
 export function MaterialPicker({ value, color, onChange }: { value: FloorMaterial; color: string; onChange: (m: FloorMaterial) => void }) {
   return (
     <div className="field">
-      <span>Floor material</span>
-      <div className="materials" role="group" aria-label="Floor material">
+      <span>{t('Floor material')}</span>
+      <div className="materials" role="group" aria-label={t('Floor material')}>
         {FLOOR_MATERIALS.map((m) => {
           const p = m === 'plain' ? null : patternFor(m as PatternKind, color);
           return (

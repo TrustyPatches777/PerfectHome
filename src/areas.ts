@@ -8,6 +8,7 @@ import { ROOM_TYPE_LABEL, type Design, type Point, type RoomType, type ZoneKind 
 import { ZONE_STYLES } from './outdoor';
 import { groundIndex } from './shadows';
 import { usualCeiling } from './storey';
+import { t } from './i18n';
 
 export interface RoomArea {
   id: string;
@@ -149,24 +150,24 @@ const meters = (v: number) => `${(Math.round(v * 100) / 100).toFixed(2)} m`;
 
 /** The report as plain text, for pasting into a message. */
 export function reportToText(r: AreaReport, designName: string): string {
-  const lines = [`${designName}: areas`, ''];
+  const lines = [t('{designName}: areas', { designName }), ''];
   for (const f of r.floors) {
     if (!f.rooms.length) continue;
-    lines.push(f.name);
-    for (const room of f.rooms) lines.push(`  ${room.name}${room.type ? ` [${ROOM_TYPE_LABEL[room.type]}]` : ''}: ${formatArea(room.area)}${room.living ? '' : ' (not counted as living area)'}`);
-    lines.push(`  Total: ${formatArea(f.total)} · living area ${formatArea(f.living)}`, '');
+    lines.push(t(f.name));
+    for (const room of f.rooms) lines.push(`  ${t(room.name)}${room.type ? ` [${ROOM_TYPE_LABEL[room.type]}]` : ''}: ${formatArea(room.area)}${room.living ? '' : t(' (not counted as living area)')}`);
+    lines.push(t('  Total: {value} · living area {value2}', { value: formatArea(f.total), value2: formatArea(f.living) }), '');
   }
-  lines.push(`All rooms: ${formatArea(r.totalRooms)}`, `Living area: ${formatArea(r.totalLiving)}`);
+  lines.push(t('All rooms: {value}', { value: formatArea(r.totalRooms) }), t('Living area: {value}', { value: formatArea(r.totalLiving) }));
   if (r.outdoor.length) {
     lines.push('', 'Outdoor');
     for (const o of r.outdoor) lines.push(`  ${o.label}: ${formatArea(o.area)}`);
   }
   if (r.plot) {
     const p = r.plot;
-    lines.push('', 'Plot', `  Plot area: ${formatArea(p.plotArea)}`, `  Building footprint: ${formatArea(p.footprint)} (${pct(p.coverage)} of the plot)`, `  Floor area / plot area: ${(Math.round(p.floorAreaRatio * 100) / 100).toFixed(2)}`, `  Built and paved: ${pct(p.sealed)}`);
-    if (p.nearest) lines.push(`  Closest to the boundary: ${meters(p.nearest.distance)}`);
-    for (const e of p.edges) lines.push(`  Side ${e.index} (${meters(e.length)} long): house is ${meters(e.distance)} away`);
-    if (p.outside) lines.push('  Warning: part of the building lies outside the plot.');
+    lines.push('', t('Plot'), t('  Plot area: {value}', { value: formatArea(p.plotArea) }), t('  Building footprint: {value} ({value2} of the plot)', { value: formatArea(p.footprint), value2: pct(p.coverage) }), t('  Floor area / plot area: {value}', { value: (Math.round(p.floorAreaRatio * 100) / 100).toFixed(2) }), t('  Built and paved: {value}', { value: pct(p.sealed) }));
+    if (p.nearest) lines.push(t('  Closest to the boundary: {value}', { value: meters(p.nearest.distance) }));
+    for (const e of p.edges) lines.push(t('  Side {index} ({value} long): house is {value2} away', { index: e.index, value: meters(e.length), value2: meters(e.distance) }));
+    if (p.outside) lines.push(t('  Warning: part of the building lies outside the plot.'));
   }
   return lines.join('\n');
 }
@@ -175,7 +176,7 @@ const csvCell = (v: string | number) => (/[",\n;]/.test(String(v)) ? `"${String(
 
 /** Rooms as CSV (floor, room, area in m², living area, what it is for, ceiling height, volume). */
 export function reportToCsv(r: AreaReport): string {
-  const rows = [['Floor', 'Room', 'Area (m2)', 'Living area', 'Type', 'Ceiling (m)', 'Volume (m3)']];
-  for (const f of r.floors) for (const room of f.rooms) rows.push([f.name, room.name, (Math.round(room.area * 100) / 100).toFixed(2), room.living ? 'yes' : 'no', room.type ? ROOM_TYPE_LABEL[room.type] : '', room.ceiling.toFixed(2), room.volume.toFixed(1)]);
+  const rows = [[t('Floor'), t('Room'), t('Area (m2)'), t('Living area'), t('Type'), t('Ceiling (m)'), t('Volume (m3)')]];
+  for (const f of r.floors) for (const room of f.rooms) rows.push([t(f.name), t(room.name), (Math.round(room.area * 100) / 100).toFixed(2), room.living ? t('yes') : t('no'), room.type ? ROOM_TYPE_LABEL[room.type] : '', room.ceiling.toFixed(2), room.volume.toFixed(1)]);
   return rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
 }

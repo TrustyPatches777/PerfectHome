@@ -1,4 +1,5 @@
 import { useUi, type Tool } from '../store/ui';
+import { t, localize } from '../i18n';
 
 const TOOLS: { tool: Tool; label: string; key: string; icon: string }[] = [
   { tool: 'select', label: 'Select', key: 'V', icon: 'M5 3l12 7-5.2 1.4L9.6 17z' },
@@ -16,11 +17,12 @@ const TOOLS: { tool: Tool; label: string; key: string; icon: string }[] = [
   { tool: 'note', label: 'Sticky note', key: 'C', icon: 'M3 4h14v10H9l-4 3v-3H3zM6 8h8M6 11h5' },
   { tool: 'text', label: 'Text', key: 'T', icon: 'M5 5h10M10 5v11M8 16h4' },
 ];
+localize(TOOLS, ['label']);
 
 export function ToolBar() {
   const tool = useUi((s) => s.tool);
   return (
-    <div className="tools" role="toolbar" aria-label="Tools">
+    <div className="tools" role="toolbar" aria-label={t('Tools')}>
       {TOOLS.map((t) => (
         <button
           key={t.tool}

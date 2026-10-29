@@ -3,6 +3,7 @@ import { wallPointAt } from './geometry';
 
 export { faceSpan } from './geometry';
 import type { Point, Wall, WallFinish, WallType } from './model';
+import { localize } from './i18n';
 
 /** `label` is the full name (lists, the properties panel); `short` is for the narrow tool options bar. */
 export const WALL_STYLE: Record<WallType, { label: string; short: string; fill: string; hint: string; hatch?: boolean }> = {
@@ -13,6 +14,7 @@ export const WALL_STYLE: Record<WallType, { label: string; short: string; fill: 
   glass: { label: 'Glass wall', short: 'Glass', fill: '#8ec5e0', hint: 'A glazed wall in a slim frame, for a winter garden or a shop front. Put a door in it like in any wall; give the house a glass roof to match.' },
   railing: { label: 'Railing / low wall', short: 'Railing', fill: '#b9c0cc', hint: 'A balustrade or low wall, 1 m high.' },
 };
+localize(WALL_STYLE, ['label', 'hint', 'short']);
 
 export const FINISH_STYLES: Record<WallFinish, { label: string; color: string }> = {
   paint: { label: 'Paint', color: '#f5f0e6' },
@@ -26,6 +28,7 @@ export const FINISH_STYLES: Record<WallFinish, { label: string; color: string }>
   marble: { label: 'Marble', color: '#ece8e2' },
   custom: { label: 'Your own picture', color: '#d6d3cc' },
 };
+localize(FINISH_STYLES, ['label']);
 
 /** Colors offered for walls. */
 export const PAINT_COLORS = ['#ffffff', '#f5f0e6', '#e9d8b8', '#f2c9b0', '#e6c9c9', '#c7d7ee', '#b7c9a8', '#cdd6a0', '#f2e2a8', '#9db4d6', '#6b7280', '#374151'];

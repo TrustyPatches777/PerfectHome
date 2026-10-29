@@ -11,12 +11,13 @@ import { applyStoreyHeight } from './storey';
 import { groundIndex } from './shadows';
 import { stairBase } from './terrain';
 import { pointInPolygon } from './geometry';
+import { t, localize, N_ } from './i18n';
 
-const ORDINALS = ['Ground floor', '1st floor', '2nd floor', '3rd floor'];
+const ORDINALS = localize(['Ground floor', '1st floor', '2nd floor', '3rd floor'], '*');
 
 function nextName(count: number, basement: boolean): string {
-  if (basement) return count === 0 ? 'Basement' : `Basement ${count + 1}`;
-  return ORDINALS[count] ?? `${count}th floor`;
+  if (basement) return count === 0 ? t('Basement') : t('Basement {value}', { value: count + 1 });
+  return ORDINALS[count] ?? t('{count}th floor', { count, number: count + 1 });
 }
 
 export const floorHasContent = (d: Design, id: string) =>
@@ -34,13 +35,13 @@ export function addFloor(where: 'above' | 'basement') {
   if (where === 'above') {
     const d = useDesign.getState().design;
     const active = d.floors.find((f) => f.id === activeFloor())!;
-    if (active.attic) return useUi.getState().showToast('An attic is the top of the house: nothing goes above it.');
+    if (active.attic) return useUi.getState().showToast(t('An attic is the top of the house: nothing goes above it.'));
     const roofs = d.roofs.filter((r) => r.floor === active.id);
     if (roofs.length) {
       const top = d.floors[d.floors.length - 1].id === active.id;
       useUi.getState().setDialog({
         type: 'floor-roof',
-        floorName: active.name,
+        floorName: t(active.name),
         canAttic: top && roofs.some((r) => r.kind !== 'flat'),
         choose: (what) => {
           useUi.getState().setDialog(null);
@@ -103,7 +104,7 @@ export function atticOutlines(d: Design, below: string): Point[][] {
 
 const atticRoomsFor = (d: Design, below: string, floor: string): Room[] => {
   const outlines = atticOutlines(d, below);
-  return outlines.map((points, i) => ({ id: newId(), floor, name: outlines.length > 1 ? `Attic ${i + 1}` : 'Attic', color: '#e8dcc8', material: 'wood' as const, living: true, points }));
+  return outlines.map((points, i) => ({ id: newId(), floor, name: outlines.length > 1 ? t('Attic {value}', { value: i + 1 }) : t('Attic'), color: '#e8dcc8', material: 'wood' as const, living: true, points }));
 };
 
 /**
@@ -113,12 +114,12 @@ const atticRoomsFor = (d: Design, below: string, floor: string): Room[] => {
 export function addAttic() {
   const d = useDesign.getState().design;
   const top = d.floors[d.floors.length - 1];
-  if (top.attic) return useUi.getState().showToast('There is an attic already.');
+  if (top.attic) return useUi.getState().showToast(t('There is an attic already.'));
   const roofs = d.roofs.filter((r) => r.floor === top.id);
   let roof: Roof | null = null;
   if (!roofs.some((r) => r.kind !== 'flat')) {
     const box = fitRoofToWalls(d, top.id);
-    if (!box) return useUi.getState().showToast('Draw the walls of the top floor first: the attic is built under a roof fitted to them.');
+    if (!box) return useUi.getState().showToast(t('Draw the walls of the top floor first: the attic is built under a roof fitted to them.'));
     roof = newRoof(top.id, box, 'gable');
   }
   const id = newId();
@@ -127,7 +128,7 @@ export function addAttic() {
       for (const flat of draft.roofs.filter((r) => r.floor === top.id && r.kind === 'flat')) draft.roofs.splice(draft.roofs.indexOf(flat), 1); // a flat roof makes no attic
       draft.roofs.push(roof);
     }
-    draft.floors.push({ id, name: 'Attic', attic: true });
+    draft.floors.push({ id, name: t('Attic'), attic: true });
     draft.rooms.push(...atticRoomsFor(draft as Design, top.id, id));
   });
   useUi.getState().setActiveFloor(id);
@@ -141,8 +142,8 @@ export function setStoreyHeight(meters: number) {
   useDesign.getState().update((d) => {
     change = applyStoreyHeight(d, next);
   });
-  const parts = [change.walls ? `${change.walls} wall${change.walls === 1 ? '' : 's'}` : '', change.stairs ? `${change.stairs} staircase${change.stairs === 1 ? '' : 's'}` : ''].filter(Boolean);
-  useUi.getState().showToast(`Storey height ${Math.round(next * 100)} cm${parts.length ? `: ${parts.join(' and ')} adjusted to fit` : ''}.`);
+  const parts = [change.walls ? t('{walls} wall{value}', { walls: change.walls, value: change.walls === 1 ? '' : 's' }) : '', change.stairs ? t('{stairs} staircase{value}', { stairs: change.stairs, value: change.stairs === 1 ? '' : 's' }) : ''].filter(Boolean);
+  useUi.getState().showToast(t('Storey height {value} cm{value2}.', { value: Math.round(next * 100), value2: parts.length ? `: ${parts.join(' and ')} adjusted to fit` : '' }));
 }
 
 /**
@@ -166,7 +167,7 @@ export function setGroundLevel(meters: number) {
       moved++;
     }
   });
-  useUi.getState().showToast(`The ground floor lies ${Math.round(next * 100)} cm above the ground outside${moved ? `; ${moved} flight${moved === 1 ? '' : 's'} of entrance steps follow` : ''}.`);
+  useUi.getState().showToast(t('The ground floor lies {value} cm above the ground outside{value2}.', { value: Math.round(next * 100), value2: moved ? `; ${moved} flight${moved === 1 ? '' : 's'} of entrance steps follow` : '' }));
 }
 
 /** Make the floor of the active attic again from the rooms of the floor below (what you put in the attic stays). */
@@ -174,7 +175,7 @@ export function rebuildAttic() {
   const d = useDesign.getState().design;
   const at = d.floors.findIndex((f) => f.id === activeFloor());
   const attic = d.floors[at];
-  if (!attic?.attic || at < 1) return useUi.getState().showToast('Go to the attic first.');
+  if (!attic?.attic || at < 1) return useUi.getState().showToast(t('Go to the attic first.'));
   const below = d.floors[at - 1].id;
   useDesign.getState().update((draft) => {
     draft.rooms = draft.rooms.filter((r) => r.floor !== attic.id);
@@ -185,11 +186,11 @@ export function rebuildAttic() {
 /** Copy everything on the active floor to a new floor above it (handy for stacking similar levels). */
 export function duplicateFloor() {
   const source = activeFloor();
-  if (useDesign.getState().design.floors.find((f) => f.id === source)?.attic) return useUi.getState().showToast('An attic cannot be copied: nothing goes above it.');
+  if (useDesign.getState().design.floors.find((f) => f.id === source)?.attic) return useUi.getState().showToast(t('An attic cannot be copied: nothing goes above it.'));
   const id = newId();
   useDesign.getState().update((d) => {
     const at = d.floors.findIndex((f) => f.id === source);
-    d.floors.splice(at + 1, 0, { id, name: `${d.floors[at].name} copy` });
+    d.floors.splice(at + 1, 0, { id, name: t('{name} copy', { name: d.floors[at].name }) });
     const wallMap = new Map<string, string>();
     for (const w of d.walls.filter((x) => x.floor === source)) {
       const nid = newId();
@@ -249,13 +250,13 @@ function removeFloor(id: string) {
 export function deleteFloor(id: string) {
   const d = useDesign.getState().design;
   if (d.floors.length <= 1) return;
-  const name = d.floors.find((f) => f.id === id)?.name ?? 'this floor';
+  const name = t(d.floors.find((f) => f.id === id)?.name ?? N_('this floor'));
   if (!floorHasContent(d, id)) return removeFloor(id);
   useUi.getState().setDialog({
     type: 'confirm',
-    title: `Delete “${name}”?`,
-    message: 'Everything on this floor is removed. You can bring it back with Undo.',
-    confirmLabel: 'Delete floor',
+    title: t('Delete “{name}”?', { name }),
+    message: t('Everything on this floor is removed. You can bring it back with Undo.'),
+    confirmLabel: t('Delete floor'),
     onConfirm: () => removeFloor(id),
   });
 }

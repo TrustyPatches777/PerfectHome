@@ -7,6 +7,7 @@ import { FileMenu } from './FileMenu';
 import { ViewMenu } from './ViewMenu';
 import { readableOn } from '../identity';
 import { useLive } from '../store/live';
+import { getLang, localeOf, setLang, t } from '../i18n';
 
 export function TopBar({ onHelp }: { onHelp: () => void }) {
   const name = useDesign((s) => s.design.name);
@@ -23,29 +24,29 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
 
   return (
     <header className="topbar">
-      <div className="brand">Perfect Home</div>
+      <div className="brand">{t('Perfect Home')}</div>
       <input
         className="name-input"
-        aria-label="Design name"
-        value={name}
+        aria-label={t('Design name')}
+        value={t(name)}
         onChange={(e) => update((d) => void (d.name = e.target.value))}
       />
 
-      <div className="segmented view-switch" role="group" aria-label="View">
-        <button className={view === '2d' ? 'active' : ''} onClick={() => useUi.getState().setView('2d')} title="Floor plan (2)" data-testid="view-2d">
+      <div className="segmented view-switch" role="group" aria-label={t('View')}>
+        <button className={view === '2d' ? 'active' : ''} onClick={() => useUi.getState().setView('2d')} title={t('Floor plan (2)')} data-testid="view-2d">
           2D
         </button>
-        <button className={view === '3d' ? 'active' : ''} onClick={() => useUi.getState().setView('3d')} title="The house in 3D (3)" data-testid="view-3d">
+        <button className={view === '3d' ? 'active' : ''} onClick={() => useUi.getState().setView('3d')} title={t('The house in 3D (3)')} data-testid="view-3d">
           3D
         </button>
       </div>
 
       <div className="group">
-        <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" data-testid="undo">
-          Undo
+        <button onClick={undo} disabled={!canUndo} title={t('Undo (Ctrl+Z)')} data-testid="undo">
+          {t('Undo')}
         </button>
-        <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)" data-testid="redo">
-          Redo
+        <button onClick={redo} disabled={!canRedo} title={t('Redo (Ctrl+Y)')} data-testid="redo">
+          {t('Redo')}
         </button>
       </div>
 
@@ -53,13 +54,13 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
         <button
           className={snap ? 'active' : ''}
           onClick={() => useUi.getState().toggleSnap()}
-          title="Snap to grid (G)"
+          title={t('Snap to grid (G)')}
           data-testid="snap-toggle"
         >
-          Snap {snap ? 'on' : 'off'}
+          {t('Snap {value}', { value: snap ? t('on') : t('off') })}
         </button>
         <label className="select-label">
-          Grid
+          {t('Grid')}
           <select
             value={gridStep}
             data-testid="grid-step"
@@ -67,7 +68,7 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
           >
             {GRID_STEPS.map((s) => (
               <option key={s} value={s}>
-                {s * 100} cm
+                {t('{value} cm', { value: s * 100 })}
               </option>
             ))}
           </select>
@@ -76,18 +77,14 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
 
       <div className="spacer" />
 
-      <span className={`save-state ${saveState.failed ? 'failed' : ''}`} data-testid="save-state" title="Your design is saved automatically in this browser">
-        {saveState.failed
-          ? '⚠ Could not autosave (storage full or blocked). Use Export JSON.'
-          : saveState.at
-            ? `✓ Saved ${new Date(saveState.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-            : ''}
+      <span className={`save-state ${saveState.failed ? 'failed' : ''}`} data-testid="save-state" title={t('Your design is saved automatically in this browser')}>
+        {saveState.failed ? t('⚠ Could not autosave (storage full or blocked). Use Export JSON.') : saveState.at ? t('✓ Saved {value}', { value: new Date(saveState.at).toLocaleTimeString(localeOf(), { hour: '2-digit', minute: '2-digit' }) }) : ''}
       </span>
 
       <button
         className="user-chip"
         onClick={() => useUi.getState().setDialog({ type: 'identity' })}
-        title="Your name and color, used on sticky notes"
+        title={t('Your name and color, used on sticky notes')}
         data-testid="user-chip"
       >
         {me ? (
@@ -98,7 +95,7 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
             {me.name}
           </>
         ) : (
-          'Who are you?'
+          t('Who are you?')
         )}
       </button>
 
@@ -108,31 +105,39 @@ export function TopBar({ onHelp }: { onHelp: () => void }) {
         <button
           className={live.active ? 'live on' : 'live'}
           onClick={() => useUi.getState().setDialog({ type: 'live' })}
-          title="Work on this design together, at the same time"
+          title={t('Work on this design together, at the same time')}
           data-testid="live"
         >
-          {live.active ? `● Live${live.peers.length ? ` · ${live.peers.length + 1}` : ''}` : 'Live'}
+          {live.active ? t('● Live{value}', { value: live.peers.length ? ` · ${live.peers.length + 1}` : '' }) : t('Live')}
         </button>
-        <button className="primary" onClick={() => void shareLink()} title="Copy a link that opens this design" data-testid="share">
-          Share
+        <button className="primary" onClick={() => void shareLink()} title={t('Copy a link that opens this design')} data-testid="share">
+          {t('Share')}
         </button>
       </div>
 
       <div className="group">
-        <button onClick={() => zoomByCenter(1 / 1.25)} title="Zoom out" aria-label="Zoom out">
+        <button onClick={() => zoomByCenter(1 / 1.25)} title={t('Zoom out')} aria-label={t('Zoom out')}>
           −
         </button>
         <span className="zoom-label" data-testid="zoom-label">
           {Math.round((zoom / 60) * 100)}%
         </span>
-        <button onClick={() => zoomByCenter(1.25)} title="Zoom in" aria-label="Zoom in">
+        <button onClick={() => zoomByCenter(1.25)} title={t('Zoom in')} aria-label={t('Zoom in')}>
           +
         </button>
-        <button onClick={() => fitView(useDesign.getState().design)} title="Fit design in view (F)">
-          Fit
+        <button onClick={() => fitView(useDesign.getState().design)} title={t('Fit design in view (F)')}>
+          {t('Fit')}
         </button>
-        <button onClick={onHelp} title="Help & shortcuts (?)" aria-label="Help">
+        <button onClick={onHelp} title={t('Help & shortcuts (?)')} aria-label={t('Help')}>
           ?
+        </button>
+        <button
+          onClick={() => void setLang(getLang() === 'ko' ? 'en' : 'ko')}
+          title={getLang() === 'ko' ? t('Switch to English') : t('Switch to Korean')}
+          lang={getLang() === 'ko' ? 'en' : 'ko'}
+          data-testid="lang-toggle"
+        >
+          {getLang() === 'ko' ? 'English' : '한국어'}
         </button>
       </div>
     </header>

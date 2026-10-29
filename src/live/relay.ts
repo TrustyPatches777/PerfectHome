@@ -1,4 +1,5 @@
-/**
+
+import { t } from '../i18n';/**
  * An optional TURN relay for live sessions. Two browsers normally connect directly; on some networks (schools, companies, mobile hotspots) that is
  * blocked, and a relay server carries the traffic instead. The app has none of its own: the credentials come from a hosted TURN service and are
  * typed into the Live dialog (kept in this browser only, never in a link, never in the site or the repository).
@@ -70,7 +71,7 @@ export function saveTurn(cfg: TurnConfig | null): boolean {
  * an address of its own within a few seconds.
  */
 export async function testTurn(cfg: TurnConfig, timeoutMs = 10_000): Promise<{ ok: boolean; reason?: string }> {
-  if (typeof RTCPeerConnection === 'undefined') return { ok: false, reason: 'This browser has no direct-connection support.' };
+  if (typeof RTCPeerConnection === 'undefined') return { ok: false, reason: t('This browser has no direct-connection support.') };
   const pc = new RTCPeerConnection({ iceServers: [{ urls: cfg.urls, username: cfg.username, credential: cfg.credential }], iceTransportPolicy: 'relay' });
   try {
     let failure = '';
@@ -96,7 +97,7 @@ export async function testTurn(cfg: TurnConfig, timeoutMs = 10_000): Promise<{ o
     pc.createDataChannel('test');
     await pc.setLocalDescription(await pc.createOffer());
     const ok = await found;
-    return ok ? { ok } : { ok, reason: failure ? `The relay answered: ${failure}` : 'The relay did not answer. Check the address, the user name and the password.' };
+    return ok ? { ok } : { ok, reason: failure ? t('The relay answered: {failure}', { failure }) : t('The relay did not answer. Check the address, the user name and the password.') };
   } catch (e) {
     return { ok: false, reason: (e as Error).message };
   } finally {

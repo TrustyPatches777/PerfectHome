@@ -5,6 +5,7 @@
 import type { Draft } from 'immer';
 import { detectRoom, polygonsOverlap } from './geometry';
 import { newId, type Design, type Point, type Room, type Wall, type WallType } from './model';
+import { t } from './i18n';
 
 /** The four corners of the box between two opposite corners, clockwise on screen starting at the top-left. */
 export function boxCorners(a: Point, b: Point): Point[] {
@@ -26,7 +27,7 @@ export function addRoomTo(d: Draft<Design>, floor: string, points: Point[], seed
   if (d.rooms.some((r) => r.floor === floor && polygonsOverlap(points, r.points))) return null;
   const used = d.rooms.filter((r) => r.floor === floor).map((r) => /^Room (\d+)$/.exec(r.name)).map((m) => (m ? Number(m[1]) : 0));
   const id = newId();
-  const room: Room = { id, floor, name: `Room ${Math.max(0, ...used) + 1}`, color, material: 'plain', living: true, points, seed };
+  const room: Room = { id, floor, name: t('Room {value}', { value: Math.max(0, ...used) + 1 }), color, material: 'plain', living: true, points, seed };
   d.rooms.push(room);
   return id;
 }

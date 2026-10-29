@@ -5,6 +5,7 @@ import { areaReport } from '../../areas';
 import { useDesign } from '../../store/design';
 import { useFloorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
+import { useLang } from '../../i18n';
 
 /** Markers for "Check plan" problems and (optionally) the distances from the house to the plot boundary. */
 export function ChecksLayer() {
@@ -14,7 +15,8 @@ export function ChecksLayer() {
   const zoom = useUi((s) => s.viewport.zoom);
   const design = useDesign((s) => s.design);
   const floor = useFloorId();
-  const issues = useMemo(() => (show ? findIssues(design, floor, minPassage) : []), [show, design, floor, minPassage]);
+  const lang = useLang(); // texts worked out here follow the language
+  const issues = useMemo(() => (show ? findIssues(design, floor, minPassage) : []), [show, design, floor, minPassage, lang]);
   const setbacks = useMemo(() => (showSetbacks ? (areaReport(design).plot?.edges ?? []) : []), [showSetbacks, design]);
   const px = 1 / zoom;
 

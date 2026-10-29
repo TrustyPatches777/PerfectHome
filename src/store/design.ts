@@ -4,6 +4,7 @@ import { syncCustomItems } from '../catalog';
 import { settleFurniture } from '../fit';
 import { createDesign, type Design } from '../model';
 import { notify } from './notice';
+import { t } from '../i18n';
 
 const HISTORY_LIMIT = 100;
 
@@ -58,7 +59,7 @@ export const useDesign = create<DesignStore>((set, get) => ({
     if (edited === design) return;
     // furniture is pushed out of walls (and refused when there is no room)
     const { design: next, refused } = settleFurniture(design, edited);
-    if (refused) notify(refused > 1 ? 'Some furniture does not fit there: it cannot go through walls.' : 'That does not fit there: furniture cannot go through walls.');
+    if (refused) notify(refused > 1 ? t('Some furniture does not fit there: it cannot go through walls.') : t('That does not fit there: furniture cannot go through walls.'));
     if (next === design) return;
     if (bridge) {
       if (!txBase) bridge.boundary();

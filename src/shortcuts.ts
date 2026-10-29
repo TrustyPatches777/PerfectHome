@@ -1,5 +1,6 @@
 /** Keyboard shortcuts: the table drives both the handler (hooks/useShortcuts.ts) and the in-app help. */
 import type { Tool } from './store/ui';
+import { localize } from './i18n';
 
 export const TOOL_KEYS: Record<string, Tool> = {
   v: 'select',
@@ -54,3 +55,4 @@ export const SHORTCUT_HELP: { keys: string; what: string }[] = [
   { keys: 'Page Up / Page Down', what: 'Go to the floor above / below' },
   { keys: 'Esc', what: 'Cancel / back to the select tool' },
 ];
+localize(SHORTCUT_HELP, ['keys', 'what']);

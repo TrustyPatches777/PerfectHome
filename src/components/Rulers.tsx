@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { startGuideFromRuler } from '../canvas/editing';
 import { RULER_SIZE } from '../canvas/input';
 import { useUi } from '../store/ui';
+import { t } from '../i18n';
 
 const RULER = RULER_SIZE;
 const STEPS = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100];
@@ -87,7 +88,7 @@ export function Rulers() {
         className="ruler ruler-top"
         style={{ width: Math.max(0, w - RULER), height: RULER }}
         onMouseDown={(e) => e.button === 0 && startGuideFromRuler(e.nativeEvent, 'y')}
-        title="Drag down to pull out a guide line"
+        title={t('Drag down to pull out a guide line')}
         data-testid="ruler-top"
       />
       <canvas
@@ -95,7 +96,7 @@ export function Rulers() {
         className="ruler ruler-left"
         style={{ width: RULER, height: Math.max(0, h - RULER) }}
         onMouseDown={(e) => e.button === 0 && startGuideFromRuler(e.nativeEvent, 'x')}
-        title="Drag right to pull out a guide line"
+        title={t('Drag right to pull out a guide line')}
         data-testid="ruler-left"
       />
     </>

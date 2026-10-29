@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { readableOn } from '../identity';
 import { useDesign } from '../store/design';
 import { setActiveFloorAndFocus } from '../floors';
+import { t } from '../i18n';
 
 /** All sticky notes in the design, open ones first: click one to go to it. */
 export function NotesPanel() {
@@ -13,14 +14,14 @@ export function NotesPanel() {
   const open = notes.filter((n) => !n.done);
   const done = notes.filter((n) => n.done);
   const list = showDone ? [...open, ...done] : open;
-  const floorName = (id: string) => floors.find((f) => f.id === id)?.name ?? '';
+  const floorName = (id: string) => t(floors.find((f) => f.id === id)?.name ?? '');
 
   return (
     <div className="panel" data-testid="notes-panel">
       <h3>
-        Sticky notes <span className="count">{open.length} open</span>
+        {t('Sticky notes ')} <span className="count">{t('{length} open', { length: open.length })}</span>
       </h3>
-      {!visible && <p className="notice">The notes layer is hidden. Show it in Layers.</p>}
+      {!visible && <p className="notice">{t('The notes layer is hidden. Show it in Layers.')}</p>}
       <ul className="notes-list">
         {list.map((n) => (
           <li key={n.id}>
@@ -29,9 +30,9 @@ export function NotesPanel() {
                 {n.done ? '✓' : (n.author[0] ?? '?').toUpperCase()}
               </span>
               <span className="note-text">
-                {n.text || <em>(empty)</em>}
+                {n.text || <em>{t('(empty)')}</em>}
                 <small>
-                  {n.author || 'someone'}
+                  {n.author || t('someone')}
                   {floors.length > 1 ? ` · ${floorName(n.floor)}` : ''}
                 </small>
               </span>
@@ -42,7 +43,7 @@ export function NotesPanel() {
       {done.length > 0 && (
         <label className="check">
           <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} data-testid="show-done" />
-          Show {done.length} done
+          {t('Show {length} done', { length: done.length })}
         </label>
       )}
     </div>

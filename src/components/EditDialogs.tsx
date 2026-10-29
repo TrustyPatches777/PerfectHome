@@ -5,11 +5,13 @@ import { formatArea, polygonArea } from '../geometry';
 import { usualCeiling } from '../storey';
 import { FLOOR_MATERIALS, ROOM_TYPES, ROOM_TYPE_LABEL, type FloorMaterial, type Room, type RoomType } from '../model';
 import { FLOOR_COLORS } from '../canvas/style';
+import { MATERIAL_LABELS } from './MaterialPicker';
 import { deleteSnapshot, diffCount, diffDesigns, loadSnapshots, saveSnapshot, snapshotDesign, type Snapshot } from '../snapshots';
 import { isLive } from '../live/live';
 import { useDesign } from '../store/design';
 import { useFloorId } from '../store/floor';
 import { useUi } from '../store/ui';
+import { t, localeOf, useLang } from '../i18n';
 
 const close = () => useUi.getState().setDialog(null);
 
@@ -41,16 +43,17 @@ export function FindDialog() {
   const [thisFloor, setThisFloor] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
-  const found = useMemo(() => findItems(design, query, kind, thisFloor ? floor : null), [design, query, kind, thisFloor, floor]);
+  const lang = useLang(); // texts worked out here follow the language
+  const found = useMemo(() => findItems(design, query, kind, thisFloor ? floor : null), [design, query, kind, thisFloor, floor, lang]);
   const here = found.filter((f) => f.floor === floor);
 
   return (
     <div className="modal-backdrop" onMouseDown={close}>
-      <div className="modal wide" role="dialog" aria-label="Find" onMouseDown={(e) => e.stopPropagation()} data-testid="find-dialog">
-        <h2>Find</h2>
+      <div className="modal wide" role="dialog" aria-label={t('Find')} onMouseDown={(e) => e.stopPropagation()} data-testid="find-dialog">
+        <h2>{t('Find')}</h2>
         <div className="row">
-          <input ref={input} type="text" placeholder="Name or kind: kitchen, window, sofa, socket…" value={query} onChange={(e) => setQuery(e.target.value)} style={{ flex: 1 }} aria-label="Search" data-testid="find-query" />
-          <select value={kind} onChange={(e) => setKind(e.target.value as FindKind)} aria-label="What to look for" data-testid="find-kind">
+          <input ref={input} type="text" placeholder={t('Name or kind: kitchen, window, sofa, socket…')} value={query} onChange={(e) => setQuery(e.target.value)} style={{ flex: 1 }} aria-label={t('Search')} data-testid="find-query" />
+          <select value={kind} onChange={(e) => setKind(e.target.value as FindKind)} aria-label={t('What to look for')} data-testid="find-kind">
             {FIND_KINDS.map((k) => (
               <option key={k.id} value={k.id}>
                 {k.label}
@@ -60,10 +63,10 @@ export function FindDialog() {
         </div>
         <label className="check">
           <input type="checkbox" checked={thisFloor} onChange={(e) => setThisFloor(e.target.checked)} data-testid="find-this-floor" />
-          Only on this floor
+          {t('Only on this floor')}
         </label>
         <p className="muted" data-testid="find-count">
-          {found.length} found{found.length >= 300 ? ' (the first 300)' : ''}
+          {t('{length} found{value}', { length: found.length, value: found.length >= 300 ? t(' (the first 300)') : '' })}
         </p>
         <ul className="find-list" data-testid="find-results">
           {found.map((f) => (
@@ -92,10 +95,10 @@ export function FindDialog() {
             }}
             data-testid="find-select-all"
           >
-            Select the {here.length} on this floor
+            {t('Select the {length} on this floor', { length: here.length })}
           </button>
           <button className="primary" onClick={close}>
-            Close
+            {t('Close')}
           </button>
         </div>
       </div>
@@ -112,7 +115,7 @@ export function RoomsDialog() {
   const [thisFloor, setThisFloor] = useState(true);
   const [bulkColor, setBulkColor] = useState('#e8eef7');
   const rooms = design.rooms.filter((r) => !thisFloor || r.floor === floor);
-  const floorName = (id: string) => design.floors.find((f) => f.id === id)?.name ?? '';
+  const floorName = (id: string) => t(design.floors.find((f) => f.id === id)?.name ?? '');
   const usual = usualCeiling(design.settings.storeyHeight);
   const edit = (id: string, fn: (r: Room) => void) =>
     useDesign.getState().update((d) => {
@@ -128,63 +131,63 @@ export function RoomsDialog() {
 
   return (
     <div className="modal-backdrop" onMouseDown={close}>
-      <div className="modal wide" role="dialog" aria-label="Rooms" onMouseDown={(e) => e.stopPropagation()} data-testid="rooms-dialog">
-        <h2>Rooms</h2>
+      <div className="modal wide" role="dialog" aria-label={t('Rooms')} onMouseDown={(e) => e.stopPropagation()} data-testid="rooms-dialog">
+        <h2>{t('Rooms')}</h2>
         <label className="check">
           <input type="checkbox" checked={thisFloor} onChange={(e) => setThisFloor(e.target.checked)} data-testid="rooms-this-floor" />
-          Only this floor
+          {t('Only this floor')}
         </label>
         {rooms.length === 0 ? (
-          <p className="muted">No rooms yet.</p>
+          <p className="muted">{t('No rooms yet.')}</p>
         ) : (
           <>
             <div className="bulk-row" data-testid="rooms-bulk">
-              <span className="muted">All {rooms.length} listed:</span>
-              <select value="" aria-label="Set the type of all" data-testid="bulk-type" onChange={(e) => e.target.value && editAll((r) => void (r.type = e.target.value as RoomType))}>
-                <option value="">type…</option>
+              <span className="muted">{t('All {length} listed:', { length: rooms.length })}</span>
+              <select value="" aria-label={t('Set the type of all')} data-testid="bulk-type" onChange={(e) => e.target.value && editAll((r) => void (r.type = e.target.value as RoomType))}>
+                <option value="">{t('type…')}</option>
                 {ROOM_TYPES.map((t) => (
                   <option key={t} value={t}>
                     {ROOM_TYPE_LABEL[t]}
                   </option>
                 ))}
               </select>
-              <select value="" aria-label="Set the floor material of all" data-testid="bulk-material" onChange={(e) => e.target.value && editAll((r) => void (r.material = e.target.value as FloorMaterial))}>
-                <option value="">floor…</option>
+              <select value="" aria-label={t('Set the floor material of all')} data-testid="bulk-material" onChange={(e) => e.target.value && editAll((r) => void (r.material = e.target.value as FloorMaterial))}>
+                <option value="">{t('floor…')}</option>
                 {FLOOR_MATERIALS.map((m) => (
                   <option key={m} value={m}>
-                    {m}
+                    {MATERIAL_LABELS[m]}
                   </option>
                 ))}
               </select>
-              <input type="color" value={bulkColor} onChange={(e) => setBulkColor(e.target.value)} aria-label="Color for all" />
+              <input type="color" value={bulkColor} onChange={(e) => setBulkColor(e.target.value)} aria-label={t('Color for all')} />
               <button onClick={() => editAll((r) => void (r.color = bulkColor))} data-testid="bulk-color">
-                Set color
+                {t('Set color')}
               </button>
               <CommitInput type="number" value="" width={70} testId="bulk-ceiling" onCommit={(v) => Number(v) > 0 && editAll((r) => void (r.ceiling = Math.min(12, Math.max(1.5, Number(v) / 100))))} />
-              <span className="muted">cm ceiling</span>
+              <span className="muted">{t('cm ceiling')}</span>
             </div>
             <div className="table-scroll">
               <table className="area-table rooms-table">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Floor</th>
-                    <th>Material</th>
-                    <th>Color</th>
-                    <th>Ceiling (cm)</th>
-                    <th>Area</th>
-                    <th>Living</th>
+                    <th>{t('Name')}</th>
+                    <th>{t('Type')}</th>
+                    <th>{t('Floor')}</th>
+                    <th>{t('Material')}</th>
+                    <th>{t('Color')}</th>
+                    <th>{t('Ceiling (cm)')}</th>
+                    <th>{t('Area')}</th>
+                    <th>{t('Living area')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rooms.map((r, i) => (
                     <tr key={r.id}>
                       <td>
-                        <CommitInput value={r.name} testId={`room-name-${i}`} onCommit={(v) => edit(r.id, (x) => void (x.name = v.slice(0, 80) || x.name))} />
+                        <CommitInput value={t(r.name)} testId={`room-name-${i}`} onCommit={(v) => edit(r.id, (x) => void (x.name = v.slice(0, 80) || x.name))} />
                       </td>
                       <td>
-                        <select value={r.type ?? ''} aria-label={`Type of ${r.name}`} data-testid={`room-type-${i}`} onChange={(e) => edit(r.id, (x) => (e.target.value ? void (x.type = e.target.value as RoomType) : void delete x.type))}>
+                        <select value={r.type ?? ''} aria-label={t('Type of {name}', { name: t(r.name) })} data-testid={`room-type-${i}`} onChange={(e) => edit(r.id, (x) => (e.target.value ? void (x.type = e.target.value as RoomType) : void delete x.type))}>
                           <option value="">–</option>
                           {ROOM_TYPES.map((t) => (
                             <option key={t} value={t}>
@@ -195,23 +198,23 @@ export function RoomsDialog() {
                       </td>
                       <td className="muted">{floorName(r.floor)}</td>
                       <td>
-                        <select value={r.material} aria-label={`Floor of ${r.name}`} onChange={(e) => edit(r.id, (x) => void (x.material = e.target.value as FloorMaterial))}>
+                        <select value={r.material} aria-label={t('Floor of {name}', { name: t(r.name) })} onChange={(e) => edit(r.id, (x) => void (x.material = e.target.value as FloorMaterial))}>
                           {FLOOR_MATERIALS.map((m) => (
                             <option key={m} value={m}>
-                              {m}
+                              {MATERIAL_LABELS[m]}
                             </option>
                           ))}
                         </select>
                       </td>
                       <td>
-                        <input type="color" value={/^#[0-9a-f]{6}$/i.test(r.color) ? r.color : FLOOR_COLORS[0]} aria-label={`Color of ${r.name}`} onChange={(e) => edit(r.id, (x) => void (x.color = e.target.value))} />
+                        <input type="color" value={/^#[0-9a-f]{6}$/i.test(r.color) ? r.color : FLOOR_COLORS[0]} aria-label={t('Color of {name}', { name: t(r.name) })} onChange={(e) => edit(r.id, (x) => void (x.color = e.target.value))} />
                       </td>
                       <td>
                         <CommitInput type="number" value={Math.round((r.ceiling ?? usual) * 100)} width={70} testId={`room-ceiling-${i}`} onCommit={(v) => edit(r.id, (x) => void (x.ceiling = Math.min(12, Math.max(1.5, Number(v) / 100))))} />
                       </td>
                       <td className="num">{formatArea(polygonArea(r.points))}</td>
                       <td>
-                        <input type="checkbox" checked={r.living} aria-label={`${r.name} counts as living area`} onChange={(e) => edit(r.id, (x) => void (x.living = e.target.checked))} />
+                        <input type="checkbox" checked={r.living} aria-label={t('{name} counts as living area', { name: t(r.name) })} onChange={(e) => edit(r.id, (x) => void (x.living = e.target.checked))} />
                       </td>
                     </tr>
                   ))}
@@ -222,7 +225,7 @@ export function RoomsDialog() {
         )}
         <div className="row end">
           <button className="primary" onClick={close}>
-            Done
+            {t('Done')}
           </button>
         </div>
       </div>
@@ -232,7 +235,7 @@ export function RoomsDialog() {
 
 // ---- Snapshots -----------------------------------------------------------------------------------------------------------------------------
 
-const when = (t: number) => new Date(t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+const when = (t: number) => new Date(t).toLocaleString(localeOf(), { dateStyle: 'medium', timeStyle: 'short' });
 
 /** Named copies of the design, and what changed since each of them. */
 export function SnapshotsDialog() {
@@ -243,14 +246,14 @@ export function SnapshotsDialog() {
   const refresh = () => setList(loadSnapshots(design.id));
 
   const take = () => {
-    if (!saveSnapshot(design, name || `Snapshot ${list.length + 1}`)) useUi.getState().showToast('Could not keep the snapshot: the browser storage is full. Delete an old one first.');
+    if (!saveSnapshot(design, name || t('Snapshot {value}', { value: list.length + 1 }))) useUi.getState().showToast(t('Could not keep the snapshot: the browser storage is full. Delete an old one first.'));
     setName('');
     refresh();
   };
   const restore = (s: Snapshot) => {
-    if (isLive()) return useUi.getState().showToast('Leave the live session first: going back replaces the whole plan.');
+    if (isLive()) return useUi.getState().showToast(t('Leave the live session first: going back replaces the whole plan.'));
     const old = snapshotDesign(s);
-    if (!old) return useUi.getState().showToast('That snapshot cannot be read.');
+    if (!old) return useUi.getState().showToast(t('That snapshot cannot be read.'));
     // one undo step brings the present back; the snapshot is replaced into the design item by item
     useDesign.getState().update((d) => {
       const { id: _id, ...rest } = old;
@@ -260,7 +263,7 @@ export function SnapshotsDialog() {
     useUi.getState().select(null);
     useUi.getState().setCompare(null);
     close();
-    useUi.getState().showToast(`Went back to "${s.name}". Undo (Ctrl+Z) brings the current plan back.`);
+    useUi.getState().showToast(t('Went back to "{name}". Undo (Ctrl+Z) brings the current plan back.', { name: s.name }));
   };
   const show = (s: Snapshot) => {
     const old = snapshotDesign(s);
@@ -271,17 +274,17 @@ export function SnapshotsDialog() {
 
   return (
     <div className="modal-backdrop" onMouseDown={close}>
-      <div className="modal wide" role="dialog" aria-label="Snapshots" onMouseDown={(e) => e.stopPropagation()} data-testid="snapshots-dialog">
-        <h2>Snapshots</h2>
-        <p className="muted">A snapshot is a named copy of the plan as it is now, kept in this browser. Compare it with the plan later, or go back to it.</p>
+      <div className="modal wide" role="dialog" aria-label={t('Snapshots')} onMouseDown={(e) => e.stopPropagation()} data-testid="snapshots-dialog">
+        <h2>{t('Snapshots')}</h2>
+        <p className="muted">{t('A snapshot is a named copy of the plan as it is now, kept in this browser. Compare it with the plan later, or go back to it.')}</p>
         <div className="row">
-          <input type="text" placeholder="Name, e.g. Before moving the kitchen" value={name} onChange={(e) => setName(e.target.value)} style={{ flex: 1 }} aria-label="Name of the snapshot" data-testid="snapshot-name" onKeyDown={(e) => e.key === 'Enter' && take()} />
+          <input type="text" placeholder={t('Name, e.g. Before moving the kitchen')} value={name} onChange={(e) => setName(e.target.value)} style={{ flex: 1 }} aria-label={t('Name of the snapshot')} data-testid="snapshot-name" onKeyDown={(e) => e.key === 'Enter' && take()} />
           <button className="primary" onClick={take} data-testid="snapshot-take">
-            Keep a snapshot
+            {t('Keep a snapshot')}
           </button>
         </div>
         {list.length === 0 ? (
-          <p className="muted">No snapshots yet.</p>
+          <p className="muted">{t('No snapshots yet.')}</p>
         ) : (
           <ul className="find-list" data-testid="snapshot-list">
             {list.map((s) => (
@@ -291,17 +294,17 @@ export function SnapshotsDialog() {
                 </span>
                 <span className="row">
                   <button onClick={() => show(s)} data-testid="snapshot-compare">
-                    Compare
+                    {t('Compare')}
                   </button>
                   <button onClick={() => restore(s)} data-testid="snapshot-restore">
-                    Go back to this
+                    {t('Go back to this')}
                   </button>
                   <button
                     onClick={() => {
                       deleteSnapshot(design.id, s.id);
                       refresh();
                     }}
-                    aria-label={`Delete ${s.name}`}
+                    aria-label={t('Delete {name}', { name: s.name })}
                   >
                     ✕
                   </button>
@@ -312,22 +315,22 @@ export function SnapshotsDialog() {
         )}
         {compare && diff && (
           <div className="compare-box" data-testid="compare-result">
-            <h3>Since “{compare.name}”</h3>
+            <h3>{t('Since “{name}”', { name: compare.name })}</h3>
             {diffCount(diff) === 0 ? (
-              <p className="ok">Nothing is different.</p>
+              <p className="ok">{t('Nothing is different.')}</p>
             ) : (
               <p>
-                <span className="diff-added">{diff.added.length} added</span> · <span className="diff-changed">{diff.changed.length} changed</span> · <span className="diff-removed">{diff.removed.length} removed</span>. They are marked on the plan (green, orange, red dashed).
+                <span className="diff-added">{t('{length} added', { length: diff.added.length })}</span> · <span className="diff-changed">{t('{length} changed', { length: diff.changed.length })}</span> · <span className="diff-removed">{t('{length} removed', { length: diff.removed.length })}</span>{t('. They are marked on the plan (green, orange, red dashed).')}
               </p>
             )}
             <button onClick={() => useUi.getState().setCompare(null)} data-testid="compare-clear">
-              Stop showing the differences
+              {t('Stop showing the differences')}
             </button>
           </div>
         )}
         <div className="row end">
           <button className="primary" onClick={close}>
-            Close
+            {t('Close')}
           </button>
         </div>
       </div>

@@ -6,6 +6,7 @@ import { download, printHtml } from '../session';
 import { fileNameFor } from '../share';
 import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
+import { t, useLang } from '../i18n';
 
 /** An SVG as a picture: drawn on a canvas of the given size. */
 async function svgToPng(svg: string, w: number, h: number): Promise<Blob | null> {
@@ -39,9 +40,10 @@ export function DrawingDialog() {
   const close = () => useUi.getState().setDialog(null);
   const [busy, setBusy] = useState(false);
 
-  const spec = useMemo(() => specFor(design, opts), [design, opts]);
-  const prepared = useMemo(() => prepareDrawing(design, spec), [design, spec]);
-  const layout = useMemo(() => buildDrawingLayout(design, spec, opts, new Date(), prepared), [design, spec, opts, prepared]);
+  const lang = useLang(); // texts worked out here follow the language
+  const spec = useMemo(() => specFor(design, opts), [design, opts, lang]);
+  const prepared = useMemo(() => prepareDrawing(design, spec), [design, spec, lang]);
+  const layout = useMemo(() => buildDrawingLayout(design, spec, opts, new Date(), prepared), [design, spec, opts, prepared, lang]);
   const preview = useMemo(() => (prepared ? renderDrawing(prepared, layout.scale, 1).svg : null), [prepared, layout.scale]);
   const fitScale = useMemo(() => (prepared ? buildDrawingLayout(design, spec, { ...opts, scale: 'fit' }, new Date(), prepared).scale : 100), [design, spec, opts, prepared]);
 
@@ -64,9 +66,9 @@ export function DrawingDialog() {
       const r = renderDrawing(prepared, layout.scale, ppm);
       const blob = await svgToPng(r.svg, Math.round(r.width * ppm), Math.round(r.height * ppm));
       if (blob) download(blob, fileNameFor({ ...design, name: `${design.name} ${title}` }, 'png'));
-      else useUi.getState().showToast('Could not create the picture.');
+      else useUi.getState().showToast(t('Could not create the picture.'));
     } catch {
-      useUi.getState().showToast('Could not create the picture.');
+      useUi.getState().showToast(t('Could not create the picture.'));
     } finally {
       setBusy(false);
     }
@@ -74,25 +76,25 @@ export function DrawingDialog() {
 
   return (
     <div className="modal-backdrop" onMouseDown={close}>
-      <div className="modal wide" role="dialog" aria-label="Elevation and section drawings" onMouseDown={(e) => e.stopPropagation()} data-testid="drawing-dialog">
-        <h2>Elevations and sections</h2>
+      <div className="modal wide" role="dialog" aria-label={t('Elevation and section drawings')} onMouseDown={(e) => e.stopPropagation()} data-testid="drawing-dialog">
+        <h2>{t('Elevations and sections')}</h2>
         <div className="print-grid">
           <div className="print-fields">
             <label className="field">
-              <span>Drawing</span>
+              <span>{t('Drawing')}</span>
               <select value={section ? section.id : opts.view} data-testid="drawing-view" onChange={(e) => set({ view: e.target.value })}>
-                <optgroup label="Elevations (the house from outside)">
+                <optgroup label={t('Elevations (the house from outside)')}>
                   {(['S', 'N', 'E', 'W'] as Side[]).map((s) => (
                     <option key={s} value={s}>
-                      {SIDE_NAME[s]} elevation
+                      {t('{value} elevation', { value: SIDE_NAME[s] })}
                     </option>
                   ))}
                 </optgroup>
                 {design.sections.length > 0 && (
-                  <optgroup label="Sections (the house cut open)">
+                  <optgroup label={t('Sections (the house cut open)')}>
                     {design.sections.map((s) => (
                       <option key={s.id} value={s.id}>
-                        Section {s.name}–{s.name} (looking {lookingAt(design, s)})
+                        {t('Section {name}–{name} (looking {lookingAt})', { name: s.name, lookingAt: lookingAt(design, s) })}
                       </option>
                     ))}
                   </optgroup>
@@ -102,11 +104,11 @@ export function DrawingDialog() {
             {section && (
               <div className="row">
                 <label className="field" style={{ flex: 1 }}>
-                  <span>Letter</span>
+                  <span>{t('Letter')}</span>
                   <input value={section.name} maxLength={3} data-testid="section-name" onChange={(e) => edit((s) => void (s.name = e.target.value.trim().toUpperCase() || 'A'))} />
                 </label>
-                <button onClick={() => edit((s) => void (s.flip ? delete s.flip : (s.flip = true)))} title="Look at the other side of the line" data-testid="section-flip">
-                  Look the other way
+                <button onClick={() => edit((s) => void (s.flip ? delete s.flip : (s.flip = true)))} title={t('Look at the other side of the line')} data-testid="section-flip">
+                  {t('Look the other way')}
                 </button>
                 <button
                   onClick={() => {
@@ -115,7 +117,7 @@ export function DrawingDialog() {
                   }}
                   data-testid="section-delete"
                 >
-                  Delete
+                  {t('Delete')}
                 </button>
               </div>
             )}
@@ -127,22 +129,22 @@ export function DrawingDialog() {
               }}
               data-testid="section-new"
             >
-              Draw a section line on the plan…
+              {t('Draw a section line on the plan…')}
             </button>
-            <div className="segmented" role="group" aria-label="Style">
+            <div className="segmented" role="group" aria-label={t('Style')}>
               <button className={!opts.colour ? 'active' : ''} onClick={() => set({ colour: false })} data-testid="drawing-lines">
-                Line drawing
+                {t('Line drawing')}
               </button>
               <button className={opts.colour ? 'active' : ''} onClick={() => set({ colour: true })} data-testid="drawing-colour">
-                Colour
+                {t('Colour')}
               </button>
             </div>
             <label className="check">
               <input type="checkbox" checked={opts.furniture} onChange={(e) => set({ furniture: e.target.checked })} data-testid="drawing-furniture" />
-              Furniture, trees and the like
+              {t('Furniture, trees and the like')}
             </label>
             <label className="field">
-              <span>Paper</span>
+              <span>{t('Paper')}</span>
               <select value={opts.paper} data-testid="drawing-paper" onChange={(e) => set({ paper: e.target.value as PaperKey })}>
                 {Object.entries(PAPERS).map(([k, p]) => (
                   <option key={k} value={k}>
@@ -151,18 +153,18 @@ export function DrawingDialog() {
                 ))}
               </select>
             </label>
-            <div className="segmented" role="group" aria-label="Orientation">
+            <div className="segmented" role="group" aria-label={t('Orientation')}>
               <button className={opts.landscape ? 'active' : ''} onClick={() => set({ landscape: true })}>
-                Landscape
+                {t('Landscape')}
               </button>
               <button className={!opts.landscape ? 'active' : ''} onClick={() => set({ landscape: false })}>
-                Portrait
+                {t('Portrait')}
               </button>
             </div>
             <label className="field">
-              <span>Scale</span>
+              <span>{t('Scale')}</span>
               <select value={String(opts.scale)} data-testid="drawing-scale" onChange={(e) => set({ scale: e.target.value === 'fit' ? 'fit' : Number(e.target.value) })}>
-                <option value="fit">Fit to the page (1:{fitScale})</option>
+                <option value="fit">{t('Fit to the page (1:{fitScale})', { fitScale })}</option>
                 {SCALES.map((s) => (
                   <option key={s} value={s}>
                     1:{s}
@@ -172,14 +174,14 @@ export function DrawingDialog() {
             </label>
             {prepared ? (
               <p className={layout.fits ? 'ok' : 'notice'} data-testid="drawing-info">
-                At 1:{layout.scale} the drawing is {Math.round(layout.widthMm)} × {Math.round(layout.heightMm)} mm on the paper. {layout.fits ? 'It fits.' : 'It is too big for the page: choose a smaller scale or a larger paper.'}
+                {t('At 1:{scale} the drawing is {value} × {value2} mm on the paper. {value3}', { scale: layout.scale, value: Math.round(layout.widthMm), value2: Math.round(layout.heightMm), value3: layout.fits ? t('It fits.') : t('It is too big for the page: choose a smaller scale or a larger paper.') })}
               </p>
             ) : (
               <p className="notice" data-testid="drawing-empty">
-                {section ? 'The line does not cut through anything yet.' : 'There is nothing to draw yet.'}
+                {section ? t('The line does not cut through anything yet.') : t('There is nothing to draw yet.')}
               </p>
             )}
-            <p className="muted">It is drawn from the same model as the 3D view, so roofs, windows and heights match. In the print window choose “Save as PDF” to get a file, and print at 100% so the scale stays true.</p>
+            <p className="muted">{t('It is drawn from the same model as the 3D view, so roofs, windows and heights match. In the print window choose “Save as PDF” to get a file, and print at 100% so the scale stays true.')}</p>
           </div>
           <div className="print-preview" style={{ aspectRatio: `${pw} / ${ph}` }} data-testid="drawing-preview">
             {box && preview && <div className="print-plan" style={{ width: `${box.w}%`, height: `${box.h}%`, outline: layout.fits ? 'none' : '2px solid #ef4444' }} dangerouslySetInnerHTML={{ __html: preview.replace(/ width="[^"]*" height="[^"]*"/, ' width="100%" height="100%"') }} />}
@@ -187,12 +189,12 @@ export function DrawingDialog() {
           </div>
         </div>
         <div className="row end">
-          <button onClick={close}>Close</button>
+          <button onClick={close}>{t('Close')}</button>
           <button disabled={!prepared} onClick={saveSvg} data-testid="drawing-svg">
-            Save SVG
+            {t('Save SVG')}
           </button>
           <button disabled={!prepared || busy} onClick={() => void savePng()} data-testid="drawing-png">
-            Save picture
+            {t('Save picture')}
           </button>
           <button
             className="primary"
@@ -203,7 +205,7 @@ export function DrawingDialog() {
             }}
             data-testid="drawing-print"
           >
-            Print…
+            {t('Print…')}
           </button>
         </div>
       </div>

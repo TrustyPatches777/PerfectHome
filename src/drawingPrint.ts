@@ -5,6 +5,7 @@
 import type { Design } from './model';
 import { PAPERS, SCALES, MARGIN_MM, TITLE_MM, esc, mm, pageCss, paperSize, titleBlock, type DrawingOptions } from './printLayout';
 import { prepareDrawing, renderDrawing, type DrawingSpec, type Prepared, type Side } from './section';
+import { localeOf } from './i18n';
 
 const SIDES = new Set(['N', 'E', 'S', 'W']);
 
@@ -47,7 +48,7 @@ export function buildDrawingLayout(d: Design, spec: DrawingSpec, opts: Pick<Draw
   const r = renderDrawing(p, scale);
   const widthMm = (r.width * 1000) / scale;
   const heightMm = (r.height * 1000) / scale;
-  const date = now.toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
+  const date = now.toLocaleDateString(localeOf(), { year: 'numeric', month: 'long', day: 'numeric' });
   const html = `<!doctype html>
 <html><head><meta charset="utf-8"><title>${esc(d.name)}</title>
 <style>

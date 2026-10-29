@@ -11,13 +11,17 @@ import { SIZES_OF, addRoofFromWalls, addRoofWings } from '../roofActions';
 import { SKYLIGHT_KINDS } from '../model';
 
 const SKYLIGHT_KIND_LABEL = { window: 'Skylight', solar: 'Solar panels', dormer: 'Dormer' } as const;
+localize(SKYLIGHT_KIND_LABEL, '*');
 import { PATH_SURFACES, STRIP_STYLES, ZONE_STYLES } from '../outdoor';
 import { GATE_KINDS, PATH_SURFACE_KINDS, type PathSurface } from '../model';
 
 const STAIR_SHORT = { straight: 'Straight', landing: 'Landing', l: 'L', winder: 'Winder', u: 'U', spiral: 'Spiral', ladder: 'Ladder' } as const;
+localize(STAIR_SHORT, '*');
 const GATE_LABEL = { single: 'Single', double: 'Double', sliding: 'Sliding' } as const;
+localize(GATE_LABEL, '*');
 import { WINDOW_KINDS, WINDOW_SPEC, type WindowKind } from '../windows';
 import { NumberField } from './fields';
+import { t, localize } from '../i18n';
 
 const DOOR_KINDS: { kind: Exclude<OpeningKind, WindowKind>; label: string }[] = [
   { kind: 'door', label: 'Interior' },
@@ -29,6 +33,7 @@ const DOOR_KINDS: { kind: Exclude<OpeningKind, WindowKind>; label: string }[] = 
   { kind: 'garage', label: 'Garage' },
   { kind: 'gap', label: 'Open passage' },
 ];
+localize(DOOR_KINDS, ['label']);
 
 /** Small options strip floating at the top of the canvas for the active tool. */
 export function ToolOptions() {
@@ -63,30 +68,30 @@ export function ToolOptions() {
   if (tool === 'wall') {
     body = (
       <>
-        <div className="segmented" role="group" aria-label="Wall mode">
-          <button className={wallMode === 'line' ? 'active' : ''} onClick={() => useUi.getState().setWallMode('line')} title="Click each corner" data-testid="wall-mode-line">
-            Single
+        <div className="segmented" role="group" aria-label={t('Wall mode')}>
+          <button className={wallMode === 'line' ? 'active' : ''} onClick={() => useUi.getState().setWallMode('line')} title={t('Click each corner')} data-testid="wall-mode-line">
+            {t('Single')}
           </button>
-          <button className={wallMode === 'rect' ? 'active' : ''} onClick={() => useUi.getState().setWallMode('rect')} title="Drag from one corner to the opposite one: four walls at once" data-testid="wall-mode-rect">
-            Rectangle
+          <button className={wallMode === 'rect' ? 'active' : ''} onClick={() => useUi.getState().setWallMode('rect')} title={t('Drag from one corner to the opposite one: four walls at once')} data-testid="wall-mode-rect">
+            {t('Rectangle')}
           </button>
-          <button className={wallMode === 'winter' ? 'active' : ''} onClick={() => useUi.getState().setWallMode('winter')} title="A winter garden: drag a rectangle and get glass walls, a tiled floor, a French door and a glass roof" data-testid="wall-mode-winter">
-            Winter garden
+          <button className={wallMode === 'winter' ? 'active' : ''} onClick={() => useUi.getState().setWallMode('winter')} title={t('A winter garden: drag a rectangle and get glass walls, a tiled floor, a French door and a glass roof')} data-testid="wall-mode-winter">
+            {t('Winter garden')}
           </button>
         </div>
         {wallMode === 'rect' && (
-          <label className="check" title="Also create the room inside the walls">
+          <label className="check" title={t('Also create the room inside the walls')}>
             <input type="checkbox" checked={wallRoom} onChange={(e) => useUi.getState().setWallRoom(e.target.checked)} data-testid="wall-rect-room" />
-            with room
+            {t('with room')}
           </label>
         )}
         {wallMode === 'line' && (
-          <label className="check" title="Keep every wall at a right angle to the last (the same as holding Ctrl or Cmd while you click; Shift keeps to 45°)">
+          <label className="check" title={t('Keep every wall at a right angle to the last (the same as holding Ctrl or Cmd while you click; Shift keeps to 45°)')}>
             <input type="checkbox" checked={wallOrtho} onChange={(e) => useUi.getState().setWallOrtho(e.target.checked)} data-testid="wall-ortho" />
             90°
           </label>
         )}
-        <div className="segmented" role="group" aria-label="Wall type">
+        <div className="segmented" role="group" aria-label={t('Wall type')}>
           {WALL_TYPES.map((t) => (
             <button
               key={t}
@@ -103,7 +108,7 @@ export function ToolOptions() {
           ))}
         </div>
         <NumberField
-          label="Wall thickness"
+          label={t('Wall thickness')}
           value={thickness}
           scale={100}
           unit="cm"
@@ -119,7 +124,7 @@ export function ToolOptions() {
     body = (
       <>
         {tool === 'door' && (
-          <div className="segmented" role="group" aria-label="Door type">
+          <div className="segmented" role="group" aria-label={t('Door type')}>
             {DOOR_KINDS.map((k) => (
               <button key={k.kind} className={doorKind === k.kind ? 'active' : ''} onClick={() => useUi.getState().setDoorKind(k.kind)} data-testid={`door-kind-${k.kind}`}>
                 {k.label}
@@ -128,7 +133,7 @@ export function ToolOptions() {
           </div>
         )}
         {tool === 'window' && (
-          <div className="segmented" role="group" aria-label="Window type">
+          <div className="segmented" role="group" aria-label={t('Window type')}>
             {WINDOW_KINDS.map((k) => (
               <button key={k} className={windowKind === k ? 'active' : ''} title={WINDOW_SPEC[k].hint} onClick={() => useUi.getState().setWindowKind(k)} data-testid={`window-kind-${k}`}>
                 {WINDOW_SPEC[k].short}
@@ -137,7 +142,7 @@ export function ToolOptions() {
           </div>
         )}
         <NumberField
-          label="Width"
+          label={t('Width')}
           value={width[kind]}
           scale={100}
           unit="cm"
@@ -151,15 +156,15 @@ export function ToolOptions() {
   } else if (tool === 'room') {
     body = (
       <>
-        <div className="segmented" role="group" aria-label="Room mode">
+        <div className="segmented" role="group" aria-label={t('Room mode')}>
           <button className={roomMode === 'auto' ? 'active' : ''} onClick={() => useUi.getState().setRoomMode('auto')} data-testid="room-auto">
-            Click inside walls
+            {t('Click inside walls')}
           </button>
-          <button className={roomMode === 'box' ? 'active' : ''} onClick={() => useUi.getState().setRoomMode('box')} title="Drag a box: a room without walls" data-testid="room-box">
-            Drag a box
+          <button className={roomMode === 'box' ? 'active' : ''} onClick={() => useUi.getState().setRoomMode('box')} title={t('Drag a box: a room without walls')} data-testid="room-box">
+            {t('Drag a box')}
           </button>
           <button className={roomMode === 'draw' ? 'active' : ''} onClick={() => useUi.getState().setRoomMode('draw')} data-testid="room-draw">
-            Draw corners
+            {t('Draw corners')}
           </button>
         </div>
       </>
@@ -167,30 +172,30 @@ export function ToolOptions() {
   }
   else if (tool === 'stairs') {
     body = (
-      <div className="segmented" role="group" aria-label="Stair type">
+      <div className="segmented" role="group" aria-label={t('Stair type')}>
         {STAIR_KINDS.map((k) => (
           <button key={k} className={!stairEntrance && stairKind === k ? 'active' : ''} onClick={() => { useUi.getState().setStairEntrance(false); useUi.getState().setStairKind(k); }} data-testid={`stair-kind-${k}`}>
             {STAIR_SHORT[k]}
           </button>
         ))}
-        <button className={stairEntrance ? 'active' : ''} onClick={() => useUi.getState().setStairEntrance(true)} title="Three steps up to a door: they do not go up to the next floor" data-testid="stair-kind-entrance">
-          Entrance steps
+        <button className={stairEntrance ? 'active' : ''} onClick={() => useUi.getState().setStairEntrance(true)} title={t('Three steps up to a door: they do not go up to the next floor')} data-testid="stair-kind-entrance">
+          {t('Entrance steps')}
         </button>
       </div>
     );
   } else if (tool === 'skylight') {
     body = (
       <>
-        <div className="segmented" role="group" aria-label="What to put on the roof">
+        <div className="segmented" role="group" aria-label={t('What to put on the roof')}>
           {SKYLIGHT_KINDS.map((k) => (
             <button key={k} className={skylightKind === k ? 'active' : ''} onClick={() => useUi.getState().setSkylightKind(k)} data-testid={`skylight-kind-${k}`}>
               {SKYLIGHT_KIND_LABEL[k]}
             </button>
           ))}
         </div>
-        <div className="segmented" role="group" aria-label="Size">
+        <div className="segmented" role="group" aria-label={t('Size')}>
           {SIZES_OF[skylightKind].map((s, i) => (
-            <button key={s.label} className={skylightSize === i ? 'active' : ''} onClick={() => useUi.getState().setSkylightSize(i)} title={`${Math.round(s.w * 100)} × ${Math.round(s.d * 100)} cm`} data-testid={`skylight-size-${i}`}>
+            <button key={s.label} className={skylightSize === i ? 'active' : ''} onClick={() => useUi.getState().setSkylightSize(i)} title={t('{value} × {value2} cm', { value: Math.round(s.w * 100), value2: Math.round(s.d * 100) })} data-testid={`skylight-size-${i}`}>
               {s.label}
             </button>
           ))}
@@ -200,18 +205,18 @@ export function ToolOptions() {
   } else if (tool === 'paint') {
     body = (
       <>
-        <select value={paintFinish} aria-label="Covering" data-testid="paint-finish" onChange={(e) => useUi.getState().setPaint(e.target.value as WallFinish | 'clear', FINISH_STYLES[e.target.value as WallFinish]?.color)}>
+        <select value={paintFinish} aria-label={t('Covering')} data-testid="paint-finish" onChange={(e) => useUi.getState().setPaint(e.target.value as WallFinish | 'clear', FINISH_STYLES[e.target.value as WallFinish]?.color)}>
           {WALL_FINISHES.map((f) => (
             <option key={f} value={f}>
               {FINISH_STYLES[f].label}
             </option>
           ))}
-          <option value="clear">Remove covering</option>
+          <option value="clear">{t('Remove covering')}</option>
         </select>
         {paintFinish !== 'clear' && (
-          <div className="swatches" role="group" aria-label="Color">
+          <div className="swatches" role="group" aria-label={t('Color')}>
             {PAINT_COLORS.map((c) => (
-              <button key={c} className={`swatch ${c === paintColor ? 'on' : ''}`} style={{ background: c }} aria-label={`Color ${c}`} data-testid={`paint-color-${c}`} onClick={() => useUi.getState().setPaint(paintFinish, c)} />
+              <button key={c} className={`swatch ${c === paintColor ? 'on' : ''}`} style={{ background: c }} aria-label={t('Color {c}', { c })} data-testid={`paint-color-${c}`} onClick={() => useUi.getState().setPaint(paintFinish, c)} />
             ))}
           </div>
         )}
@@ -220,22 +225,22 @@ export function ToolOptions() {
   } else if (tool === 'roof') {
     body = (
       <>
-        <select value={roofKind} aria-label="Roof type" data-testid="roof-tool-kind" onChange={(e) => useUi.getState().setRoofKind(e.target.value as RoofKind)}>
+        <select value={roofKind} aria-label={t('Roof type')} data-testid="roof-tool-kind" onChange={(e) => useUi.getState().setRoofKind(e.target.value as RoofKind)}>
           {ROOF_KINDS.map((k) => (
             <option key={k} value={k} title={ROOF_STYLES[k].hint}>
               {ROOF_STYLES[k].label}
             </option>
           ))}
         </select>
-        <label className="check" title="Make new roofs of glass, with glazing bars (a winter garden or a conservatory)">
+        <label className="check" title={t('Make new roofs of glass, with glazing bars (a winter garden or a conservatory)')}>
           <input type="checkbox" checked={roofGlass} onChange={(e) => useUi.getState().setRoofGlass(e.target.checked)} data-testid="roof-glass" />
-          glass
+          {t('glass')}
         </label>
-        <button onClick={() => addRoofFromWalls(roofKind)} title="A roof that covers the walls of this floor" data-testid="roof-fit-walls">
-          Fit to walls
+        <button onClick={() => addRoofFromWalls(roofKind)} title={t('A roof that covers the walls of this floor')} data-testid="roof-fit-walls">
+          {t('Fit to walls')}
         </button>
-        <button onClick={() => addRoofWings(roofKind)} title="One roof for each wing of an L, T or U shaped house, meeting in valleys" data-testid="roof-wings">
-          Roof each wing
+        <button onClick={() => addRoofWings(roofKind)} title={t('One roof for each wing of an L, T or U shaped house, meeting in valleys')} data-testid="roof-wings">
+          {t('Roof each wing')}
         </button>
       </>
     );
@@ -243,12 +248,12 @@ export function ToolOptions() {
     body = (
       <>
         <strong>{ZONE_STYLES[zoneKind].label}</strong>
-        <div className="segmented" role="group" aria-label="Area shape">
+        <div className="segmented" role="group" aria-label={t('Area shape')}>
           <button className={zoneShape === 'rect' ? 'active' : ''} onClick={() => useUi.getState().setZoneShape('rect')} data-testid="zone-rect">
-            Rectangle
+            {t('Rectangle')}
           </button>
           <button className={zoneShape === 'poly' ? 'active' : ''} onClick={() => useUi.getState().setZoneShape('poly')} data-testid="zone-poly">
-            Polygon
+            {t('Polygon')}
           </button>
         </div>
       </>
@@ -256,14 +261,14 @@ export function ToolOptions() {
   } else if (tool === 'gate') {
     body = (
       <>
-        <div className="segmented" role="group" aria-label="Gate type">
+        <div className="segmented" role="group" aria-label={t('Gate type')}>
           {GATE_KINDS.map((k) => (
             <button key={k} className={gateKind === k ? 'active' : ''} onClick={() => useUi.getState().setGateKind(k)} data-testid={`gate-kind-${k}`}>
               {GATE_LABEL[k]}
             </button>
           ))}
         </div>
-        <NumberField label="Width" value={gateWidth} scale={100} unit="cm" min={50} max={800} testId="opt-gate-width" onCommit={(v) => useUi.getState().setGateWidth(v)} />
+        <NumberField label={t('Width')} value={gateWidth} scale={100} unit="cm" min={50} max={800} testId="opt-gate-width" onCommit={(v) => useUi.getState().setGateWidth(v)} />
       </>
     );
   } else if (tool === 'strip') {
@@ -271,7 +276,7 @@ export function ToolOptions() {
       <>
         <strong>{STRIP_STYLES[stripKind].label}</strong>
         {stripKind === 'path' && (
-          <select value={pathSurface} aria-label="What the path is made of" data-testid="opt-path-surface" onChange={(e) => useUi.getState().setPathSurface(e.target.value as PathSurface)}>
+          <select value={pathSurface} aria-label={t('What the path is made of')} data-testid="opt-path-surface" onChange={(e) => useUi.getState().setPathSurface(e.target.value as PathSurface)}>
             {PATH_SURFACE_KINDS.map((k) => (
               <option key={k} value={k}>
                 {PATH_SURFACES[k].label}
@@ -280,7 +285,7 @@ export function ToolOptions() {
           </select>
         )}
         <NumberField
-          label="Width"
+          label={t('Width')}
           value={stripWidth[stripKind]}
           scale={100}
           unit="cm"
@@ -294,7 +299,7 @@ export function ToolOptions() {
   } else if (tool === 'furniture' && placing) {
     body = (
       <span className="muted">
-        Placing <strong>{catalogItem(placing).label}</strong> · click to drop · R rotates · Shift+click for several · Esc to stop
+        {t('Placing ')} <strong>{catalogItem(placing).label}</strong> {t(' · click to drop · R rotates · Shift+click for several · Esc to stop')}
       </span>
     );
   }

@@ -3,6 +3,7 @@
  * would make a shared link far too long. Where it lies on the plan (`Floor.trace`) travels with the design, the pixels do not.
  */
 import type { Point } from './model';
+import { t } from './i18n';
 
 const key = (designId: string, floorId: string) => `perfect-home:trace:${designId}:${floorId}`;
 
@@ -35,17 +36,17 @@ export function removeTraceImage(designId: string, floorId: string) {
 export function pictureToDataUrl(file: File, maxPx = 1800): Promise<{ url: string; width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Could not read that file.'));
+    reader.onerror = () => reject(new Error(t('Could not read that file.')));
     reader.onload = () => {
       const img = new Image();
-      img.onerror = () => reject(new Error('That does not look like a picture (use a PNG or JPEG).'));
+      img.onerror = () => reject(new Error(t('That does not look like a picture (use a PNG or JPEG).')));
       img.onload = () => {
         const k = Math.min(1, maxPx / Math.max(img.width, img.height));
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(img.width * k));
         canvas.height = Math.max(1, Math.round(img.height * k));
         const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error('Could not process the picture.'));
+        if (!ctx) return reject(new Error(t('Could not process the picture.')));
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);

@@ -1,6 +1,7 @@
 import { STRIP_KINDS, ZONE_KINDS, type StripKind, type ZoneKind } from '../model';
 import { STRIP_STYLES, ZONE_STYLES } from '../outdoor';
 import { useUi } from '../store/ui';
+import { t } from '../i18n';
 
 /** Pick what to draw outside: ground areas (drawn as rectangles or polygons) and lines (street, path, fence, hedge). */
 export function OutdoorPalette() {
@@ -21,7 +22,7 @@ export function OutdoorPalette() {
 
   return (
     <div className="palette" data-testid="outdoor-palette">
-      <h5>Areas</h5>
+      <h5>{t('Areas')}</h5>
       <div className="tiles">
         {ZONE_KINDS.map((k) => (
           <button key={k} className={`tile ${tool === 'zone' && zoneKind === k ? 'active' : ''}`} onClick={() => pickZone(k)} data-testid={`zone-${k}`} title={ZONE_STYLES[k].label}>
@@ -34,7 +35,7 @@ export function OutdoorPalette() {
           </button>
         ))}
       </div>
-      <h5>Lines</h5>
+      <h5>{t('Lines')}</h5>
       <div className="tiles">
         {STRIP_KINDS.map((k) => (
           <button key={k} className={`tile ${tool === 'strip' && stripKind === k ? 'active' : ''}`} onClick={() => pickStrip(k)} data-testid={`strip-${k}`} title={STRIP_STYLES[k].label}>
@@ -48,7 +49,7 @@ export function OutdoorPalette() {
           </button>
         ))}
       </div>
-      <button className={`tile gate-tile ${tool === 'gate' ? 'active' : ''}`} onClick={() => useUi.getState().setTool('gate')} data-testid="tool-gate" title="Put a gate in a fence or hedge">
+      <button className={`tile gate-tile ${tool === 'gate' ? 'active' : ''}`} onClick={() => useUi.getState().setTool('gate')} data-testid="tool-gate" title={t('Put a gate in a fence or hedge')}>
         <span className="tile-icon">
           <svg width="44" height="30" viewBox="0 0 44 30" aria-hidden>
             <path d="M2 24 H12 M32 24 H42" stroke={STRIP_STYLES.fence.color} strokeWidth="2.5" />
@@ -58,9 +59,9 @@ export function OutdoorPalette() {
             <path d="M14 24 H30" stroke="#1f2937" strokeWidth="2" />
           </svg>
         </span>
-        <span className="tile-label">Fence gate</span>
+        <span className="tile-label">{t('Fence gate')}</span>
       </button>
-      <p className="muted">Draw on the floor you are viewing, usually the ground floor. Cars, trees and garden furniture are in the Furniture tab.</p>
+      <p className="muted">{t('Draw on the floor you are viewing, usually the ground floor. Cars, trees and garden furniture are in the Furniture tab.')}</p>
     </div>
   );
 }

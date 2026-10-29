@@ -1,5 +1,6 @@
 /** Look and defaults of the outdoor features: ground areas (zones) and line features (strips). */
 import type { Gate, PathSurface, Point, Strip, StripKind, Wall, Zone, ZoneKind } from './model';
+import { localize } from './i18n';
 
 export const ZONE_STYLES: Record<ZoneKind, { label: string; color: string; swatches: string[] }> = {
   lawn: { label: 'Lawn', color: '#cfe8c4', swatches: ['#cfe8c4', '#b9dba8', '#e0efc8', '#a8cf9a'] },
@@ -13,6 +14,7 @@ export const ZONE_STYLES: Record<ZoneKind, { label: string; color: string; swatc
   terrain: { label: 'Terrain (ground level / slope)', color: '#c8b99a', swatches: ['#c8b99a', '#b7c79a', '#d6c9a8', '#a8b58a'] },
   lightwell: { label: 'Light well', color: '#b8bcc4', swatches: ['#b8bcc4', '#a3a9b3', '#cfd2d8'] },
 };
+localize(ZONE_STYLES, ['label']);
 
 export const STRIP_STYLES: Record<StripKind, { label: string; color: string }> = {
   road: { label: 'Street', color: '#a3a9b3' },
@@ -20,6 +22,7 @@ export const STRIP_STYLES: Record<StripKind, { label: string; color: string }> =
   fence: { label: 'Fence', color: '#7a6650' },
   hedge: { label: 'Hedge', color: '#6aa96a' },
 };
+localize(STRIP_STYLES, ['label']);
 
 /**
  * Draw order of outdoor areas: the plot boundary is the ground of everything else, so it goes first (at the back), then the lawns (one lawn can
@@ -65,6 +68,7 @@ export const PATH_SURFACES: Record<PathSurface, { label: string; color: string }
   brick: { label: 'Brick', color: '#b9775a' },
   boards: { label: 'Wooden boards', color: '#b58b5e' },
 };
+localize(PATH_SURFACES, ['label']);
 
 /** The color a strip is drawn with: its own look for a path with a surface, else the style of its kind. */
 export const stripColor = (s: Pick<Strip, 'kind' | 'surface'>): string => (s.kind === 'path' ? PATH_SURFACES[s.surface ?? 'plain'].color : STRIP_STYLES[s.kind].color);

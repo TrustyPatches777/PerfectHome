@@ -3,6 +3,7 @@ import { deleteTemplate, loadTemplates, placeTemplate } from '../actions';
 import { CATEGORIES, allCatalog, fillColor, type CatalogItem } from '../catalog';
 import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
+import { t } from '../i18n';
 
 /** SVG thumbnail of a catalog item, drawn from the same shapes the canvas uses. */
 export function SymbolIcon({ item, size = 44 }: { item: CatalogItem; size?: number }) {
@@ -47,21 +48,21 @@ export function FurniturePalette() {
   return (
     <div className="palette" data-testid="palette">
       <div className="row">
-        <input type="text" placeholder="Search…" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search furniture" style={{ flex: 1, minWidth: 0 }} />
-        <button onClick={() => useUi.getState().setDialog({ type: 'custom-item', editId: null })} title="Create your own piece of furniture" data-testid="new-custom">
-          + New
+        <input type="text" placeholder={t('Search…')} value={query} onChange={(e) => setQuery(e.target.value)} aria-label={t('Search furniture')} style={{ flex: 1, minWidth: 0 }} />
+        <button onClick={() => useUi.getState().setDialog({ type: 'custom-item', editId: null })} title={t('Create your own piece of furniture')} data-testid="new-custom">
+          {t('+ New')}
         </button>
       </div>
       {templates.length > 0 && !q && (
         <section data-testid="templates">
-          <h5>Templates</h5>
+          <h5>{t('Templates')}</h5>
           <div className="templates">
-            {templates.map((t) => (
-              <span className="template" key={t.id}>
-                <button onClick={() => placeTemplate(t.id)} title="Place this arrangement (click, it appears at the cursor)" data-testid="template-place">
-                  {t.name}
+            {templates.map((tpl) => (
+              <span className="template" key={tpl.id}>
+                <button onClick={() => placeTemplate(tpl.id)} title={t('Place this arrangement (click, it appears at the cursor)')} data-testid="template-place">
+                  {tpl.name}
                 </button>
-                <button className="x" onClick={() => deleteTemplate(t.id)} aria-label={`Delete the template ${t.name}`} title="Delete this template">
+                <button className="x" onClick={() => deleteTemplate(tpl.id)} aria-label={t('Delete the template {name}', { name: tpl.name })} title={t('Delete this template')}>
                   ✕
                 </button>
               </span>
@@ -80,7 +81,7 @@ export function FurniturePalette() {
               data-testid={`cat-${cat}`}
               onClick={() => setOpen((o) => (o.has(cat) ? new Set([...o].filter((c) => c !== cat)) : new Set([...o, cat])))}
             >
-              <span>{q || open.has(cat) ? '▾' : '▸'}</span> {cat} <em>{items.length}</em>
+              <span>{q || open.has(cat) ? '▾' : '▸'}</span> {t(cat)} <em>{items.length}</em>
             </button>
             {(q || open.has(cat)) && <div className="tiles">
               {items.map((c) => (
@@ -88,7 +89,7 @@ export function FurniturePalette() {
                   key={c.type}
                   className={`tile ${tool === 'furniture' && placing === c.type ? 'active' : ''}`}
                   onClick={() => pick(c.type)}
-                  title={`${c.label} · ${Math.round(c.w * 100)} × ${Math.round(c.d * 100)} cm`}
+                  title={t('{label} · {value} × {value2} cm', { label: c.label, value: Math.round(c.w * 100), value2: Math.round(c.d * 100) })}
                   data-testid={`furn-${c.type}`}
                 >
                   <span className="tile-icon">
@@ -99,8 +100,8 @@ export function FurniturePalette() {
                     <span
                       className="tile-edit"
                       role="button"
-                      aria-label={`Edit ${c.label}`}
-                      title="Edit this item"
+                      aria-label={t('Edit {label}', { label: c.label })}
+                      title={t('Edit this item')}
                       data-testid={`edit-${c.type}`}
                       onClick={(e) => {
                         e.stopPropagation();

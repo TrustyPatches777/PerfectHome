@@ -7,6 +7,7 @@
  * as its plain base color.
  */
 import type { WallFinish } from './model';
+import { localize } from './i18n';
 
 export interface PaintSpec {
   base: string;
@@ -47,9 +48,11 @@ export const WALL_PATTERNS: Partial<Record<WallFinish, { id: string; label: stri
     { id: 'diagonal', label: 'Diagonal' },
   ],
 };
+localize(WALL_PATTERNS, ['label']);
 
 /** Finishes that have a second color, and what to call it. */
 export const SECOND_COLOR_LABEL: Partial<Record<string, string>> = { tiles: 'Grout', marble: 'Grout between slabs', wallpaper: 'Pattern color', brick: 'Mortar', stone: 'Joints' };
+localize(SECOND_COLOR_LABEL, '*');
 
 // ---- uploaded pictures --------------------------------------------------------------------------------------------------------------------
 

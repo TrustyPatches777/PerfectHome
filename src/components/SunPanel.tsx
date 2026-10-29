@@ -4,8 +4,11 @@ import { useDesign } from '../store/design';
 import { useUi } from '../store/ui';
 import { compassPoint, darkness, formatHour, sunPosition, sunTimes } from '../sun';
 import { NumberField } from './fields';
+import { t, localeOf } from '../i18n';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** The name of a month in the language of the interface. */
+const monthName = (i: number) => new Date(2000, i, 1).toLocaleString(localeOf() ?? 'en-US', { month: 'long' });
 const DAYS_IN = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 /** Sun, shadows and the day/night cycle: a time slider with a play button, the date, the latitude and where north is. */
@@ -36,19 +39,19 @@ export function SunPanel() {
   }, [playing]);
 
   const setTime = (h: number) => useUi.getState().setTimeOfDay(h);
-  const phase = sun.elevation > 6 ? `Sun ${Math.round(sun.elevation)}° high, from ${compassPoint(sun.azimuth)}` : sun.elevation > -6 ? (hour < 12 ? 'Sunrise' : 'Sunset') : dark > 0.9 ? 'Night' : 'Dusk';
+  const phase = sun.elevation > 6 ? t('Sun {value}° high, from {value2}', { value: Math.round(sun.elevation), value2: compassPoint(sun.azimuth) }) : sun.elevation > -6 ? (hour < 12 ? t('Sunrise') : t('Sunset')) : dark > 0.9 ? t('Night') : t('Dusk');
 
   return (
     <div className="panel" data-testid="sun-panel">
-      <h3>Sun &amp; light</h3>
+      <h3>{t('Sun & light')}</h3>
       <label className="check">
         <input type="checkbox" checked={on} onChange={(e) => setLayerFlag('shadows', 'visible', e.target.checked)} data-testid="sun-toggle" />
-        Show sun, shadows and evening light
+        {t('Show sun, shadows and evening light')}
       </label>
       {on && (
         <>
           <div className="time-row">
-            <button onClick={() => useUi.getState().setSunPlaying(!playing)} title={playing ? 'Pause' : 'Play a whole day'} aria-label={playing ? 'Pause' : 'Play'} data-testid="sun-play">
+            <button onClick={() => useUi.getState().setSunPlaying(!playing)} title={playing ? t('Pause') : t('Play a whole day')} aria-label={playing ? t('Pause') : t('Play')} data-testid="sun-play">
               {playing ? '❚❚' : '▶'}
             </button>
             <strong className="time" data-testid="sun-time">
@@ -69,46 +72,46 @@ export function SunPanel() {
               useUi.getState().setSunPlaying(false);
               setTime(Number(e.target.value));
             }}
-            aria-label="Time of day"
+            aria-label={t('Time of day')}
             data-testid="sun-slider"
           />
           <div className="row">
             <button onClick={() => setTime(typeof times === 'string' ? 12 : times.sunrise + 0.25)} data-testid="sun-sunrise">
-              Sunrise
+              {t('Sunrise')}
             </button>
-            <button onClick={() => setTime(12)}>Noon</button>
-            <button onClick={() => setTime(typeof times === 'string' ? 12 : times.sunset - 0.25)}>Sunset</button>
-            <button onClick={() => setTime(23)}>Night</button>
+            <button onClick={() => setTime(12)}>{t('Noon')}</button>
+            <button onClick={() => setTime(typeof times === 'string' ? 12 : times.sunset - 0.25)}>{t('Sunset')}</button>
+            <button onClick={() => setTime(23)}>{t('Night')}</button>
           </div>
-          <p className="muted">{typeof times === 'string' ? (times === 'polar-day' ? 'The sun does not set on this date here.' : 'The sun does not rise on this date here.') : `Sunrise ${formatHour(times.sunrise)} · sunset ${formatHour(times.sunset)}`}</p>
+          <p className="muted">{typeof times === 'string' ? times === 'polar-day' ? t('The sun does not set on this date here.') : t('The sun does not rise on this date here.') : t('Sunrise {hour} · sunset {hour2}', { hour: formatHour(times.sunrise), hour2: formatHour(times.sunset) })}</p>
 
           <div className="row two">
             <label className="field">
-              <span>Month</span>
+              <span>{t('Month')}</span>
               <select value={site.month} data-testid="sun-month" onChange={(e) => edit((s) => void ((s.month = Number(e.target.value)), (s.day = Math.min(s.day, DAYS_IN[s.month - 1]))))}>
                 {MONTHS.map((m, i) => (
                   <option key={m} value={i + 1}>
-                    {m}
+                    {monthName(i)}
                   </option>
                 ))}
               </select>
             </label>
-            <NumberField label="Day" value={site.day} min={1} max={DAYS_IN[site.month - 1]} testId="sun-day" onCommit={(v) => edit((s) => void (s.day = Math.round(v)))} />
+            <NumberField label={t('Day')} value={site.day} min={1} max={DAYS_IN[site.month - 1]} testId="sun-day" onCommit={(v) => edit((s) => void (s.day = Math.round(v)))} />
           </div>
           <div className="row">
             <button onClick={() => edit((s) => void ((s.month = 6), (s.day = 21)))} data-testid="sun-summer">
-              Summer
+              {t('Summer')}
             </button>
-            <button onClick={() => edit((s) => void ((s.month = 3), (s.day = 21)))}>Spring / autumn</button>
+            <button onClick={() => edit((s) => void ((s.month = 3), (s.day = 21)))}>{t('Spring / autumn')}</button>
             <button onClick={() => edit((s) => void ((s.month = 12), (s.day = 21)))} data-testid="sun-winter">
-              Winter
+              {t('Winter')}
             </button>
           </div>
           <div className="row two">
-            <NumberField label="Latitude" value={site.lat} unit="°N" min={-66} max={66} testId="sun-lat" onCommit={(v) => edit((s) => void (s.lat = v))} />
-            <NumberField label="North is at" value={site.north} unit="°" min={0} max={359} testId="sun-north" onCommit={(v) => edit((s) => void (s.north = v))} />
+            <NumberField label={t('Latitude')} value={site.lat} unit="°N" min={-66} max={66} testId="sun-lat" onCommit={(v) => edit((s) => void (s.lat = v))} />
+            <NumberField label={t('North is at')} value={site.north} unit="°" min={0} max={359} testId="sun-north" onCommit={(v) => edit((s) => void (s.north = v))} />
           </div>
-          <p className="muted">Latitude: Berlin 52.5, London 51.5, Rome 42, Madrid 40. “North is at” turns the compass (0 = up the screen). Lamps glow in the evening.</p>
+          <p className="muted">{t('Latitude: Berlin 52.5, London 51.5, Rome 42, Madrid 40. “North is at” turns the compass (0 = up the screen). Lamps glow in the evening.')}</p>
         </>
       )}
     </div>

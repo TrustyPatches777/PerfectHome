@@ -17,6 +17,7 @@ import { useLive, type Peer } from '../store/live';
 import { useUi } from '../store/ui';
 import { LOCAL, SEED, designTypes, hasDesign, readDesign, writeChange } from './crdt';
 import { connect, type Transport } from './transport';
+import { t } from '../i18n';
 
 const toast = (m: string) => useUi.getState().showToast(m);
 
@@ -127,7 +128,7 @@ export async function startLive(): Promise<string | null> {
 export async function joinLive(id: string): Promise<void> {
   if (active) {
     if (active.id === id) return;
-    return toast('You are already in a live session. Leave it first (Live button).');
+    return toast(t('You are already in a live session. Leave it first (Live button).'));
   }
   const o = await openRoom(id);
   const current = useDesign.getState().design;
@@ -135,8 +136,8 @@ export async function joinLive(id: string): Promise<void> {
 
   useUi.getState().setDialog({
     type: 'confirm',
-    title: 'Join the live session?',
-    message: `You will work on the shared design together. Your own design “${current.name}” is kept under File → Restore previous design.`,
+    title: t('Join the live session?'),
+    message: t('You will work on the shared design together. Your own design “{name}” is kept under File → Restore previous design.', { name: current.name }),
     confirmLabel: 'Join',
     onConfirm: () => attach(o),
   });
@@ -256,7 +257,7 @@ export function leaveLive() {
   useDesign.setState({ past: [], future: [], liveUndo: 0, liveRedo: 0, txBase: null });
   useLive.setState({ active: false, id: null, synced: false, peers: [] });
   if (parseLiveHash(location.hash)) history.replaceState(null, '', location.pathname + location.search);
-  toast('You left the live session. You keep your own copy of the design.');
+  toast(t('You left the live session. You keep your own copy of the design.'));
 }
 
 /** After something else touched the address bar, put the session link back so a reload rejoins. */

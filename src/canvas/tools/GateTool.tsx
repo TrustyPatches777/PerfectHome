@@ -9,6 +9,7 @@ import { floorId } from '../../store/floor';
 import { useUi } from '../../store/ui';
 import { isPrimary, snapScalar, useStageEvents } from '../input';
 import { GateShape } from '../layers/OutdoorLayer';
+import { t } from '../../i18n';
 
 interface Hover {
   strip: Strip;
@@ -46,7 +47,7 @@ export function GateTool() {
       const h = locate(world);
       if (!h || layerBlocksEditing('strip')) return;
       if (h.blocked) {
-        useUi.getState().showToast('There is already a gate there.');
+        useUi.getState().showToast(t('There is already a gate there.'));
         return;
       }
       const id = newId();

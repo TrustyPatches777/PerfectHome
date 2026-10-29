@@ -1,6 +1,7 @@
 import { setLayerFlag } from '../actions';
 import { LAYER_IDS, LAYER_LABELS } from '../model';
 import { useDesign } from '../store/design';
+import { t } from '../i18n';
 
 const Eye = ({ off }: { off: boolean }) => (
   <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -22,7 +23,7 @@ export function LayersPanel() {
   const layers = useDesign((s) => s.design.layers);
   return (
     <div className="panel" data-testid="layers">
-      <h3>Layers</h3>
+      <h3>{t('Layers')}</h3>
       <ul className="layers">
         {LAYER_IDS.map((id) => {
           const l = layers[id];
@@ -32,8 +33,8 @@ export function LayersPanel() {
               <button
                 className={`icon ${l.visible ? '' : 'active'}`}
                 onClick={() => setLayerFlag(id, 'visible', !l.visible)}
-                title={l.visible ? 'Hide' : 'Show'}
-                aria-label={`${l.visible ? 'Hide' : 'Show'} ${LAYER_LABELS[id]}`}
+                title={l.visible ? t('Hide') : t('Show')}
+                aria-label={l.visible ? t('Hide {layer}', { layer: LAYER_LABELS[id] }) : t('Show {layer}', { layer: LAYER_LABELS[id] })}
                 aria-pressed={!l.visible}
                 data-testid={`hide-${id}`}
               >
@@ -43,8 +44,8 @@ export function LayersPanel() {
               <button
                   className={`icon ${l.locked ? 'active' : ''}`}
                   onClick={() => setLayerFlag(id, 'locked', !l.locked)}
-                  title={l.locked ? 'Unlock' : 'Lock so it cannot be changed'}
-                  aria-label={`${l.locked ? 'Unlock' : 'Lock'} ${LAYER_LABELS[id]}`}
+                  title={l.locked ? t('Unlock') : t('Lock so it cannot be changed')}
+                  aria-label={l.locked ? t('Unlock {layer}', { layer: LAYER_LABELS[id] }) : t('Lock {layer}', { layer: LAYER_LABELS[id] })}
                   aria-pressed={l.locked}
                   data-testid={`lock-${id}`}
                 >

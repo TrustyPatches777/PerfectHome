@@ -6,6 +6,7 @@ import { useDesign } from '../store/design';
 import { useFloorId } from '../store/floor';
 import { useUi } from '../store/ui';
 import { ColorField } from './fields';
+import { t } from '../i18n';
 
 const CLADDING = WALL_FINISHES.filter((f) => f !== 'custom' && f !== 'marble' && f !== 'wallpaper');
 
@@ -21,14 +22,14 @@ export function FacadeBox() {
     useDesign.getState().update((draft) => {
       n = coverOutside(draft, all ? d.floors.map((f) => f.id) : [floor], skin);
     });
-    useUi.getState().showToast(n ? (skin ? `Covered the outside of ${n} walls.` : `Took the covering off the outside of ${n} walls.`) : 'There are no exterior walls to cover (draw walls of the type "Exterior").');
+    useUi.getState().showToast(n ? skin ? t('Covered the outside of {n} walls.', { n }) : t('Took the covering off the outside of {n} walls.', { n }) : t('There are no exterior walls to cover (draw walls of the type "Exterior").'));
   };
   return (
     <div className="facade-box" data-testid="facade-box">
-      <h4>Facade</h4>
-      <p className="muted">Cover the outside of all exterior walls with one finish.</p>
+      <h4>{t('Facade')}</h4>
+      <p className="muted">{t('Cover the outside of all exterior walls with one finish.')}</p>
       <label className="field">
-        <span>Finish</span>
+        <span>{t('Finish')}</span>
         <select
           value={finish}
           data-testid="facade-finish"
@@ -45,17 +46,17 @@ export function FacadeBox() {
           ))}
         </select>
       </label>
-      <ColorField label="Color" value={color} swatches={PAINT_COLORS} onChange={setColor} />
+      <ColorField label={t('Color')} value={color} swatches={PAINT_COLORS} onChange={setColor} />
       <label className="check">
         <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} data-testid="facade-all" />
-        All floors (not only this one)
+        {t('All floors (not only this one)')}
       </label>
       <div className="row">
         <button onClick={() => apply({ finish, color })} data-testid="facade-apply">
-          Cover the outside
+          {t('Cover the outside')}
         </button>
         <button onClick={() => apply(null)} data-testid="facade-clear">
-          Take it off
+          {t('Take it off')}
         </button>
       </div>
     </div>

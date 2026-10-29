@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useUi } from '../store/ui';
+import { t } from '../i18n';
 
 /** Switches for what is shown on the plan (rulers, guides, automatic dimensions). */
 export function ViewMenu() {
@@ -32,18 +33,18 @@ export function ViewMenu() {
   return (
     <div className="menu" ref={wrap}>
       <button onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open} data-testid="view-menu">
-        View ▾
+        {t('View ▾')}
       </button>
       {open && (
         <div className="menu-list" role="menu">
-          {item('Rulers', showRulers, () => ui.setShowRulers(!showRulers), 'view-rulers')}
-          {item('Guides', showGuides, () => ui.setShowGuides(!showGuides), 'view-guides')}
-          {item('All dimensions', showAllDims, () => ui.setShowAllDims(!showAllDims), 'view-dims')}
+          {item(t('Rulers'), showRulers, () => ui.setShowRulers(!showRulers), 'view-rulers')}
+          {item(t('Guides'), showGuides, () => ui.setShowGuides(!showGuides), 'view-guides')}
+          {item(t('All dimensions'), showAllDims, () => ui.setShowAllDims(!showAllDims), 'view-dims')}
           <button role="menuitem" data-testid="menu-find" onClick={() => { setOpen(false); ui.setDialog({ type: 'find' }); }}>
-            Find…
+            {t('Find…')}
           </button>
           <button role="menuitem" data-testid="menu-rooms" onClick={() => { setOpen(false); ui.setDialog({ type: 'rooms' }); }}>
-            Rooms table…
+            {t('Rooms table…')}
           </button>
         </div>
       )}

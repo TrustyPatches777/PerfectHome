@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Group, Label, Rect, Tag, Text } from 'react-konva';
 import { readableOn } from '../../identity';
+import { t } from '../../i18n';
 import { useDesign } from '../../store/design';
 import { useOnFloor } from '../../store/floor';
 import { useIsMulti, useSelectedIds, useUi } from '../../store/ui';
@@ -57,7 +58,7 @@ export function StickyLayer() {
             {showCard && (
               <Label x={SIZE / 2 + 6} y={-SIZE / 2} listening={false}>
                 <Tag fill="#ffffff" stroke={n.color} strokeWidth={2} cornerRadius={4} shadowColor="#000" shadowOpacity={0.2} shadowBlur={8} shadowOffset={{ x: 2, y: 3 }} />
-                <Text text={`${n.text || '(empty note)'}\n— ${n.author || 'someone'}`} width={200} padding={8} fontSize={13} lineHeight={1.3} fill="#1f2937" />
+                <Text text={`${n.text || t('(empty note)')}\n— ${n.author || t('someone')}`} width={200} padding={8} fontSize={13} lineHeight={1.3} fill="#1f2937" />
               </Label>
             )}
           </Group>

@@ -3,10 +3,14 @@
  * what snow does to the ground and the roofs. The 3D view draws it; nothing here knows about three.js.
  */
 import type { Season, Site, Weather } from './model';
+import { localize } from './i18n';
 
 export const WEATHER_LABEL: Record<Weather, string> = { clear: 'Clear', cloudy: 'Cloudy', rain: 'Rain', snow: 'Snow', fog: 'Fog' };
+localize(WEATHER_LABEL, '*');
 export const SEASON_LABEL: Record<Season, string> = { auto: 'From the date', spring: 'Spring', summer: 'Summer', autumn: 'Autumn', winter: 'Winter' };
+localize(SEASON_LABEL, '*');
 export const HORIZON_LABEL: Record<string, string> = { none: 'None (open ground)', hills: 'Hills', mountains: 'Mountains', city: 'City skyline', forest: 'Forest edge', sea: 'Sea' };
+localize(HORIZON_LABEL, '*');
 
 /** The season that applies: the chosen one, or from the month (the other way round in the southern hemisphere). */
 export function seasonOf(site: Pick<Site, 'month' | 'lat' | 'season'>): Exclude<Season, 'auto'> {

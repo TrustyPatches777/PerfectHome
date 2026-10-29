@@ -11,6 +11,7 @@ import { readTurn } from './relay';
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate, removeAwarenessStates } from 'y-protocols/awareness';
 import { getRelaySockets as nostrSockets, joinRoom as joinNostr } from '@trystero-p2p/nostr';
 import { getRelaySockets as torrentSockets, joinRoom as joinTorrent } from '@trystero-p2p/torrent';
+import { t } from '../i18n';
 
 const APP_ID = 'perfect-home-live-1';
 const STATE_VECTOR = 0; // "this is what I have: send me the rest"
@@ -123,7 +124,7 @@ export function connect(doc: Y.Doc, awareness: Awareness, room: string, password
         channels.push({ broadcast: (m) => void action.send(m).catch(() => undefined), close: () => void r.leave() });
         leaves.push(() => r.leave());
       } catch (e) {
-        onError?.(`Could not reach one of the connection services: ${(e as Error).message}`);
+        onError?.(t('Could not reach one of the connection services: {message}', { message: (e as Error).message }));
       }
     }
   }

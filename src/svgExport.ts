@@ -16,6 +16,7 @@ import { lookOf, type Look } from './planStyle';
 import { guardAvoid, guardRuns, reachesNextFloor, railPaths, railPlanColor, stairOutline, stairPlanFill, stairShapes } from './stairs';
 import { WALL_STYLE, wallFaceLine } from './walls';
 import { isWindowKind, windowMarks } from './windows';
+import { t } from './i18n';
 
 export interface SvgOptions {
   /** Draw the title, scale bar and north arrow inside the picture (for the exported file). */
@@ -218,7 +219,7 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
       const plot = z.kind === 'plot';
       body.push(`<polygon points="${pts(z.points)}" fill="${plot ? 'none' : look.tone(z.color)}" stroke="${plot ? (look.preset === 'colour' ? '#6b7280' : look.ink2) : look.zoneEdge(z.color)}" stroke-width="1" ${plot ? 'stroke-dasharray="10 6"' : ''} ${hairline}/>`);
       const c = labelPoint(z.points);
-      body.push(L(`${z.name ? z.name + ' · ' : ''}${formatArea(polygonArea(z.points))}`, c.x, c.y, 0.2, `fill="${look.text}" opacity="0.8"`));
+      body.push(L(`${z.name ? t(z.name) + ' · ' : ''}${formatArea(polygonArea(z.points))}`, c.x, c.y, 0.2, `fill="${look.text}" opacity="0.8"`));
     }
     const order = (k: string) => (k === 'road' ? 0 : k === 'path' ? 1 : 2);
     for (const s of [...onFloor(d.strips)].sort((a, c) => order(a.kind) - order(c.kind))) {
@@ -317,7 +318,7 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
     for (const r of onFloor(d.rooms)) {
       if (polygonArea(r.points) < 2) continue;
       const c = labelPoint(r.points);
-      const lines = look.roomLabel(r.name, formatArea(polygonArea(r.points)), r.level ? `${r.level > 0 ? '+' : '−'}${Math.abs(Math.round(r.level * 100))} cm` : '');
+      const lines = look.roomLabel(t(r.name), formatArea(polygonArea(r.points)), r.level ? `${r.level > 0 ? '+' : '−'}${Math.abs(Math.round(r.level * 100))} cm` : '');
       lines.forEach((text, i) => body.push(L(text, c.x, c.y + (lines.length > 1 ? -0.05 + i * 0.27 : 0.07), (i ? 0.2 : 0.22) * look.labelScale, `font-weight="700" fill="${look.text}"`)));
     }
   }
@@ -399,14 +400,14 @@ export function buildSvg(d: Design, floor: string, opts: Partial<SvgOptions> = {
   // title, scale bar and north arrow inside the picture
   if (o.decorations) {
     const u = Math.max(W, H) / 40;
-    const floorName = d.floors.find((f) => f.id === floor)?.name ?? '';
+    const floorName = t(d.floors.find((f) => f.id === floor)?.name ?? '');
     body.push(`<text x="${n(x0 + margin * 0.6)}" y="${n(y0 + u * 1.5)}" font-size="${n(u * 1.2)}" font-weight="600" fill="${look.ink}" ${FONTL}>${esc(d.floors.length > 1 ? `${d.name} – ${floorName}` : d.name)}</text>`);
     const len = niceLength(1, Math.max(2, W * 0.15));
     const bx = x0 + margin * 0.6;
     const by = y0 + H - u * 1.2;
     body.push(`<g stroke="${look.ink}" stroke-width="${n(u * 0.12)}" fill="none"><polyline points="${n(bx)},${n(by - u * 0.6)} ${n(bx)},${n(by)} ${n(bx + len)},${n(by)} ${n(bx + len)},${n(by - u * 0.6)}"/></g><text x="${n(bx)}" y="${n(by + u * 0.95)}" font-size="${n(u * 0.9)}" ${FONTL} fill="${look.ink}">${len < 1 ? `${Math.round(len * 100)} cm` : `${len} m`}</text>`);
     const r = u * 1.6;
-    body.push(`<g transform="translate(${n(x0 + W - margin * 0.6 - r)} ${n(y0 + r + u * 0.4)}) rotate(${n(d.site.north)})"><polygon points="0,${n(-r)} ${n(r * 0.3)},${n(r * 0.5)} 0,${n(r * 0.2)} ${n(-r * 0.3)},${n(r * 0.5)}" fill="${look.ink}"/><text y="${n(-r - u * 0.3)}" text-anchor="middle" font-size="${n(u * 1.1)}" font-weight="700" ${FONTL} fill="${look.ink}">N</text></g>`);
+    body.push(`<g transform="translate(${n(x0 + W - margin * 0.6 - r)} ${n(y0 + r + u * 0.4)}) rotate(${n(d.site.north)})"><polygon points="0,${n(-r)} ${n(r * 0.3)},${n(r * 0.5)} 0,${n(r * 0.2)} ${n(-r * 0.3)},${n(r * 0.5)}" fill="${look.ink}"/><text y="${n(-r - u * 0.3)}" text-anchor="middle" font-size="${n(u * 1.1)}" font-weight="700" ${FONTL} fill="${look.ink}">${t('N')}</text></g>`);
   }
 
   const svg =
